@@ -108,8 +108,6 @@ async function handleRelayConfig(message: RelayConfigMessage): Promise<void> {
 // ============================================================================
 
 async function handleApiRequest(message: ApiRequestMessage): Promise<void> {
-    console.log('[Engine] Received API request:', message.method, message.path);
-
     if (!pool) {
         sendResponse(message.id, 503, { error: 'Relay pool not initialized' });
         return;
@@ -120,7 +118,6 @@ async function handleApiRequest(message: ApiRequestMessage): Promise<void> {
     try {
         // Route matching
         const route = matchRoute(method, path);
-        console.log('[Engine] Route matched:', route ? 'yes' : 'no');
 
         if (!route) {
             sendResponse(message.id, 404, { error: 'Not found' });

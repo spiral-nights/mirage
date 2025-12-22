@@ -8,7 +8,7 @@ This allows developers (and AI agents) to build feature-rich social and data app
 
 ## ⚡ Key Features
 
-* **The Virtual API:** A standardized REST surface (`/api/v1/feed`, `/api/v1/storage`) that automatically translates HTTP requests into Nostr events.
+* **The Virtual API:** A standardized REST surface (`/mirage/v1/feed`, `/mirage/v1/storage`) that automatically translates HTTP requests into Nostr events.
 * **True Serverless:** Apps are stored as Nostr events (Kind 30xxx) and run locally. No AWS, no Vercel, no backend maintenance.
 * **AI-Native Design:** The API is designed to be "self-documenting" for LLMs. You can prompt an AI: *"Make a grocery list app using the Mirage API"* and it will work instantly.
 * **Zero-Knowledge Security:** Apps run in a sandboxed `iframe` with a `null` origin. They **never** touch the user's private keys.
@@ -54,23 +54,44 @@ Apps built on Mirage interact with these virtual endpoints:
 
 | Endpoint | Method | Description |
 | --- | --- | --- |
-| `/api/v1/user/me` | `GET` | Get current user profile (Kind 0) |
-| `/api/v1/feed` | `GET/POST` | Read or post to the public timeline (Kind 1) |
+| `/mirage/v1/user/me` | `GET` | Get current user profile (Kind 0) |
+| `/mirage/v1/users/:pubkey` | `GET` | Get user by public key |
+| `/mirage/v1/feed` | `GET/POST` | Read or post to the public timeline (Kind 1) |
 
-### Storage & State
+### Storage & State (NIP-78)
 
 | Endpoint | Method | Description |
 | --- | --- | --- |
-| `/api/v1/storage/:key` | `GET/PUT` | Key-value store for app settings (NIP-78) |
-| `/api/v1/lists/:name` | `GET/PUT` | Curated lists/bookmarks (NIP-51) |
+| `/mirage/v1/storage/:key` | `GET` | Retrieve stored value |
+| `/mirage/v1/storage/:key` | `PUT` | Store or update value |
+| `/mirage/v1/storage/:key` | `DELETE` | Delete stored value |
 
 ### Private & Groups (Encrypted)
 
 | Endpoint | Method | Description |
 | --- | --- | --- |
-| `/api/v1/groups` | `GET` | List private groups (NIP-29) |
-| `/api/v1/groups/:id/storage` | `PUT` | Shared group state (Grocery lists, Kanban) |
-| `/api/v1/dm/:pubkey` | `POST` | Private encrypted messaging (NIP-17) |
+| `/mirage/v1/groups` | `GET` | List private groups (NIP-29) |
+| `/mirage/v1/groups/:id/storage` | `PUT` | Shared group state (Grocery lists, Kanban) |
+| `/mirage/v1/dm/:pubkey` | `POST` | Private encrypted messaging (NIP-17) |
+
+### Storage API Example
+
+```javascript
+// Save user preferences
+await fetch('/mirage/v1/storage/preferences', {
+  method: 'PUT',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ theme: 'dark', fontSize: 16 })
+});
+
+// Load preferences
+const response = await fetch('/mirage/v1/storage/preferences');
+const { value } = await response.json();
+console.log(value.theme); // 'dark'
+
+// Delete preferences
+await fetch('/mirage/v1/storage/preferences', { method: 'DELETE' });
+```
 
 ## 🛡️ Security Model
 
@@ -79,7 +100,8 @@ Mirage implements a strict **"Air Gap"** between the app logic and user secrets.
 1. **Iframe Sandbox:** Apps are loaded via `srcdoc` with `sandbox="allow-scripts"`. They cannot access cookies, local storage, or the parent DOM.
 2. **Permission Manifest:** Apps must declare intent via meta tags:
 ```html
-<meta name="mirage-permissions" content="public_read, storage_write">
+<meta name="mirage-permissions" content="public_read, storage_read, storage_write">
+```
 
 ```
 
@@ -128,8 +150,8 @@ host.mount(appEvent, document.getElementById('app-container'));
 
 ## 🗺️ Roadmap
 
-* [ ] **Phase 1: Core Engine** (Fetch Proxy, Web Worker, NIP-01/07)
-* [ ] **Phase 2: Persistence Layer** (NIP-78 Storage, NIP-51 Lists)
+* [x] **Phase 1: Core Engine** ✅ (Fetch Proxy, Web Worker, NIP-01/07)
+* [x] **Phase 2: Persistence Layer** ✅ (NIP-78 Storage with full test coverage)
 * [ ] **Phase 3: Privacy Layer** (NIP-17 Encryption, NIP-29 Groups)
 * [ ] **Phase 4: The AI Prompt** (Standardized system prompt for app generation)
 
