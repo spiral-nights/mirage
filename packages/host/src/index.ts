@@ -165,9 +165,39 @@ export class MirageHost {
     }
 
     private injectBridge(html: string): string {
-        // Simple bridge injection using inline script
-        // The bridge script is loaded via dynamic import (CORS-enabled)
-        // The bridge will then fetch the engine and create a Blob URL for the Worker
+        // Two-phase bridge injection:
+        // 1. Immediate synchronous stub that patches fetch and queues /mirage/ requests
+        // 2. Async module that loads the actual bridge and processes queued requests
+
+        const fetchStubScript = `
+      <script>
+        // Immediately patch fetch to queue /mirage/ requests
+        (function() {
+          const originalFetch = window.fetch.bind(window);
+          const pendingQueue = [];
+          let bridgeReady = false;
+          let resolveReady;
+          const bridgeReadyPromise = new Promise(r => resolveReady = r);
+          
+          window.fetch = function(input, init) {
+            const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+            if (!url.startsWith('/mirage/')) {
+              return originalFetch(input, init);
+            }
+            // Queue mirage requests until bridge is ready
+            return bridgeReadyPromise.then(() => window.fetch(input, init));
+          };
+          
+          // Expose ready signal for bridge to call
+          window.__mirageBridgeReady = function(newFetch) {
+            window.fetch = newFetch;
+            bridgeReady = true;
+            resolveReady();
+          };
+        })();
+      </script>
+    `;
+
         const bridgeScript = `
       <script type="module">
         console.log('[Bridge Loader] Fetching bridge...');
@@ -188,18 +218,18 @@ export class MirageHost {
       </script>
     `;
 
-        // Try to inject in <head>
+        // Try to inject in <head> - stub must come first!
         if (html.includes('</head>')) {
-            return html.replace('</head>', bridgeScript + '</head>');
+            return html.replace('</head>', fetchStubScript + bridgeScript + '</head>');
         }
 
         // Otherwise inject at start of <body>
         if (html.includes('<body>')) {
-            return html.replace('<body>', '<body>' + bridgeScript);
+            return html.replace('<body>', '<body>' + fetchStubScript + bridgeScript);
         }
 
         // Fallback: prepend to HTML
-        return bridgeScript + html;
+        return fetchStubScript + bridgeScript + html;
     }
 
     // ==========================================================================

@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="mirage-permissions" content="public_read, public_write">
+    <meta name="mirage-permissions" content="public_read, public_write, storage_read, storage_write">
     <title>Sample Mirage App</title>
     <style>
         * {
@@ -164,7 +164,7 @@
         async function loadProfile() {
             const container = document.getElementById('profile-container');
             try {
-                const response = await fetch('/api/v1/user/me');
+                const response = await fetch('/mirage/v1/user/me');
                 if (response.status === 401) {
                     container.innerHTML = `
             <div class="profile">
@@ -196,7 +196,7 @@
         async function loadFeed() {
             const container = document.getElementById('feed-container');
             try {
-                const response = await fetch('/api/v1/feed?limit=5');
+                const response = await fetch('/mirage/v1/feed?limit=5');
                 const notes = await response.json();
 
                 if (notes.length === 0) {
@@ -221,11 +221,9 @@
             return div.innerHTML;
         }
 
-        // Load data after bridge is initialized
-        setTimeout(() => {
-            loadProfile();
-            loadFeed();
-        }, 500);
+        // Load data on startup - the API handles initialization internally
+        loadProfile();
+        loadFeed();
     </script>
 </body>
 

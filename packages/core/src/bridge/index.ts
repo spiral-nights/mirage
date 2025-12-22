@@ -20,6 +20,10 @@ interface PendingRequest {
 // ============================================================================
 
 let worker: Worker | null = null;
+let workerReadyResolve: () => void;
+const workerReady = new Promise<void>((resolve) => {
+    workerReadyResolve = resolve;
+});
 const pendingRequests = new Map<string, PendingRequest>();
 const originalFetch = window.fetch.bind(window);
 
@@ -72,7 +76,7 @@ function handleParentMessage(event: MessageEvent<MirageMessage>): void {
 // Fetch Interceptor
 // ============================================================================
 
-function interceptedFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+async function interceptedFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
 
     // Only intercept /mirage/ routes
@@ -80,9 +84,8 @@ function interceptedFetch(input: RequestInfo | URL, init?: RequestInit): Promise
         return originalFetch(input, init);
     }
 
-    if (!worker) {
-        return Promise.reject(new Error('Mirage Bridge not initialized'));
-    }
+    // Wait for bridge to be initialized (queue requests until ready)
+    await workerReady;
 
     return new Promise((resolve, reject) => {
         const id = crypto.randomUUID();
@@ -158,8 +161,17 @@ export async function initBridge(options: BridgeOptions): Promise<void> {
     // Listen for messages from parent window
     window.addEventListener('message', handleParentMessage);
 
-    // Monkey-patch fetch (use type assertion for Bun compatibility)
-    (window as { fetch: typeof interceptedFetch }).fetch = interceptedFetch;
+    // Signal that bridge is ready to handle requests
+    workerReadyResolve();
+
+    // Register the real fetch interceptor with the stub (if present)
+    // The stub was injected synchronously and is now queuing /mirage/ requests
+    if (typeof (window as any).__mirageBridgeReady === 'function') {
+        (window as any).__mirageBridgeReady(interceptedFetch);
+    } else {
+        // Fallback: directly patch fetch if no stub present
+        (window as { fetch: typeof interceptedFetch }).fetch = interceptedFetch;
+    }
 
     console.log('[Bridge] Initialized');
 

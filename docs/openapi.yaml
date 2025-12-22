@@ -16,6 +16,8 @@ servers:
     description: Virtual API (intercepted by Bridge)
 
 tags:
+  - name: System
+    description: API initialization and health check endpoints
   - name: Feed
     description: Public notes (Kind 1 events)
   - name: Users
@@ -27,6 +29,43 @@ tags:
       Keys are scoped per app to prevent collisions.
 
 paths:
+  /ready:
+    get:
+      tags: [System]
+      summary: Check if API is ready
+      description: |
+        Returns status information about the Mirage engine initialization.
+        Apps should poll this endpoint before making other API calls.
+        
+        **Usage:**
+        ```javascript
+        async function waitForReady() {
+          while (true) {
+            const res = await fetch('/mirage/v1/ready');
+            if (res.ok) return await res.json();
+            await new Promise(r => setTimeout(r, 200));
+          }
+        }
+        ```
+      operationId: getReady
+      responses:
+        '200':
+          description: Engine is ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ready:
+                    type: boolean
+                    description: Always true when endpoint responds
+                  authenticated:
+                    type: boolean
+                    description: Whether a NIP-07 signer provided user identity
+                  relayCount:
+                    type: integer
+                    description: Number of connected relays
+
   /feed:
     get:
       tags: [Feed]

@@ -326,8 +326,8 @@
           window.loadFromStorage = loadFromStorage;
           window.deleteFromStorage = deleteFromStorage;
           
-          // Wait briefly for bridge initialization
-          setTimeout(loadNotes, 1500);
+          // Load data on startup - the API handles initialization internally
+          loadNotes();
         <\/script>
       </body>
       </html>

@@ -42,6 +42,10 @@ function generateUUID(): string {
 // ============================================================================
 
 let pool: RelayPool | null = null;
+let poolReadyResolve: () => void;
+const poolReady = new Promise<void>((resolve) => {
+    poolReadyResolve = resolve;
+});
 let currentPubkey: string | null = null;
 let appOrigin: string = 'mirage-app'; // Default app origin
 const pendingSignatures = new Map<
@@ -101,6 +105,9 @@ async function handleRelayConfig(message: RelayConfigMessage): Promise<void> {
             }
             break;
     }
+
+    // Signal that pool is ready for API requests
+    poolReadyResolve();
 }
 
 // ============================================================================
@@ -108,6 +115,9 @@ async function handleRelayConfig(message: RelayConfigMessage): Promise<void> {
 // ============================================================================
 
 async function handleApiRequest(message: ApiRequestMessage): Promise<void> {
+    // Wait for relay pool to be initialized
+    await poolReady;
+
     if (!pool) {
         sendResponse(message.id, 503, { error: 'Relay pool not initialized' });
         return;
@@ -158,6 +168,21 @@ function matchRoute(method: string, fullPath: string): RouteMatch | null {
         pool: pool!,
         currentPubkey,
     };
+
+    // GET /mirage/v1/ready - Check if engine is initialized
+    if (method === 'GET' && path === '/mirage/v1/ready') {
+        return {
+            handler: async () => ({
+                status: 200,
+                body: {
+                    ready: true,
+                    authenticated: !!currentPubkey,
+                    relayCount: pool?.getRelays().length ?? 0,
+                },
+            }),
+            params: {},
+        };
+    }
 
     // GET /mirage/v1/feed
     if (method === 'GET' && path === '/mirage/v1/feed') {
