@@ -1,0 +1,160 @@
+/**
+ * Mirage Core - Shared Type Definitions
+ *
+ * Types for messages between Bridge, Engine, and Host.
+ */
+
+// ============================================================================
+// Message Types (Bridge <-> Engine <-> Host)
+// ============================================================================
+
+export type MessageType =
+    | 'API_REQUEST'
+    | 'API_RESPONSE'
+    | 'ACTION_SIGN_EVENT'
+    | 'SIGNATURE_RESULT'
+    | 'RELAY_CONFIG'
+    | 'ERROR';
+
+export interface BaseMessage {
+    type: MessageType;
+    id: string;
+}
+
+/** API request from Bridge to Engine */
+export interface ApiRequestMessage extends BaseMessage {
+    type: 'API_REQUEST';
+    method: 'GET' | 'POST' | 'PUT' | 'DELETE';
+    path: string;
+    body?: unknown;
+    headers?: Record<string, string>;
+}
+
+/** API response from Engine to Bridge */
+export interface ApiResponseMessage extends BaseMessage {
+    type: 'API_RESPONSE';
+    status: number;
+    body: unknown;
+    headers?: Record<string, string>;
+}
+
+/** Engine requests Host to sign an event */
+export interface SignEventMessage extends BaseMessage {
+    type: 'ACTION_SIGN_EVENT';
+    event: UnsignedNostrEvent;
+}
+
+/** Host returns signature to Engine */
+export interface SignatureResultMessage extends BaseMessage {
+    type: 'SIGNATURE_RESULT';
+    signature?: string;
+    pubkey?: string;
+    error?: string;
+}
+
+/** Relay configuration message */
+export interface RelayConfigMessage extends BaseMessage {
+    type: 'RELAY_CONFIG';
+    action: 'SET' | 'ADD' | 'REMOVE';
+    relays: string[];
+}
+
+/** Error message */
+export interface ErrorMessage extends BaseMessage {
+    type: 'ERROR';
+    error: string;
+    code?: string;
+}
+
+export type MirageMessage =
+    | ApiRequestMessage
+    | ApiResponseMessage
+    | SignEventMessage
+    | SignatureResultMessage
+    | RelayConfigMessage
+    | ErrorMessage;
+
+// ============================================================================
+// Nostr Event Types
+// ============================================================================
+
+export interface UnsignedNostrEvent {
+    kind: number;
+    content: string;
+    tags: string[][];
+    created_at: number;
+    pubkey?: string;
+}
+
+export interface NostrEvent extends UnsignedNostrEvent {
+    id: string;
+    pubkey: string;
+    sig: string;
+}
+
+// ============================================================================
+// API Types
+// ============================================================================
+
+export interface UserProfile {
+    pubkey: string;
+    name?: string;
+    displayName?: string;
+    about?: string;
+    picture?: string;
+    nip05?: string;
+    lud16?: string;
+}
+
+export interface FeedNote {
+    id: string;
+    pubkey: string;
+    content: string;
+    createdAt: number;
+    tags: string[][];
+}
+
+// ============================================================================
+// Configuration Types
+// ============================================================================
+
+export interface MirageConfig {
+    relays: string[];
+}
+
+// ============================================================================
+// Permissions
+// ============================================================================
+
+export type Permission =
+    | 'public_read'
+    | 'public_write'
+    | 'storage_read'
+    | 'storage_write'
+    | 'group_read'
+    | 'group_write'
+    | 'dm_read'
+    | 'dm_write';
+
+export interface AppPermissions {
+    permissions: Permission[];
+}
+
+// ============================================================================
+// NIP-07 Signer Interface
+// ============================================================================
+
+export interface Nip07Signer {
+    getPublicKey(): Promise<string>;
+    signEvent(event: UnsignedNostrEvent): Promise<NostrEvent>;
+    nip04?: {
+        encrypt(pubkey: string, plaintext: string): Promise<string>;
+        decrypt(pubkey: string, ciphertext: string): Promise<string>;
+    };
+}
+
+declare global {
+    interface Window {
+        nostr?: Nip07Signer;
+    }
+}

@@ -1,0 +1,31 @@
+{
+    "name": "@mirage/core",
+    "version": "0.1.0",
+    "type": "module",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        },
+        "./engine": {
+            "types": "./dist/engine/index.d.ts",
+            "import": "./dist/engine/index.js"
+        },
+        "./bridge": {
+            "types": "./dist/bridge/index.d.ts",
+            "import": "./dist/bridge/index.js"
+        }
+    },
+    "scripts": {
+        "build": "bun build ./src/index.ts --outfile ./dist/index.js --target browser && bun build ./src/engine/index.ts --outfile ./dist/engine.js --target browser --format iife && bun build ./src/bridge/index.ts --outfile ./dist/bridge.js --target browser",
+        "typecheck": "tsc --noEmit"
+    },
+    "dependencies": {
+        "nostr-tools": "^2.19.3"
+    },
+    "devDependencies": {
+        "typescript": "^5.3.0"
+    }
+}

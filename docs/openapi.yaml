@@ -1,0 +1,259 @@
+openapi: 3.0.3
+info:
+  title: Mirage Virtual API
+  description: |
+    The Mirage Virtual API provides a REST-like interface for Nostr interactions.
+    These endpoints are intercepted by the Mirage Bridge and processed by the
+    Web Worker engine - no actual HTTP requests leave the browser.
+  version: 1.0.0
+  contact:
+    name: Mirage
+  license:
+    name: MIT
+
+servers:
+  - url: /mirage/v1
+    description: Virtual API (intercepted by Bridge)
+
+tags:
+  - name: Feed
+    description: Public notes (Kind 1 events)
+  - name: Users
+    description: User profiles (Kind 0 events)
+
+paths:
+  /feed:
+    get:
+      tags: [Feed]
+      summary: Get recent notes
+      description: Fetches recent Kind 1 notes from connected Nostr relays
+      operationId: getFeed
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of notes to return
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: List of notes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NostrEvent'
+        '503':
+          description: Relay pool not initialized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      tags: [Feed]
+      summary: Publish a note
+      description: |
+        Creates and publishes a Kind 1 note. Requires NIP-07 signer.
+        The event will be signed via the host's signer integration.
+      operationId: postFeed
+      security:
+        - nip07: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content:
+                  type: string
+                  description: Note content
+                  example: "Hello Nostr!"
+                tags:
+                  type: array
+                  description: Optional event tags
+                  items:
+                    type: array
+                    items:
+                      type: string
+                  example: [["t", "nostr"], ["p", "pubkey..."]]
+      responses:
+        '201':
+          description: Note published successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NostrEvent'
+        '400':
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Relay pool not initialized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /user/me:
+    get:
+      tags: [Users]
+      summary: Get current user profile
+      description: |
+        Fetches the Kind 0 profile for the currently signed-in user.
+        Requires NIP-07 signer to be available.
+      operationId: getCurrentUser
+      security:
+        - nip07: []
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '401':
+          description: No signer available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Profile not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Relay pool not initialized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /users/{pubkey}:
+    get:
+      tags: [Users]
+      summary: Get user by public key
+      description: Fetches the Kind 0 profile for a specific user
+      operationId: getUserByPubkey
+      parameters:
+        - name: pubkey
+          in: path
+          required: true
+          description: User's public key (64-character hex)
+          schema:
+            type: string
+            pattern: '^[a-f0-9]{64}$'
+            example: "82341f882b6eabcd2ba7f1ef90aad961cf074af15b9ef44a09f9d2a8fbfbe6a2"
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '404':
+          description: Profile not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Relay pool not initialized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  securitySchemes:
+    nip07:
+      type: apiKey
+      in: header
+      name: X-NIP-07
+      description: |
+        NIP-07 browser extension signing. The Mirage Host automatically
+        handles signing requests - apps don't need to manage this directly.
+
+  schemas:
+    NostrEvent:
+      type: object
+      required: [id, pubkey, created_at, kind, tags, content, sig]
+      properties:
+        id:
+          type: string
+          description: Event ID (32-byte hex)
+          example: "4376c65d2f232afbe9b882a35baa4f6fe8667c4e684749af565f981833ed6a65"
+        pubkey:
+          type: string
+          description: Author's public key (32-byte hex)
+          example: "82341f882b6eabcd2ba7f1ef90aad961cf074af15b9ef44a09f9d2a8fbfbe6a2"
+        created_at:
+          type: integer
+          description: Unix timestamp
+          example: 1703203200
+        kind:
+          type: integer
+          description: Event kind (1 = note, 0 = profile)
+          example: 1
+        tags:
+          type: array
+          items:
+            type: array
+            items:
+              type: string
+          example: [["p", "pubkey..."], ["e", "event-id..."]]
+        content:
+          type: string
+          description: Event content
+          example: "Hello Nostr!"
+        sig:
+          type: string
+          description: Schnorr signature (64-byte hex)
+          example: "908a15e46fb4d8675bab026fc230a0e3542bfade63da02d542fb78b2a8513fcd..."
+
+    UserProfile:
+      type: object
+      properties:
+        pubkey:
+          type: string
+          description: User's public key
+        name:
+          type: string
+          description: Display name
+          example: "satoshi"
+        about:
+          type: string
+          description: Bio/description
+          example: "Creator of Bitcoin"
+        picture:
+          type: string
+          format: uri
+          description: Profile picture URL
+          example: "https://example.com/avatar.jpg"
+        nip05:
+          type: string
+          description: NIP-05 identifier
+          example: "satoshi@bitcoin.org"
+        lud16:
+          type: string
+          description: Lightning address
+          example: "satoshi@getalby.com"
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "Relay pool not initialized"

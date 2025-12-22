@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mirage Demo Host</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: #f0f0f0;
+      min-height: 100vh;
+      padding: 2rem;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      background: linear-gradient(135deg, #e94560, #f39c12);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 0.5rem;
+    }
+
+    .subtitle {
+      color: #888;
+      font-size: 1.1rem;
+    }
+
+    .controls {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 2rem;
+      flex-wrap: wrap;
+    }
+
+    button {
+      padding: 0.75rem 1.5rem;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #e94560, #f39c12);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(233, 69, 96, 0.4);
+    }
+
+    .btn-secondary {
+      background: #2a2a4a;
+      color: #f0f0f0;
+    }
+
+    .btn-secondary:hover {
+      background: #3a3a5a;
+    }
+
+    .relay-list {
+      background: #2a2a4a;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .relay-list h3 {
+      margin-bottom: 0.5rem;
+      color: #e94560;
+    }
+
+    .relay-list ul {
+      list-style: none;
+    }
+
+    .relay-list li {
+      padding: 0.5rem 0;
+      border-bottom: 1px solid #3a3a5a;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .relay-list li:last-child {
+      border-bottom: none;
+    }
+
+    .app-container {
+      background: white;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+      min-height: 400px;
+    }
+
+    #app-mount {
+      width: 100%;
+      height: 400px;
+    }
+
+    .status {
+      margin-top: 1rem;
+      padding: 1rem;
+      background: #2a2a4a;
+      border-radius: 8px;
+    }
+
+    .status.connected {
+      border-left: 4px solid #4ade80;
+    }
+
+    .status.disconnected {
+      border-left: 4px solid #f87171;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <header>
+      <h1>🏜️ Mirage</h1>
+      <p class="subtitle">The Nostr App Engine - Demo Host</p>
+    </header>
+
+    <div class="controls">
+      <button class="btn-primary" id="load-app">Load Sample App</button>
+      <button class="btn-secondary" id="add-relay">Add Relay</button>
+    </div>
+
+    <div class="relay-list">
+      <h3>Connected Relays</h3>
+      <ul id="relay-list">
+        <li>wss://relay.damus.io</li>
+        <li>wss://nos.lol</li>
+      </ul>
+    </div>
+
+    <div class="app-container">
+      <div id="app-mount"></div>
+    </div>
+
+    <div class="status disconnected" id="status">
+      <strong>Status:</strong> <span id="status-text">Not connected</span>
+    </div>
+  </div>
+
+  <script type="module">
+    // Import MirageHost from the built package
+    // Note: In dev-server.ts, we serve local files, but assuming correct paths
+    import { MirageHost } from '../packages/host/dist/index.js';
+
+    // Initialize Host
+    const host = new MirageHost({
+      relays: ['wss://relay.damus.io', 'wss://nos.lol'],
+      engineUrl: '/packages/core/dist/engine.js',
+      bridgeUrl: '/packages/core/dist/bridge.js'
+    });
+
+    const sampleAppHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta name="mirage-permissions" content="public_read">
+        <style>
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            padding: 2rem;
+            background: #f8f9fa;
+          }
+          h1 { color: #333; }
+          .note {
+            background: white;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 0.5rem 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          }
+          .loading { color: #888; }
+        </style>
+      </head>
+      <body>
+        <h1>📝 Sample Nostr App</h1>
+        <p class="loading">Fetching notes from the Nostr network...</p>
+        <div id="notes"></div>
+        <script>
+          async function loadNotes() {
+            try {
+              console.log('[App] Fetching feed...');
+              const response = await fetch('/mirage/v1/feed?limit=5');
+              console.log('[App] Response status:', response.status);
+              const data = await response.json();
+              console.log('[App] Response data:', data);
+              
+              if (!response.ok) {
+                throw new Error(data.error || 'Failed to fetch feed');
+              }
+              
+              if (!Array.isArray(data)) {
+                throw new Error('Expected array, got: ' + JSON.stringify(data));
+              }
+              
+              const container = document.getElementById('notes');
+              if (data.length === 0) {
+                container.innerHTML = '<p>No notes found. Relays may be connecting...</p>';
+              } else {
+                container.innerHTML = data.map(note => 
+                  '<div class="note"><strong>' + note.pubkey.slice(0,8) + '...</strong><p>' + note.content + '</p></div>'
+                ).join('');
+              }
+              document.querySelector('.loading').style.display = 'none';
+            } catch (error) {
+              document.querySelector('.loading').textContent = 'Error: ' + error.message;
+              console.error('[App] Error:', error);
+            }
+          }
+          
+          // Wait briefly for bridge initialization
+          setTimeout(loadNotes, 1500);
+        <\/script>
+      </body>
+      </html>
+    `;
+
+    document.getElementById('load-app').addEventListener('click', async () => {
+      document.getElementById('status-text').textContent = 'Loading app...';
+
+      const appMount = document.getElementById('app-mount');
+
+      try {
+        await host.mount(sampleAppHtml, appMount);
+        document.getElementById('status').className = 'status connected';
+        document.getElementById('status-text').textContent = 'App loaded & Bridge connected';
+      } catch (error) {
+        console.error('Failed to mount:', error);
+        document.getElementById('status').className = 'status disconnected';
+        document.getElementById('status-text').textContent = 'Error: ' + error.message;
+      }
+    });
+
+    document.getElementById('add-relay').addEventListener('click', () => {
+      const url = prompt('Enter relay URL:', 'wss://');
+      if (url && url.startsWith('wss://')) {
+        host.addRelay(url);
+
+        const li = document.createElement('li');
+        li.textContent = url;
+        document.getElementById('relay-list').appendChild(li);
+      }
+    });
+  </script>
+</body>
+
+</html>

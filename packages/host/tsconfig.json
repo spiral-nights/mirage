@@ -1,0 +1,17 @@
+{
+    "extends": "../../tsconfig.json",
+    "compilerOptions": {
+        "paths": {
+            "@mirage/core": [
+                "../core/src/index.ts"
+            ],
+            "@mirage/core/*": [
+                "../core/src/*"
+            ]
+        }
+    },
+    "include": [
+        "src/**/*",
+        "dev-server.ts"
+    ]
+}
