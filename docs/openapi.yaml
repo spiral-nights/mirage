@@ -1,10 +1,11 @@
 openapi: 3.0.3
 info:
-  title: Mirage Virtual API
+  title: Mirage API
   description: |
-    The Mirage Virtual API provides a REST-like interface for Nostr interactions.
-    These endpoints are intercepted by the Mirage Bridge and processed by the
-    Web Worker engine - no actual HTTP requests leave the browser.
+    Build social apps with just `fetch()`. Mirage handles authentication,
+    encryption, and syncing across devices automatically.
+    
+    **No backend required** - data syncs via decentralized relays.
   version: 1.0.0
   contact:
     name: Mirage
@@ -13,20 +14,28 @@ info:
 
 servers:
   - url: /mirage/v1
-    description: Virtual API (intercepted by Bridge)
+    description: API base URL
 
 tags:
   - name: System
-    description: API initialization and health check endpoints
+    description: Check if the API is ready to use
   - name: Feed
-    description: Public notes (Kind 1 events)
+    description: Read and post public messages (like tweets)
   - name: Users
-    description: User profiles (Kind 0 events)
+    description: Get user profiles and display names
   - name: Storage
     description: |
-      Persistent key-value storage using NIP-78 (Kind 30078 events).
-      Data is signed by the user and stored on Nostr relays.
-      Keys are scoped per app to prevent collisions.
+      Save and load app data (settings, drafts, preferences).
+      Data syncs across all your devices automatically.
+  - name: Channels
+    description: |
+      Private group chats. Messages are encrypted so only members can read them.
+      Invite family or friends, and the app handles all the security.
+  - name: DirectMessages
+    description: |
+      Private one-on-one messages. Fully encrypted - only you and the
+      recipient can read them.
+
 
 paths:
   /ready:
@@ -34,8 +43,8 @@ paths:
       tags: [System]
       summary: Check if API is ready
       description: |
-        Returns status information about the Mirage engine initialization.
-        Apps should poll this endpoint before making other API calls.
+        Returns status information. Apps should poll this endpoint 
+        before making other API calls to ensure the system is online.
         
         **Usage:**
         ```javascript
@@ -50,7 +59,7 @@ paths:
       operationId: getReady
       responses:
         '200':
-          description: Engine is ready
+          description: System is ready
           content:
             application/json:
               schema:
@@ -61,16 +70,16 @@ paths:
                     description: Always true when endpoint responds
                   authenticated:
                     type: boolean
-                    description: Whether a NIP-07 signer provided user identity
+                    description: Whether the user has signed in
                   relayCount:
                     type: integer
-                    description: Number of connected relays
+                    description: Number of active network connections
 
   /feed:
     get:
       tags: [Feed]
-      summary: Get recent notes
-      description: Fetches recent Kind 1 notes from connected Nostr relays
+      summary: Get recent posts
+      description: Returns a list of the latest public posts from your network.
       operationId: getFeed
       parameters:
         - name: limit
@@ -90,7 +99,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/NostrEvent'
+                  $ref: '#/components/schemas/Event'
         '503':
           description: Relay pool not initialized
           content:
@@ -100,10 +109,10 @@ paths:
 
     post:
       tags: [Feed]
-      summary: Publish a note
+      summary: Create a post
       description: |
-        Creates and publishes a Kind 1 note. Requires NIP-07 signer.
-        The event will be signed via the host's signer integration.
+        Publish a new public message to your followers.
+        The system handles signing and distribution automatically.
       operationId: postFeed
       security:
         - nip07: []
@@ -133,7 +142,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/NostrEvent'
+                $ref: '#/components/schemas/Event'
         '400':
           description: Invalid request body
           content:
@@ -150,10 +159,9 @@ paths:
   /user/me:
     get:
       tags: [Users]
-      summary: Get current user profile
+      summary: Get my profile
       description: |
-        Fetches the Kind 0 profile for the currently signed-in user.
-        Requires NIP-07 signer to be available.
+        Get profile details for the currently signed-in user.
       operationId: getCurrentUser
       security:
         - nip07: []
@@ -163,7 +171,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserProfile'
+                $ref: '#/components/schemas/MetadataContent'
         '401':
           description: No signer available
           content:
@@ -186,8 +194,8 @@ paths:
   /users/{pubkey}:
     get:
       tags: [Users]
-      summary: Get user by public key
-      description: Fetches the Kind 0 profile for a specific user
+      summary: Get user profile
+      description: Get profile details for any user by their ID (public key).
       operationId: getUserByPubkey
       parameters:
         - name: pubkey
@@ -204,7 +212,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserProfile'
+                $ref: '#/components/schemas/MetadataContent'
         '404':
           description: Profile not found
           content:
@@ -223,8 +231,8 @@ paths:
       tags: [Storage]
       summary: Get stored value
       description: |
-        Retrieves a previously stored value by key. Data is fetched from
-        Nostr relays as Kind 30078 events.
+        Retrieves a previously stored value by key. Data is automatically
+        synced across all devices.
         
         **Common Use Cases:**
         - App settings and preferences
@@ -233,7 +241,7 @@ paths:
         
         **Security Notes:**
         - Requires `storage_read` permission
-        - Data is public on relays (encrypt sensitive data client-side)
+        - Data is stored on a public network (encrypt sensitive data client-side)
         - Scoped per user (only your data is accessible)
       operationId: getStorage
       security:
@@ -276,8 +284,8 @@ paths:
       tags: [Storage]
       summary: Store a value
       description: |
-        Stores or updates a value by key. Creates a signed Kind 30078 event
-        that is published to connected relays.
+        Stores or updates a value by key. Changes are signed by you and
+        propagated to the network.
         
         **Common Use Cases:**
         - Save app settings: `{"theme": "dark", "fontSize": 16}`
@@ -286,7 +294,7 @@ paths:
         
         **Security Notes:**
         - Requires `storage_write` permission
-        - User signs the event (cannot be forged)
+        - You sign the data (it cannot be forged)
         - Replaces previous value with same key
       operationId: putStorage
       security:
@@ -330,9 +338,9 @@ paths:
       tags: [Storage]
       summary: Delete a stored value
       description: |
-        Deletes a stored value by publishing an empty replacement event.
-        Note: On Nostr, data cannot be truly deleted from all relays,
-        but this marks the key as deleted for Mirage clients.
+        Deletes a stored value.
+        Note: Data is removed from your view, but due to the decentralized
+        nature of the network, some replicas might persist briefly.
       operationId: deleteStorage
       security:
         - nip07: []
@@ -371,89 +379,453 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  # ===========================================================================
+  # Channels (Phase 3)
+  # ===========================================================================
+
+  /channels:
+    get:
+      tags: [Channels]
+      summary: List my group chats
+      description: Returns all private group chats you're a member of.
+      operationId: listChannels
+      security:
+        - nip07: []
+      responses:
+        '200':
+          description: Your group chats
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Channel'
+
+    post:
+      tags: [Channels]
+      summary: Create a group chat
+      description: |
+        Start a new private group chat. You'll be the first member.
+        Invite others using the invite endpoint.
+      operationId: createChannel
+      security:
+        - nip07: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  description: Name for the group (e.g., "Family", "Book Club")
+                  example: "Family Chat"
+      responses:
+        '201':
+          description: Group created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Channel'
+
+  /channels/{channelId}:
+    get:
+      tags: [Channels]
+      summary: Get channel details
+      operationId: getChannel
+      security:
+        - nip07: []
+      parameters:
+        - name: channelId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Channel details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Channel'
+
+  /channels/{channelId}/messages:
+    get:
+      tags: [Channels]
+      summary: Get messages
+      description: |
+        Fetch messages from the group chat. To check for new messages,
+        call this periodically with `since` set to the last time you checked.
+        
+        **Example:** Poll every 5 seconds for new messages.
+      operationId: getChannelMessages
+      security:
+        - nip07: []
+      parameters:
+        - name: channelId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: since
+          in: query
+          description: Only return messages newer than this time (seconds since 1970)
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: List of messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChannelMessage'
+
+    post:
+      tags: [Channels]
+      summary: Send a message
+      operationId: sendChannelMessage
+      security:
+        - nip07: []
+      parameters:
+        - name: channelId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content:
+                  type: string
+      responses:
+        '201':
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelMessage'
+
+  /channels/{channelId}/members:
+    get:
+      tags: [Channels]
+      summary: List channel members
+      operationId: getChannelMembers
+      security:
+        - nip07: []
+      parameters:
+        - name: channelId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChannelMember'
+
+  /channels/{channelId}/invite:
+    post:
+      tags: [Channels]
+      summary: Invite someone to the group
+      description: |
+        Add a person to your private group chat. They'll receive an
+        invitation and be able to see all future messages.
+      operationId: inviteToChannel
+      security:
+        - nip07: []
+      parameters:
+        - name: channelId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pubkey]
+              properties:
+                pubkey:
+                  type: string
+                  description: The user's ID (their public key)
+      responses:
+        '200':
+          description: Invitation sent
+
+  /channels/{channelId}/remove:
+    post:
+      tags: [Channels]
+      summary: Remove someone from the group
+      description: |
+        Kick a person out of the group chat. They won't be able to
+        read any new messages after this.
+      operationId: removeFromChannel
+      security:
+        - nip07: []
+      parameters:
+        - name: channelId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pubkey]
+              properties:
+                pubkey:
+                  type: string
+      responses:
+        '200':
+          description: User removed, key rotated
+
+  /channels/{channelId}/leave:
+    post:
+      tags: [Channels]
+      summary: Leave the group
+      description: Remove yourself from the group chat.
+      operationId: leaveChannel
+      security:
+        - nip07: []
+      parameters:
+        - name: channelId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Left channel
+
+  # ===========================================================================
+  # Direct Messages (Phase 4)
+  # ===========================================================================
+
+  /dm:
+    get:
+      tags: [DirectMessages]
+      summary: List your conversations
+      description: See everyone you've messaged privately.
+      operationId: listConversations
+      security:
+        - nip07: []
+      responses:
+        '200':
+          description: Your private conversations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Conversation'
+
+  /dm/{pubkey}:
+    get:
+      tags: [DirectMessages]
+      summary: Get messages with someone
+      description: |
+        Fetch your private conversation with a specific person.
+        Use `since` to poll for new messages.
+      operationId: getDirectMessages
+      security:
+        - nip07: []
+      parameters:
+        - name: pubkey
+          in: path
+          required: true
+          description: The other person's ID
+          schema:
+            type: string
+        - name: since
+          in: query
+          description: Only return messages newer than this time
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: List of messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DirectMessage'
+
+    post:
+      tags: [DirectMessages]
+      summary: Send a private message
+      description: Send an encrypted message to someone. Only they can read it.
+      operationId: sendDirectMessage
+      security:
+        - nip07: []
+      parameters:
+        - name: pubkey
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content:
+                  type: string
+      responses:
+        '201':
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DirectMessage'
+
 components:
   securitySchemes:
     nip07:
       type: apiKey
       in: header
-      name: X-NIP-07
+      name: X-User-Auth
       description: |
-        NIP-07 browser extension signing. The Mirage Host automatically
-        handles signing requests - apps don't need to manage this directly.
+        Automatic browser authentication. The Mirage environment handles
+        user identity and signing securely. Apps don't need to implement this.
 
   schemas:
-    NostrEvent:
+    Event:
       type: object
-      required: [id, pubkey, created_at, kind, tags, content, sig]
+      description: |
+        A single data object on the network. Most commonly used for
+        short text posts (like tweets), but can represent any type of data.
+      required: [id, pubkey, created_at, content, kind, tags]
       properties:
         id:
           type: string
-          description: Event ID (32-byte hex)
-          example: "4376c65d2f232afbe9b882a35baa4f6fe8667c4e684749af565f981833ed6a65"
+          description: Unique ID of the event (32-byte hex)
         pubkey:
           type: string
-          description: Author's public key (32-byte hex)
-          example: "82341f882b6eabcd2ba7f1ef90aad961cf074af15b9ef44a09f9d2a8fbfbe6a2"
+          description: Author's user ID (public key)
         created_at:
           type: integer
-          description: Unix timestamp
-          example: 1703203200
+          description: Unix timestamp (seconds)
         kind:
           type: integer
-          description: Event kind (1 = note, 0 = profile)
+          description: |
+            The type of data this event represents.
+            
+            **Common Types:**
+            - `0`: **Metadata** (User profile: name, about, picture)
+            - `1`: **Short Text Note** (Like a tweet or status update)
+            - `3`: **Contacts** (List of follows)
+            - `6`: **Repost** (Sharing another event)
+            - `7`: **Reaction** (Like/Upvote - content is usually "+" or emoji)
+            - `30023`: **Long Form Article** (Blog post)
+            - `30078`: **App Data** (Private storage)
+            - `10002`: **Relay List** (Network connections)
           example: 1
+        content:
+          type: string
+          description: |
+            The main data payload.
+            - For `kind: 1` (Note): The text content
+            - For `kind: 7` (Reaction): "+" or an emoji
+            - For `kind: 0` (Metadata): A JSON string matching `MetadataContent` schema
         tags:
           type: array
+          description: |
+            Metadata tags associated with the event.
+            Each tag is an array of strings: `["identifier", "value", ...]`
+            
+            **Common Tags:**
+            - `["e", "event_id"]`: Reference to another event (Reply/Quote)
+            - `["p", "pubkey"]`: Tagging a user (Mention)
+            - `["t", "hashtag"]`: Topic tag (Hashtag)
+            - `["r", "url"]`: Reference to a URL
+            - `["title", "My Blog Post"]`: Title for long-form content
           items:
             type: array
             items:
               type: string
-          example: [["p", "pubkey..."], ["e", "event-id..."]]
-        content:
-          type: string
-          description: Event content
-          example: "Hello Nostr!"
+          example:
+            - ["e", "4376c..."]
+            - ["p", "82341..."]
+            - ["t", "nostr"]
         sig:
           type: string
-          description: Schnorr signature (64-byte hex)
-          example: "908a15e46fb4d8675bab026fc230a0e3542bfade63da02d542fb78b2a8513fcd..."
+          description: Cryptographic signature proving authorship
 
-    UserProfile:
+    MetadataContent:
       type: object
+      description: |
+        Profile metadata structure (Kind 0 content).
+        Standardized fields for user profiles.
       properties:
-        pubkey:
-          type: string
-          description: User's public key
         name:
           type: string
-          description: Display name
-          example: "satoshi"
+          description: Username or handle (e.g. "satoshi")
+        display_name:
+          type: string
+          description: Fancy display name (e.g. "Satoshi Nakamoto")
         about:
           type: string
-          description: Bio/description
-          example: "Creator of Bitcoin"
+          description: Bio or description
         picture:
           type: string
           format: uri
-          description: Profile picture URL
-          example: "https://example.com/avatar.jpg"
+          description: Avatar URL
+        banner:
+          type: string
+          format: uri
+          description: Profile header image URL
+        website:
+          type: string
+          format: uri
+          description: Website URL
         nip05:
           type: string
-          description: NIP-05 identifier
-          example: "satoshi@bitcoin.org"
+          description: Verified web address (e.g. user@domain.com)
         lud16:
           type: string
-          description: Lightning address
-          example: "satoshi@getalby.com"
+          description: Lightning Network address (e.g. satoshi@getalby.com)
 
     StorageValue:
       type: object
-      description: A stored key-value pair from NIP-78 application data
+      description: Stored app data (settings, preferences, etc.)
       required: [key, value, updatedAt]
       properties:
         key:
           type: string
-          description: The storage key
+          description: Name of the setting or data item
           example: "settings"
         value:
           description: The stored value (any JSON type)
@@ -471,3 +843,102 @@ components:
           type: string
           description: Error message
           example: "Relay pool not initialized"
+
+    # =========================================================================
+    # Phase 3: Encrypted Channels
+    # =========================================================================
+
+    Channel:
+      type: object
+      description: An encrypted group channel
+      properties:
+        id:
+          type: string
+          description: Channel identifier
+        name:
+          type: string
+          description: Channel display name
+        createdAt:
+          type: integer
+          description: Unix timestamp
+        memberCount:
+          type: integer
+          description: Number of members
+        keyVersion:
+          type: integer
+          description: Current encryption key version
+
+    ChannelMessage:
+      type: object
+      description: A message in a channel (regular or system)
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [message, system]
+          description: Regular message or system event
+        from:
+          type: string
+          description: Sender pubkey (for messages)
+        content:
+          type: string
+          description: Decrypted message content
+        event:
+          type: string
+          description: System event type (member_added, member_removed, etc.)
+        member:
+          type: string
+          description: Affected member pubkey (for system events)
+        by:
+          type: string
+          description: Actor pubkey (for system events)
+        createdAt:
+          type: integer
+
+    ChannelMember:
+      type: object
+      properties:
+        pubkey:
+          type: string
+        name:
+          type: string
+          description: Display name if known
+        joinedAt:
+          type: integer
+
+    # =========================================================================
+    # Phase 4: Direct Messages
+    # =========================================================================
+
+    Conversation:
+      type: object
+      properties:
+        pubkey:
+          type: string
+          description: Other party's pubkey
+        name:
+          type: string
+          description: Display name if known
+        lastMessage:
+          type: string
+          description: Preview of last message
+        lastMessageAt:
+          type: integer
+        unreadCount:
+          type: integer
+
+    DirectMessage:
+      type: object
+      properties:
+        id:
+          type: string
+        from:
+          type: string
+        to:
+          type: string
+        content:
+          type: string
+          description: Decrypted message content
+        createdAt:
+          type: integer
