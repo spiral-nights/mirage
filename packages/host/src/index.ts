@@ -125,11 +125,27 @@ export class MirageHost {
 
         // Wait for bridge to signal it's ready
         await new Promise<void>((resolve) => {
-            const handleReady = (event: MessageEvent) => {
+            const handleReady = async (event: MessageEvent) => {
                 if (event.source === this.iframe?.contentWindow && event.data?.type === 'BRIDGE_READY') {
                     window.removeEventListener('message', handleReady);
                     console.log('[Host] Bridge ready, sending relay config');
                     this.sendRelayConfig('SET', this.relays);
+
+                    // Send user pubkey if signer is available
+                    if (this.signer.isAvailable()) {
+                        try {
+                            const pubkey = await this.signer.getPublicKey();
+                            console.log('[Host] Sending pubkey to engine:', pubkey.slice(0, 8) + '...');
+                            this.postToIframe({
+                                type: 'SET_PUBKEY',
+                                id: crypto.randomUUID(),
+                                pubkey,
+                            });
+                        } catch (err) {
+                            console.warn('[Host] Could not get pubkey from signer:', err);
+                        }
+                    }
+
                     resolve();
                 }
             };
@@ -218,12 +234,11 @@ export class MirageHost {
             // Sign the event
             const signedEvent = await this.signer.signEvent(message.event);
 
-            // Send signature back to iframe
+            // Send full signed event back to iframe
             this.postToIframe({
                 type: 'SIGNATURE_RESULT',
                 id: message.id,
-                signature: signedEvent.sig,
-                pubkey: signedEvent.pubkey,
+                signedEvent,
             });
         } catch (error) {
             this.postToIframe({

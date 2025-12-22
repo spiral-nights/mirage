@@ -31,6 +31,7 @@ function handleWorkerMessage(event: MessageEvent<MirageMessage>): void {
     const message = event.data;
 
     if (message.type === 'API_RESPONSE') {
+        console.log('[Bridge] Response from worker:', message.status, message.body);
         const pending = pendingRequests.get(message.id);
         if (pending) {
             pendingRequests.delete(message.id);
@@ -60,6 +61,10 @@ function handleParentMessage(event: MessageEvent<MirageMessage>): void {
     }
 
     if (message.type === 'RELAY_CONFIG' && worker) {
+        worker.postMessage(message);
+    }
+
+    if (message.type === 'SET_PUBKEY' && worker) {
         worker.postMessage(message);
     }
 }
@@ -104,6 +109,7 @@ function interceptedFetch(input: RequestInfo | URL, init?: RequestInit): Promise
             headers: init?.headers as Record<string, string>,
         };
 
+        console.log('[Bridge] Sending request to worker:', method, url);
         worker!.postMessage(message);
 
         // Timeout after 30 seconds

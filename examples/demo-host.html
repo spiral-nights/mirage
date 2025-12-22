@@ -182,14 +182,14 @@
       <!DOCTYPE html>
       <html>
       <head>
-        <meta name="mirage-permissions" content="public_read">
+        <meta name="mirage-permissions" content="public_read, storage_read, storage_write">
         <style>
           body {
             font-family: -apple-system, BlinkMacSystemFont, sans-serif;
             padding: 2rem;
             background: #f8f9fa;
           }
-          h1 { color: #333; }
+          h1, h2 { color: #333; margin-top: 2rem; }
           .note {
             background: white;
             padding: 1rem;
@@ -198,12 +198,46 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
           }
           .loading { color: #888; }
+          .storage-section {
+            margin-top: 2rem;
+            padding: 1rem;
+            background: #e9ecef;
+            border-radius: 8px;
+          }
+          button {
+            background: #6366f1;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 0.25rem;
+          }
+          button:hover { background: #4f46e5; }
+          #storage-result {
+            margin-top: 1rem;
+            padding: 0.5rem;
+            background: white;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.9rem;
+          }
         </style>
       </head>
       <body>
         <h1>📝 Sample Nostr App</h1>
         <p class="loading">Fetching notes from the Nostr network...</p>
         <div id="notes"></div>
+        
+        <div class="storage-section">
+          <h2>💾 Storage Test (NIP-78)</h2>
+          <p>Test the key-value storage API:</p>
+          <button onclick="window.saveToStorage()">Save Test Data</button>
+          <button onclick="window.loadFromStorage()">Load Test Data</button>
+          <button onclick="window.deleteFromStorage()">Delete Test Data</button>
+          <div id="storage-result">Click a button to test storage...</div>
+        </div>
+        
         <script>
           async function loadNotes() {
             try {
@@ -235,6 +269,62 @@
               console.error('[App] Error:', error);
             }
           }
+          
+          async function saveToStorage() {
+            const result = document.getElementById('storage-result');
+            result.textContent = 'Saving...';
+            try {
+              const testData = { theme: 'dark', counter: Date.now() };
+              const response = await fetch('/mirage/v1/storage/test-settings', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(testData)
+              });
+              const data = await response.json();
+              console.log('[Storage] PUT response:', data);
+              result.textContent = 'Saved: ' + JSON.stringify(data, null, 2);
+            } catch (error) {
+              result.textContent = 'Error: ' + error.message;
+              console.error('[Storage] Error:', error);
+            }
+          }
+          
+          async function loadFromStorage() {
+            const result = document.getElementById('storage-result');
+            result.textContent = 'Loading...';
+            try {
+              const response = await fetch('/mirage/v1/storage/test-settings');
+              const data = await response.json();
+              console.log('[Storage] GET response:', data);
+              result.textContent = response.ok 
+                ? 'Loaded: ' + JSON.stringify(data, null, 2)
+                : 'Not found: ' + JSON.stringify(data);
+            } catch (error) {
+              result.textContent = 'Error: ' + error.message;
+              console.error('[Storage] Error:', error);
+            }
+          }
+          
+          async function deleteFromStorage() {
+            const result = document.getElementById('storage-result');
+            result.textContent = 'Deleting...';
+            try {
+              const response = await fetch('/mirage/v1/storage/test-settings', {
+                method: 'DELETE'
+              });
+              const data = await response.json();
+              console.log('[Storage] DELETE response:', data);
+              result.textContent = 'Deleted: ' + JSON.stringify(data, null, 2);
+            } catch (error) {
+              result.textContent = 'Error: ' + error.message;
+              console.error('[Storage] Error:', error);
+            }
+          }
+          
+          // Expose functions globally for onclick handlers
+          window.saveToStorage = saveToStorage;
+          window.loadFromStorage = loadFromStorage;
+          window.deleteFromStorage = deleteFromStorage;
           
           // Wait briefly for bridge initialization
           setTimeout(loadNotes, 1500);

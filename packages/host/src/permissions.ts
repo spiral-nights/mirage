@@ -49,31 +49,31 @@ export function parsePermissions(html: string): AppPermissions {
 export function isPathAllowed(path: string, method: string, permissions: AppPermissions): boolean {
     const { permissions: perms } = permissions;
 
-    // /api/v1/feed
-    if (path.startsWith('/api/v1/feed')) {
+    // /mirage/v1/feed
+    if (path.startsWith('/mirage/v1/feed')) {
         if (method === 'GET') return perms.includes('public_read');
         if (method === 'POST') return perms.includes('public_write');
     }
 
-    // /api/v1/user
-    if (path.startsWith('/api/v1/user')) {
+    // /mirage/v1/user
+    if (path.startsWith('/mirage/v1/user')) {
         return perms.includes('public_read');
     }
 
-    // /api/v1/storage
-    if (path.startsWith('/api/v1/storage')) {
+    // /mirage/v1/storage
+    if (path.startsWith('/mirage/v1/storage')) {
         if (method === 'GET') return perms.includes('storage_read');
-        if (method === 'PUT') return perms.includes('storage_write');
+        if (method === 'PUT' || method === 'DELETE') return perms.includes('storage_write');
     }
 
-    // /api/v1/groups
-    if (path.startsWith('/api/v1/groups')) {
+    // /mirage/v1/groups
+    if (path.startsWith('/mirage/v1/groups')) {
         if (method === 'GET') return perms.includes('group_read');
         if (method === 'PUT' || method === 'POST') return perms.includes('group_write');
     }
 
-    // /api/v1/dm
-    if (path.startsWith('/api/v1/dm')) {
+    // /mirage/v1/dm
+    if (path.startsWith('/mirage/v1/dm')) {
         if (method === 'GET') return perms.includes('dm_read');
         if (method === 'POST') return perms.includes('dm_write');
     }

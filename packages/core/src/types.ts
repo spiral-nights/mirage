@@ -14,6 +14,7 @@ export type MessageType =
     | 'ACTION_SIGN_EVENT'
     | 'SIGNATURE_RESULT'
     | 'RELAY_CONFIG'
+    | 'SET_PUBKEY'
     | 'ERROR';
 
 export interface BaseMessage {
@@ -47,8 +48,7 @@ export interface SignEventMessage extends BaseMessage {
 /** Host returns signature to Engine */
 export interface SignatureResultMessage extends BaseMessage {
     type: 'SIGNATURE_RESULT';
-    signature?: string;
-    pubkey?: string;
+    signedEvent?: NostrEvent;
     error?: string;
 }
 
@@ -66,12 +66,19 @@ export interface ErrorMessage extends BaseMessage {
     code?: string;
 }
 
+/** Set user pubkey message */
+export interface SetPubkeyMessage extends BaseMessage {
+    type: 'SET_PUBKEY';
+    pubkey: string;
+}
+
 export type MirageMessage =
     | ApiRequestMessage
     | ApiResponseMessage
     | SignEventMessage
     | SignatureResultMessage
     | RelayConfigMessage
+    | SetPubkeyMessage
     | ErrorMessage;
 
 // ============================================================================

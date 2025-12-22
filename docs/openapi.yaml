@@ -20,6 +20,11 @@ tags:
     description: Public notes (Kind 1 events)
   - name: Users
     description: User profiles (Kind 0 events)
+  - name: Storage
+    description: |
+      Persistent key-value storage using NIP-78 (Kind 30078 events).
+      Data is signed by the user and stored on Nostr relays.
+      Keys are scoped per app to prevent collisions.
 
 paths:
   /feed:
@@ -174,6 +179,159 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /storage/{key}:
+    get:
+      tags: [Storage]
+      summary: Get stored value
+      description: |
+        Retrieves a previously stored value by key. Data is fetched from
+        Nostr relays as Kind 30078 events.
+        
+        **Common Use Cases:**
+        - App settings and preferences
+        - Draft content (e.g., unsaved posts)
+        - User-specific configuration
+        
+        **Security Notes:**
+        - Requires `storage_read` permission
+        - Data is public on relays (encrypt sensitive data client-side)
+        - Scoped per user (only your data is accessible)
+      operationId: getStorage
+      security:
+        - nip07: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          description: Storage key (alphanumeric, dashes, underscores)
+          schema:
+            type: string
+            example: "settings"
+      responses:
+        '200':
+          description: Stored value retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StorageValue'
+        '401':
+          description: Not authenticated (no signer available)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Key not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Relay pool not initialized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      tags: [Storage]
+      summary: Store a value
+      description: |
+        Stores or updates a value by key. Creates a signed Kind 30078 event
+        that is published to connected relays.
+        
+        **Common Use Cases:**
+        - Save app settings: `{"theme": "dark", "fontSize": 16}`
+        - Store drafts: `{"content": "Work in progress..."}`
+        - Sync preferences across devices
+        
+        **Security Notes:**
+        - Requires `storage_write` permission
+        - User signs the event (cannot be forged)
+        - Replaces previous value with same key
+      operationId: putStorage
+      security:
+        - nip07: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          description: Storage key
+          schema:
+            type: string
+            example: "settings"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: Any JSON value to store
+              example: {"theme": "dark", "notifications": true}
+      responses:
+        '200':
+          description: Value stored successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StorageValue'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Relay pool not initialized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags: [Storage]
+      summary: Delete a stored value
+      description: |
+        Deletes a stored value by publishing an empty replacement event.
+        Note: On Nostr, data cannot be truly deleted from all relays,
+        but this marks the key as deleted for Mirage clients.
+      operationId: deleteStorage
+      security:
+        - nip07: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          description: Storage key to delete
+          schema:
+            type: string
+            example: "obsolete-setting"
+      responses:
+        '200':
+          description: Value deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: boolean
+                    example: true
+                  key:
+                    type: string
+                    example: "obsolete-setting"
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Relay pool not initialized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
 components:
   securitySchemes:
     nip07:
@@ -248,6 +406,23 @@ components:
           type: string
           description: Lightning address
           example: "satoshi@getalby.com"
+
+    StorageValue:
+      type: object
+      description: A stored key-value pair from NIP-78 application data
+      required: [key, value, updatedAt]
+      properties:
+        key:
+          type: string
+          description: The storage key
+          example: "settings"
+        value:
+          description: The stored value (any JSON type)
+          example: {"theme": "dark", "notifications": true}
+        updatedAt:
+          type: integer
+          description: Unix timestamp of last update
+          example: 1703203200
 
     Error:
       type: object

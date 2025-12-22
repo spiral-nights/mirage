@@ -8,6 +8,7 @@ import type { Event } from 'nostr-tools';
 import { RelayPool } from './relay-pool';
 import { getFeed, postFeed, type FeedRouteContext } from './routes/feed';
 import { getCurrentUser, getUserByPubkey, type UserRouteContext } from './routes/user';
+import { getStorage, putStorage, deleteStorage, type StorageRouteContext } from './routes/storage';
 import type {
     MirageMessage,
     ApiRequestMessage,
@@ -19,11 +20,30 @@ import type {
 } from '../types';
 
 // ============================================================================
+// Utilities
+// ============================================================================
+
+// UUID polyfill for Web Workers without crypto.randomUUID
+function generateUUID(): string {
+    if (typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID();
+    }
+    // Fallback: generate UUID v4 using crypto.getRandomValues
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    bytes[6] = (bytes[6] & 0x0f) | 0x40; // Version 4
+    bytes[8] = (bytes[8] & 0x3f) | 0x80; // Variant 10
+    const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+// ============================================================================
 // State
 // ============================================================================
 
 let pool: RelayPool | null = null;
 let currentPubkey: string | null = null;
+let appOrigin: string = 'mirage-app'; // Default app origin
 const pendingSignatures = new Map<
     string,
     { resolve: (event: Event) => void; reject: (error: Error) => void }
@@ -47,6 +67,11 @@ self.onmessage = async (event: MessageEvent<MirageMessage>) => {
 
         case 'SIGNATURE_RESULT':
             handleSignatureResult(message);
+            break;
+
+        case 'SET_PUBKEY':
+            currentPubkey = message.pubkey;
+            console.log('[Engine] Pubkey set:', currentPubkey?.slice(0, 8) + '...');
             break;
 
         default:
@@ -83,6 +108,8 @@ async function handleRelayConfig(message: RelayConfigMessage): Promise<void> {
 // ============================================================================
 
 async function handleApiRequest(message: ApiRequestMessage): Promise<void> {
+    console.log('[Engine] Received API request:', message.method, message.path);
+
     if (!pool) {
         sendResponse(message.id, 503, { error: 'Relay pool not initialized' });
         return;
@@ -93,6 +120,7 @@ async function handleApiRequest(message: ApiRequestMessage): Promise<void> {
     try {
         // Route matching
         const route = matchRoute(method, path);
+        console.log('[Engine] Route matched:', route ? 'yes' : 'no');
 
         if (!route) {
             sendResponse(message.id, 404, { error: 'Not found' });
@@ -167,6 +195,39 @@ function matchRoute(method: string, fullPath: string): RouteMatch | null {
         };
     }
 
+    // Storage routes - /mirage/v1/storage/:key
+    const storageMatch = path.match(/^\/mirage\/v1\/storage\/(.+)$/);
+    if (storageMatch) {
+        const key = decodeURIComponent(storageMatch[1]);
+        const storageCtx: StorageRouteContext = {
+            pool: pool!,
+            requestSign,
+            currentPubkey,
+            appOrigin,
+        };
+
+        if (method === 'GET') {
+            return {
+                handler: async () => getStorage(storageCtx, key),
+                params: { key },
+            };
+        }
+
+        if (method === 'PUT') {
+            return {
+                handler: async (body) => putStorage(storageCtx, key, body),
+                params: { key },
+            };
+        }
+
+        if (method === 'DELETE') {
+            return {
+                handler: async () => deleteStorage(storageCtx, key),
+                params: { key },
+            };
+        }
+    }
+
     return null;
 }
 
@@ -176,7 +237,7 @@ function matchRoute(method: string, fullPath: string): RouteMatch | null {
 
 function requestSign(event: UnsignedNostrEvent): Promise<Event> {
     return new Promise((resolve, reject) => {
-        const id = crypto.randomUUID();
+        const id = generateUUID();
 
         pendingSignatures.set(id, { resolve, reject });
 
@@ -198,7 +259,7 @@ function requestSign(event: UnsignedNostrEvent): Promise<Event> {
     });
 }
 
-function handleSignatureResult(message: { id: string; signature?: string; pubkey?: string; error?: string }): void {
+function handleSignatureResult(message: { id: string; signedEvent?: Event; error?: string }): void {
     const pending = pendingSignatures.get(message.id);
     if (!pending) {
         console.warn('[Engine] Received signature for unknown request:', message.id);
@@ -209,15 +270,13 @@ function handleSignatureResult(message: { id: string; signature?: string; pubkey
 
     if (message.error) {
         pending.reject(new Error(message.error));
-    } else if (message.signature && message.pubkey) {
+    } else if (message.signedEvent) {
         // Update current pubkey if we don't have it
-        if (!currentPubkey) {
-            currentPubkey = message.pubkey;
+        if (!currentPubkey && message.signedEvent.pubkey) {
+            currentPubkey = message.signedEvent.pubkey;
         }
 
-        // We need the full signed event here - the host should send it back
-        // For now, this is a simplified version
-        pending.resolve(message as unknown as Event);
+        pending.resolve(message.signedEvent);
     } else {
         pending.reject(new Error('Invalid signature result'));
     }
