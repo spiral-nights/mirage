@@ -39,6 +39,7 @@ export class MirageHost {
     private config: MirageHostConfig;
     private signer: Signer;
     private iframe: HTMLIFrameElement | null = null;
+    private engineWorker: Worker;
     private appPermissions: AppPermissions = { permissions: [] };
     private relays: string[];
 
@@ -47,8 +48,20 @@ export class MirageHost {
         this.signer = new Signer(config.signer);
         this.relays = [...config.relays];
 
+        // Spawn Engine Worker immediately (Host owns the engine)
+        console.log('[Host] Spawning Engine Worker:', config.engineUrl);
+        // Create worker from blob to bypass origin restrictions if needed, or direct URL
+        this.engineWorker = new Worker(config.engineUrl);
+
+        // Listen for messages from the Engine
+        this.engineWorker.onmessage = this.handleEngineMessage.bind(this);
+        this.engineWorker.onerror = (err) => console.error('[Host] Engine Worker Error:', err);
+
         // Listen for messages from the iframe
-        window.addEventListener('message', this.handleMessage.bind(this));
+        window.addEventListener('message', this.handleAppMessage.bind(this));
+
+        // Initialize Engine with relays
+        this.sendRelayConfig('SET', this.relays);
     }
 
     // ==========================================================================
@@ -90,7 +103,7 @@ export class MirageHost {
             action,
             relays,
         };
-        this.postToIframe(message);
+        this.finalPostToEngine(message);
     }
 
     // ==========================================================================
@@ -128,15 +141,14 @@ export class MirageHost {
             const handleReady = async (event: MessageEvent) => {
                 if (event.source === this.iframe?.contentWindow && event.data?.type === 'BRIDGE_READY') {
                     window.removeEventListener('message', handleReady);
-                    console.log('[Host] Bridge ready, sending relay config');
-                    this.sendRelayConfig('SET', this.relays);
+                    console.log('[Host] Bridge ready');
 
                     // Send user pubkey if signer is available
                     if (this.signer.isAvailable()) {
                         try {
                             const pubkey = await this.signer.getPublicKey();
                             console.log('[Host] Sending pubkey to engine:', pubkey.slice(0, 8) + '...');
-                            this.postToIframe({
+                            this.engineWorker.postMessage({
                                 type: 'SET_PUBKEY',
                                 id: crypto.randomUUID(),
                                 pubkey,
@@ -210,7 +222,8 @@ export class MirageHost {
           
           const { initBridge } = await import(bridgeUrl);
           console.log('[Bridge Loader] Bridge loaded, initializing...');
-          await initBridge({ workerUrl: '${this.config.engineUrl}' });
+          // Host mode: we don't pass workerUrl because Host owns the worker
+          await initBridge({ workerUrl: '' });
           console.log('[Bridge Loader] Bridge initialized!');
         } catch (err) {
           console.error('[Bridge Loader] Error:', err);
@@ -233,10 +246,10 @@ export class MirageHost {
     }
 
     // ==========================================================================
-    // Message Handling
+    // Message Handling (Router)
     // ==========================================================================
 
-    private handleMessage(event: MessageEvent<MirageMessage>): void {
+    private handleAppMessage(event: MessageEvent<MirageMessage>): void {
         // Only accept messages from our iframe
         if (this.iframe && event.source !== this.iframe.contentWindow) {
             return;
@@ -244,38 +257,82 @@ export class MirageHost {
 
         const message = event.data;
 
-        if (message.type === 'ACTION_SIGN_EVENT') {
-            this.handleSignRequest(message);
+        // Route: API_REQUEST from App -> Engine
+        if (message.type === 'API_REQUEST') {
+            // Check permissions here if needed
+            this.engineWorker.postMessage(message);
+        }
+        // Route: STREAM_OPEN / STREAM_CLOSE from App -> Engine
+        else if (message.type === 'STREAM_OPEN' || message.type === 'STREAM_CLOSE') {
+            this.engineWorker.postMessage(message);
+        }
+        // Route: ACTION_SIGN_EVENT from App -> Host (handled here)
+        else if (message.type === 'ACTION_SIGN_EVENT') {
+            // Forward sign requests to Engine, which will then ask Host to sign? 
+            // Actually, API needs to ask for signing. 
+            // In new architecture, Engine handles everything. If Engine needs signature, it asks Host.
+            // Wait, the API spec says `security: nip07`. The Engine might need to sign.
+            // Let's forward SIGN actions to Host directly if they come from Bridge, 
+            // BUT normally Bridge sends API_REQUEST, Engine processes, then Engine asks Host to sign.
+            // Let's assume standard API flow: App -> Bridge -> Engine.
+            // If Engine needs signature, it sends ACTION_SIGN_EVENT to Host.
+            // Does App sends ACTION_SIGN_EVENT directly? Only if using `window.nostr`.
+            // If using `fetch`, App sends API_REQUEST.
+            // Does local shim support window.nostr?
+
+            // For now, let's assume we handle SIGN requests if they come from the App (shim)
+            this.handleSignRequest(message as SignEventMessage);
         }
     }
 
-    private async handleSignRequest(message: SignEventMessage): Promise<void> {
+    private handleEngineMessage(event: MessageEvent<MirageMessage>): void {
+        const message = event.data;
+
+        // Route: API_RESPONSE from Engine -> App
+        if (message.type === 'API_RESPONSE') {
+            this.postToIframe(message);
+        }
+        // Route: ACTION_SIGN_EVENT from Engine -> Host (Engine needs us to sign)
+        else if (message.type === 'ACTION_SIGN_EVENT') {
+            this.handleSignRequest(message as SignEventMessage, true);
+        }
+        // Route: Streaming messages from Engine -> App
+        else if (message.type === 'STREAM_CHUNK' || message.type === 'STREAM_CLOSE' || message.type === 'STREAM_ERROR') {
+            this.postToIframe(message);
+        }
+    }
+
+    private async handleSignRequest(message: SignEventMessage, fromEngine = false): Promise<void> {
         try {
             // Check if signer is available
             if (!this.signer.isAvailable()) {
-                this.postToIframe({
+                const errorMsg = {
                     type: 'SIGNATURE_RESULT',
                     id: message.id,
                     error: 'No signer available',
-                });
+                };
+                fromEngine ? this.engineWorker.postMessage(errorMsg) : this.postToIframe(errorMsg as any);
                 return;
             }
 
             // Sign the event
             const signedEvent = await this.signer.signEvent(message.event);
 
-            // Send full signed event back to iframe
-            this.postToIframe({
+            // Send result back
+            const resultMsg = {
                 type: 'SIGNATURE_RESULT',
                 id: message.id,
                 signedEvent,
-            });
+            };
+            fromEngine ? this.engineWorker.postMessage(resultMsg) : this.postToIframe(resultMsg as any);
+
         } catch (error) {
-            this.postToIframe({
+            const errorMsg = {
                 type: 'SIGNATURE_RESULT',
                 id: message.id,
                 error: error instanceof Error ? error.message : 'Signing failed',
-            });
+            };
+            fromEngine ? this.engineWorker.postMessage(errorMsg) : this.postToIframe(errorMsg as any);
         }
     }
 
@@ -283,6 +340,10 @@ export class MirageHost {
         if (this.iframe?.contentWindow) {
             this.iframe.contentWindow.postMessage(message, '*');
         }
+    }
+
+    private finalPostToEngine(message: MirageMessage): void {
+        this.engineWorker.postMessage(message);
     }
 
     // ==========================================================================
@@ -294,7 +355,8 @@ export class MirageHost {
      */
     destroy(): void {
         this.unmount();
-        window.removeEventListener('message', this.handleMessage.bind(this));
+        window.removeEventListener('message', this.handleAppMessage.bind(this));
+        this.engineWorker.terminate();
     }
 }
 

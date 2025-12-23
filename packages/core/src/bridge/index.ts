@@ -1,197 +1,105 @@
 /**
- * Mirage Bridge - Fetch Interceptor
+ * Mirage Bridge - Entry Point
  *
- * Monkey-patches window.fetch to intercept /api/ calls and route them to the Web Worker.
+ * Monkey-patches window.fetch to intercept /mirage/ calls.
+ * Routes requests to either a Web Worker (Standalone Mode) or Parent Window (Child Mode).
+ * Implements Virtual SSE for real-time streaming.
  */
 
-import type { ApiRequestMessage, ApiResponseMessage, MirageMessage } from '../types';
-
-// ============================================================================
-// Types
-// ============================================================================
-
-interface PendingRequest {
-    resolve: (response: Response) => void;
-    reject: (error: Error) => void;
-}
-
-// ============================================================================
-// State
-// ============================================================================
-
-let worker: Worker | null = null;
-let workerReadyResolve: () => void;
-const workerReady = new Promise<void>((resolve) => {
-    workerReadyResolve = resolve;
-});
-const pendingRequests = new Map<string, PendingRequest>();
-const originalFetch = window.fetch.bind(window);
-
-// ============================================================================
-// Worker Communication
-// ============================================================================
-
-function handleWorkerMessage(event: MessageEvent<MirageMessage>): void {
-    const message = event.data;
-
-    if (message.type === 'API_RESPONSE') {
-        const pending = pendingRequests.get(message.id);
-        if (pending) {
-            pendingRequests.delete(message.id);
-            const response = new Response(JSON.stringify(message.body), {
-                status: message.status,
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...message.headers,
-                },
-            });
-            pending.resolve(response);
-        }
-    }
-
-    // Forward other messages (like ACTION_SIGN_EVENT) to parent
-    if (message.type === 'ACTION_SIGN_EVENT') {
-        window.parent.postMessage(message, '*');
-    }
-}
-
-// Listen for signature results from parent
-function handleParentMessage(event: MessageEvent<MirageMessage>): void {
-    const message = event.data;
-
-    if (message.type === 'SIGNATURE_RESULT' && worker) {
-        worker.postMessage(message);
-    }
-
-    if (message.type === 'RELAY_CONFIG' && worker) {
-        worker.postMessage(message);
-    }
-
-    if (message.type === 'SET_PUBKEY' && worker) {
-        worker.postMessage(message);
-    }
-}
-
-// ============================================================================
-// Fetch Interceptor
-// ============================================================================
-
-async function interceptedFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-
-    // Only intercept /mirage/ routes
-    if (!url.startsWith('/mirage/')) {
-        return originalFetch(input, init);
-    }
-
-    // Wait for bridge to be initialized (queue requests until ready)
-    await workerReady;
-
-    return new Promise((resolve, reject) => {
-        const id = crypto.randomUUID();
-        pendingRequests.set(id, { resolve, reject });
-
-        const method = (init?.method?.toUpperCase() || 'GET') as 'GET' | 'POST' | 'PUT' | 'DELETE';
-
-        let body: unknown = undefined;
-        if (init?.body) {
-            try {
-                body = JSON.parse(init.body as string);
-            } catch {
-                body = init.body;
-            }
-        }
-
-        const message: ApiRequestMessage = {
-            type: 'API_REQUEST',
-            id,
-            method,
-            path: url,
-            body,
-            headers: init?.headers as Record<string, string>,
-        };
-
-        worker!.postMessage(message);
-
-        // Timeout after 30 seconds
-        setTimeout(() => {
-            if (pendingRequests.has(id)) {
-                pendingRequests.delete(id);
-                reject(new Error('Request timed out'));
-            }
-        }, 30000);
-    });
-}
+import { interceptedFetch } from './fetch';
+import { MirageEventSource } from './event-source';
+import {
+    enginePort,
+    setEnginePort,
+    setChildMode,
+    signalEngineReady,
+    handleEngineMessage,
+    pendingRequests,
+    activeStreams,
+    originalFetch,
+    isChildMode
+} from './messaging';
 
 // ============================================================================
 // Initialization
 // ============================================================================
 
 export interface BridgeOptions {
+    /** 
+     * URL to Engine Worker. 
+     * Required if running Standalone. 
+     * Ignored if running as Child (Host owns engine).
+     */
     workerUrl: string;
 }
 
+/**
+ * Initialize the Mirage Bridge
+ */
 export async function initBridge(options: BridgeOptions): Promise<void> {
-    if (worker) {
+    if (enginePort) {
         console.warn('[Bridge] Already initialized');
         return;
     }
 
-    console.log('[Bridge] Initializing, fetching engine from:', options.workerUrl);
+    // 1. Detect Environment
+    if (window.parent !== window) {
+        // CHILD MODE
+        console.log('[Bridge] Detected Child Mode. Connecting to Parent Host...');
+        setChildMode(true);
+        setEnginePort(window.parent);
+        window.addEventListener('message', handleEngineMessage);
+    } else {
+        // STANDALONE MODE
+        console.log('[Bridge] Detected Standalone Mode. Spawning proper Worker...');
+        if (!options.workerUrl) throw new Error('Worker URL required for Standalone Mode');
 
-    // Fetch the engine code and create a Blob URL
-    // This bypasses the null origin restriction on Worker creation
-    const response = await fetch(options.workerUrl);
-    if (!response.ok) {
-        throw new Error(`Failed to load engine: ${response.status} ${response.statusText}`);
+        // Fetch/Blob dance to bypass origin restrictions
+        const response = await fetch(options.workerUrl);
+        const code = await response.text();
+        const blob = new Blob([code], { type: 'application/javascript' });
+        const blobUrl = URL.createObjectURL(blob);
+
+        const worker = new Worker(blobUrl);
+        worker.onmessage = handleEngineMessage;
+        setEnginePort(worker);
     }
-    const engineCode = await response.text();
-    const engineBlob = new Blob([engineCode], { type: 'application/javascript' });
-    const blobUrl = URL.createObjectURL(engineBlob);
 
-    console.log('[Bridge] Engine fetched, creating Worker from Blob URL');
+    // 2. Install Polyfills & Interceptors
+    (window as any).EventSource = MirageEventSource as any;
 
-    // Create the Web Worker from Blob URL (classic mode, not module)
-    worker = new Worker(blobUrl);
-    worker.onmessage = handleWorkerMessage;
-    worker.onerror = (error) => {
-        console.error('[Bridge] Worker error:', error);
-    };
-
-    // Listen for messages from parent window
-    window.addEventListener('message', handleParentMessage);
-
-    // Signal that bridge is ready to handle requests
-    workerReadyResolve();
-
-    // Register the real fetch interceptor with the stub (if present)
-    // The stub was injected synchronously and is now queuing /mirage/ requests
+    // Register fetch stub callback
     if (typeof (window as any).__mirageBridgeReady === 'function') {
         (window as any).__mirageBridgeReady(interceptedFetch);
     } else {
-        // Fallback: directly patch fetch if no stub present
         (window as { fetch: typeof interceptedFetch }).fetch = interceptedFetch;
     }
 
-    console.log('[Bridge] Initialized');
+    // 3. Signal Ready
+    signalEngineReady();
+    console.log('[Bridge] Initialized & Ready');
 
-    // Signal to parent that bridge is ready
-    window.parent.postMessage({ type: 'BRIDGE_READY' }, '*');
+    // In Child Mode, tell parent we are ready so it can send config
+    if (isChildMode) {
+        window.parent.postMessage({ type: 'BRIDGE_READY' }, '*');
+    }
 }
 
+/**
+ * Destroy the bridge and cleanup resources
+ */
 export function destroyBridge(): void {
-    if (worker) {
-        worker.terminate();
-        worker = null;
+    const port = enginePort;
+    if (!isChildMode && port instanceof Worker) {
+        port.terminate();
     }
+    setEnginePort(null);
     window.fetch = originalFetch;
     pendingRequests.clear();
-    window.removeEventListener('message', handleParentMessage);
+    activeStreams.clear();
+    window.removeEventListener('message', handleEngineMessage);
 }
 
-// Export for parent to send config
-export function sendToWorker(message: MirageMessage): void {
-    if (worker) {
-        worker.postMessage(message);
-    }
-}
+// Re-export types for external use
+export type { BridgeOptions };
+export { MirageEventSource };

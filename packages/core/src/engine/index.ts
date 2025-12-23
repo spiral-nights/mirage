@@ -13,29 +13,10 @@ import type {
     MirageMessage,
     ApiRequestMessage,
     ApiResponseMessage,
-    SignEventMessage,
     RelayConfigMessage,
-    UnsignedNostrEvent,
-    NostrEvent,
 } from '../types';
-
-// ============================================================================
-// Utilities
-// ============================================================================
-
-// UUID polyfill for Web Workers without crypto.randomUUID
-function generateUUID(): string {
-    if (typeof crypto.randomUUID === 'function') {
-        return crypto.randomUUID();
-    }
-    // Fallback: generate UUID v4 using crypto.getRandomValues
-    const bytes = new Uint8Array(16);
-    crypto.getRandomValues(bytes);
-    bytes[6] = (bytes[6] & 0x0f) | 0x40; // Version 4
-    bytes[8] = (bytes[8] & 0x3f) | 0x80; // Variant 10
-    const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
-    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-}
+import { handleStreamOpen, sendStreamError } from './streaming';
+import { requestSign, handleSignatureResult } from './signing';
 
 // ============================================================================
 // State
@@ -47,11 +28,11 @@ const poolReady = new Promise<void>((resolve) => {
     poolReadyResolve = resolve;
 });
 let currentPubkey: string | null = null;
-let appOrigin: string = 'mirage-app'; // Default app origin
-const pendingSignatures = new Map<
-    string,
-    { resolve: (event: Event) => void; reject: (error: Error) => void }
->();
+let appOrigin: string = 'mirage-app';
+
+function setCurrentPubkey(pubkey: string): void {
+    currentPubkey = pubkey;
+}
 
 // ============================================================================
 // Message Handler
@@ -69,8 +50,17 @@ self.onmessage = async (event: MessageEvent<MirageMessage>) => {
             await handleApiRequest(message);
             break;
 
+        case 'STREAM_OPEN':
+            await poolReady;
+            if (pool) {
+                await handleStreamOpen(message as any, pool, currentPubkey);
+            } else {
+                sendStreamError((message as any).id, 'Relay pool not initialized');
+            }
+            break;
+
         case 'SIGNATURE_RESULT':
-            handleSignatureResult(message);
+            handleSignatureResult(message as any, setCurrentPubkey, currentPubkey);
             break;
 
         case 'SET_PUBKEY':
@@ -106,7 +96,6 @@ async function handleRelayConfig(message: RelayConfigMessage): Promise<void> {
             break;
     }
 
-    // Signal that pool is ready for API requests
     poolReadyResolve();
 }
 
@@ -115,7 +104,6 @@ async function handleRelayConfig(message: RelayConfigMessage): Promise<void> {
 // ============================================================================
 
 async function handleApiRequest(message: ApiRequestMessage): Promise<void> {
-    // Wait for relay pool to be initialized
     await poolReady;
 
     if (!pool) {
@@ -126,7 +114,6 @@ async function handleApiRequest(message: ApiRequestMessage): Promise<void> {
     const { method, path, body } = message;
 
     try {
-        // Route matching
         const route = matchRoute(method, path);
 
         if (!route) {
@@ -142,13 +129,16 @@ async function handleApiRequest(message: ApiRequestMessage): Promise<void> {
     }
 }
 
+// ============================================================================
+// Route Matching
+// ============================================================================
+
 interface RouteMatch {
     handler: (body: unknown, params: Record<string, string>) => Promise<{ status: number; body: unknown }>;
     params: Record<string, string>;
 }
 
 function matchRoute(method: string, fullPath: string): RouteMatch | null {
-    // Parse path and query string
     const [path, queryString] = fullPath.split('?');
     const params: Record<string, string> = {};
 
@@ -169,7 +159,7 @@ function matchRoute(method: string, fullPath: string): RouteMatch | null {
         currentPubkey,
     };
 
-    // GET /mirage/v1/ready - Check if engine is initialized
+    // GET /mirage/v1/ready
     if (method === 'GET' && path === '/mirage/v1/ready') {
         return {
             handler: async () => ({
@@ -254,57 +244,6 @@ function matchRoute(method: string, fullPath: string): RouteMatch | null {
 }
 
 // ============================================================================
-// Signing
-// ============================================================================
-
-function requestSign(event: UnsignedNostrEvent): Promise<Event> {
-    return new Promise((resolve, reject) => {
-        const id = generateUUID();
-
-        pendingSignatures.set(id, { resolve, reject });
-
-        const message: SignEventMessage = {
-            type: 'ACTION_SIGN_EVENT',
-            id,
-            event,
-        };
-
-        self.postMessage(message);
-
-        // Timeout after 60 seconds
-        setTimeout(() => {
-            if (pendingSignatures.has(id)) {
-                pendingSignatures.delete(id);
-                reject(new Error('Signing request timed out'));
-            }
-        }, 60000);
-    });
-}
-
-function handleSignatureResult(message: { id: string; signedEvent?: Event; error?: string }): void {
-    const pending = pendingSignatures.get(message.id);
-    if (!pending) {
-        console.warn('[Engine] Received signature for unknown request:', message.id);
-        return;
-    }
-
-    pendingSignatures.delete(message.id);
-
-    if (message.error) {
-        pending.reject(new Error(message.error));
-    } else if (message.signedEvent) {
-        // Update current pubkey if we don't have it
-        if (!currentPubkey && message.signedEvent.pubkey) {
-            currentPubkey = message.signedEvent.pubkey;
-        }
-
-        pending.resolve(message.signedEvent);
-    } else {
-        pending.reject(new Error('Invalid signature result'));
-    }
-}
-
-// ============================================================================
 // Response Helper
 // ============================================================================
 
@@ -318,5 +257,5 @@ function sendResponse(id: string, status: number, body: unknown): void {
     self.postMessage(response);
 }
 
-// Export for type checking (not actually used in worker)
+// Export for type checking
 export type { FeedRouteContext, UserRouteContext };

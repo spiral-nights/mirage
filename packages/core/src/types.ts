@@ -15,6 +15,10 @@ export type MessageType =
     | 'SIGNATURE_RESULT'
     | 'RELAY_CONFIG'
     | 'SET_PUBKEY'
+    | 'STREAM_OPEN'
+    | 'STREAM_CHUNK'
+    | 'STREAM_CLOSE'
+    | 'STREAM_ERROR'
     | 'ERROR';
 
 export interface BaseMessage {
@@ -79,7 +83,38 @@ export type MirageMessage =
     | SignatureResultMessage
     | RelayConfigMessage
     | SetPubkeyMessage
+    | SetPubkeyMessage
+    | StreamOpenMessage
+    | StreamChunkMessage
+    | StreamCloseMessage
+    | StreamErrorMessage
     | ErrorMessage;
+
+/** Start a new stream (Bridge -> Engine) */
+export interface StreamOpenMessage extends BaseMessage {
+    type: 'STREAM_OPEN';
+    method: 'GET';
+    path: string;
+    headers?: Record<string, string>;
+}
+
+/** Data chunk for a stream (Engine -> Bridge) */
+export interface StreamChunkMessage extends BaseMessage {
+    type: 'STREAM_CHUNK';
+    chunk: string; // JSON string or serialized data
+    done?: boolean;
+}
+
+/** Close a stream (Bridge -> Engine or Engine -> Bridge) */
+export interface StreamCloseMessage extends BaseMessage {
+    type: 'STREAM_CLOSE';
+}
+
+/** Stream error (Engine -> Bridge) */
+export interface StreamErrorMessage extends BaseMessage {
+    type: 'STREAM_ERROR';
+    error: string;
+}
 
 // ============================================================================
 // Nostr Event Types

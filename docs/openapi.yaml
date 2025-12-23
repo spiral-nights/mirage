@@ -43,17 +43,14 @@ paths:
       tags: [System]
       summary: Check if API is ready
       description: |
-        Returns status information. Apps should poll this endpoint 
-        before making other API calls to ensure the system is online.
+        Returns status information. Check this endpoint once at startup
+        to ensure the system is online before making API calls.
         
         **Usage:**
         ```javascript
-        async function waitForReady() {
-          while (true) {
-            const res = await fetch('/mirage/v1/ready');
-            if (res.ok) return await res.json();
-            await new Promise(r => setTimeout(r, 200));
-          }
+        const status = await fetch('/mirage/v1/ready').then(r => r.json());
+        if (status.ready) {
+          // Start using API
         }
         ```
       operationId: getReady
@@ -105,7 +102,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/Event'
+            text/event-stream:
+              schema:
+                type: string
+                description: |
+                  Stream of new events. Format: `data: {JSON}\n\n`.
+                  Connection stays open and pushes new posts as they appear.
 
     post:
       tags: [Feed]
@@ -456,10 +459,15 @@ paths:
       tags: [Channels]
       summary: Get messages
       description: |
-        Fetch messages from the group chat. To check for new messages,
-        call this periodically with `since` set to the last time you checked.
+        Get messages from the group chat. Supports real-time streaming.
         
-        **Example:** Poll every 5 seconds for new messages.
+        **Streaming (recommended):**
+        ```javascript
+        const es = new EventSource('/mirage/v1/channels/{id}/messages');
+        es.onmessage = (event) => console.log(JSON.parse(event.data));
+        ```
+        
+        **One-time fetch:** Use `limit` param to get recent messages.
       operationId: getChannelMessages
       security:
         - nip07: []
@@ -488,6 +496,13 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/ChannelMessage'
+            text/event-stream:
+              schema:
+                type: string
+                description: |
+                  Real-time stream of new messages.
+                  Format: `data: {JSON}\n\n`.
+                  Or use `new EventSource('/channels/{id}/messages')`.
 
     post:
       tags: [Channels]
@@ -648,8 +663,13 @@ paths:
       tags: [DirectMessages]
       summary: Get messages with someone
       description: |
-        Fetch your private conversation with a specific person.
-        Use `since` to poll for new messages.
+        Get your private conversation with a specific person. Supports real-time streaming.
+        
+        **Streaming (recommended):**
+        ```javascript
+        const es = new EventSource('/mirage/v1/dm/{pubkey}');
+        es.onmessage = (event) => console.log(JSON.parse(event.data));
+        ```
       operationId: getDirectMessages
       security:
         - nip07: []
@@ -679,6 +699,13 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/DirectMessage'
+            text/event-stream:
+              schema:
+                type: string
+                description: |
+                  Real-time stream of new messages.
+                  Format: `data: {JSON}\n\n`.
+                  Or use `new EventSource('/dm/{pubkey}')`.
 
     post:
       tags: [DirectMessages]

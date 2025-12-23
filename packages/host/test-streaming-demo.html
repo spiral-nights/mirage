@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mirage Streaming Demo</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            padding: 20px;
+            max-width: 900px;
+            margin: 0 auto;
+            background: #1a1a2e;
+            color: #eee;
+        }
+
+        h1 {
+            color: #00d9ff;
+            margin-bottom: 5px;
+        }
+
+        .subtitle {
+            color: #888;
+            margin-bottom: 20px;
+        }
+
+        .log {
+            background: #16213e;
+            padding: 15px;
+            height: 120px;
+            overflow-y: auto;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 12px;
+            margin-bottom: 20px;
+        }
+
+        .log div {
+            padding: 2px 0;
+        }
+
+        #app-container {
+            width: 100%;
+            height: 400px;
+            border: 2px solid #00d9ff;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        #app-container iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+
+        .status.connecting {
+            background: #f39c12;
+            color: #000;
+        }
+
+        .status.open {
+            background: #27ae60;
+            color: #fff;
+        }
+
+        .status.error {
+            background: #e74c3c;
+            color: #fff;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>🌊 Mirage Streaming Demo</h1>
+    <p class="subtitle">Testing EventSource polyfill with real-time Nostr feed</p>
+
+    <h3>Host Logs</h3>
+    <div id="host-logs" class="log"></div>
+
+    <h3>App Container <span id="stream-status" class="status connecting">Connecting...</span></h3>
+    <div id="app-container"></div>
+
+    <script type="module">
+        import { MirageHost } from '/packages/host/dist/index.js';
+
+        const hostLogs = document.getElementById('host-logs');
+        const streamStatus = document.getElementById('stream-status');
+
+        const log = (msg, type = 'info') => {
+            const div = document.createElement('div');
+            div.style.color = type === 'error' ? '#e74c3c' : type === 'success' ? '#27ae60' : '#aaa';
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            hostLogs.appendChild(div);
+            hostLogs.scrollTop = hostLogs.scrollHeight;
+        };
+
+        // App HTML that uses EventSource
+        const appHtml = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    * { box-sizing: border-box; }
+                    body { 
+                        font-family: monospace; 
+                        padding: 15px; 
+                        background: #0f0f23; 
+                        color: #0f0;
+                        margin: 0;
+                    }
+                    h2 { color: #00d9ff; margin: 0 0 10px 0; font-size: 14px; }
+                    #status { 
+                        padding: 5px 10px; 
+                        border-radius: 4px; 
+                        display: inline-block;
+                        margin-bottom: 10px;
+                        font-size: 12px;
+                    }
+                    #status.connecting { background: #f39c12; color: #000; }
+                    #status.open { background: #27ae60; }
+                    #status.error { background: #e74c3c; }
+                    #events { 
+                        list-style: none; 
+                        padding: 0; 
+                        margin: 0;
+                        max-height: 280px;
+                        overflow-y: auto;
+                    }
+                    #events li { 
+                        padding: 8px; 
+                        margin: 4px 0; 
+                        background: #1a1a2e; 
+                        border-radius: 4px;
+                        font-size: 11px;
+                        word-break: break-all;
+                    }
+                    .event-time { color: #888; }
+                    .event-content { color: #0f0; }
+                </style>
+            </head>
+            <body>
+                <h2>📡 Child App (Sandboxed Iframe)</h2>
+                <div id="status" class="connecting">⏳ Waiting for Bridge...</div>
+                <ul id="events"></ul>
+                <script>
+                    const status = document.getElementById('status');
+                    const events = document.getElementById('events');
+                    let eventCount = 0;
+                    
+                    function addEvent(content, isError = false) {
+                        eventCount++;
+                        const li = document.createElement('li');
+                        li.innerHTML = '<span class="event-time">#' + eventCount + ' ' + new Date().toLocaleTimeString() + '</span><br><span class="event-content">' + content.substring(0, 150) + (content.length > 150 ? '...' : '') + '</span>';
+                        if (isError) li.style.background = '#3d1a1a';
+                        events.insertBefore(li, events.firstChild);
+                        if (events.children.length > 20) events.removeChild(events.lastChild);
+                    }
+                    
+                    // Wait for Bridge to initialize, then start streaming
+                    function startStreaming() {
+                        status.textContent = '🔄 Opening Stream...';
+                        status.className = 'connecting';
+                        
+                        try {
+                            const es = new EventSource('/mirage/v1/feed');
+                            
+                            es.onopen = () => {
+                                status.textContent = '✅ Stream OPEN';
+                                status.className = 'open';
+                                window.parent.postMessage({ type: 'STREAM_STATUS', status: 'open' }, '*');
+                            };
+                            
+                            es.onmessage = (event) => {
+                                try {
+                                    const data = JSON.parse(event.data);
+                                    addEvent(data.content || JSON.stringify(data).substring(0, 100));
+                                } catch (e) {
+                                    addEvent(event.data);
+                                }
+                            };
+                            
+                            es.onerror = (err) => {
+                                status.textContent = '❌ Stream ERROR';
+                                status.className = 'error';
+                                addEvent('Stream error occurred', true);
+                                window.parent.postMessage({ type: 'STREAM_STATUS', status: 'error' }, '*');
+                            };
+                        } catch (e) {
+                            status.textContent = '❌ ' + e.message;
+                            status.className = 'error';
+                            addEvent('Error: ' + e.message, true);
+                        }
+                    }
+                    
+                    // Wait a bit for bridge initialization
+                    setTimeout(startStreaming, 1500);
+                <\/script>
+            </body>
+            </html>
+        `;
+
+        // Listen for stream status from iframe
+        window.addEventListener('message', (event) => {
+            if (event.data?.type === 'STREAM_STATUS') {
+                if (event.data.status === 'open') {
+                    streamStatus.textContent = 'Stream OPEN';
+                    streamStatus.className = 'status open';
+                    log('Stream opened successfully!', 'success');
+                } else if (event.data.status === 'error') {
+                    streamStatus.textContent = 'Stream ERROR';
+                    streamStatus.className = 'status error';
+                    log('Stream error occurred', 'error');
+                }
+            }
+        });
+
+        // Initialize Host
+        log('Initializing MirageHost...');
+
+        try {
+            const host = new MirageHost({
+                relays: ['wss://relay.damus.io', 'wss://nos.lol'],
+                engineUrl: '/packages/core/dist/engine.js',
+                bridgeUrl: '/packages/core/dist/bridge.js',
+            });
+
+            log('Host created, mounting app...');
+
+            host.mount(appHtml, document.getElementById('app-container'))
+                .then(() => {
+                    log('App mounted successfully!', 'success');
+                })
+                .catch(err => {
+                    log('Mount error: ' + err.message, 'error');
+                });
+        } catch (err) {
+            log('Host creation error: ' + err.message, 'error');
+        }
+    </script>
+</body>
+
+</html>

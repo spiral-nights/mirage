@@ -1,0 +1,112 @@
+/**
+ * Mirage Bridge - Fetch Interceptor
+ *
+ * Intercepts fetch() calls to /mirage/ routes and routes them to the Engine.
+ */
+
+import type { ApiRequestMessage, StreamOpenMessage } from '../types';
+import {
+    engineReady,
+    originalFetch,
+    pendingRequests,
+    activeStreams,
+    postToEngine
+} from './messaging';
+
+// ============================================================================
+// Fetch Interceptor
+// ============================================================================
+
+/**
+ * Intercepted fetch that routes /mirage/ calls to the Engine
+ */
+export async function interceptedFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+
+    // Only intercept /mirage/ routes
+    if (!url.startsWith('/mirage/')) {
+        return originalFetch(input, init);
+    }
+
+    // Wait for bridge to be initialized
+    await engineReady;
+
+    // Check for Streaming Request
+    const headers = new Headers(init?.headers);
+    if (headers.get('Accept') === 'text/event-stream') {
+        return handleStreamingRequest(url, init);
+    }
+
+    // Standard JSON Request
+    return new Promise((resolve, reject) => {
+        const id = crypto.randomUUID();
+        pendingRequests.set(id, { resolve, reject });
+
+        const method = (init?.method?.toUpperCase() || 'GET') as 'GET' | 'POST' | 'PUT' | 'DELETE';
+        let body: unknown = undefined;
+        if (init?.body) {
+            try {
+                body = JSON.parse(init.body as string);
+            } catch {
+                body = init.body;
+            }
+        }
+
+        const message: ApiRequestMessage = {
+            type: 'API_REQUEST',
+            id,
+            method,
+            path: url,
+            body,
+            headers: Object.fromEntries(headers.entries()),
+        };
+
+        postToEngine(message);
+
+        // Timeout 30s
+        setTimeout(() => {
+            if (pendingRequests.has(id)) {
+                pendingRequests.delete(id);
+                reject(new Error('Request timed out'));
+            }
+        }, 30000);
+    });
+}
+
+// ============================================================================
+// Streaming Request Handler
+// ============================================================================
+
+function handleStreamingRequest(url: string, init?: RequestInit): Response {
+    const id = crypto.randomUUID();
+    const { readable, writable } = new TransformStream();
+    const writer = writable.getWriter();
+
+    // Create controller wrapper to decouple from TransformStream internals
+    const controller = {
+        enqueue: (chunk: Uint8Array) => writer.write(chunk),
+        close: () => writer.close(),
+        error: (err: Error) => writer.abort(err)
+    };
+
+    activeStreams.set(id, { controller });
+
+    const method = (init?.method?.toUpperCase() || 'GET') as 'GET';
+    const message: StreamOpenMessage = {
+        type: 'STREAM_OPEN',
+        id,
+        method,
+        path: url,
+        headers: init?.headers ? Object.fromEntries(new Headers(init.headers).entries()) : undefined,
+    };
+
+    postToEngine(message);
+
+    return new Response(readable, {
+        headers: {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+        }
+    });
+}
