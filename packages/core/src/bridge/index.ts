@@ -30,13 +30,23 @@ export interface BridgeOptions {
      * Required if running Standalone. 
      * Ignored if running as Child (Host owns engine).
      */
-    workerUrl: string;
+    workerUrl?: string;
+
+    /**
+     * Relay URLs for the Engine to connect to (Standalone Mode)
+     */
+    relays?: string[];
+
+    /**
+     * User's public key (Standalone Mode)
+     */
+    publicKey?: string;
 }
 
 /**
  * Initialize the Mirage Bridge
  */
-export async function initBridge(options: BridgeOptions): Promise<void> {
+export async function initBridge(options: BridgeOptions = {}): Promise<void> {
     if (enginePort) {
         console.warn('[Bridge] Already initialized');
         return;
@@ -63,6 +73,27 @@ export async function initBridge(options: BridgeOptions): Promise<void> {
         const worker = new Worker(blobUrl);
         worker.onmessage = handleEngineMessage;
         setEnginePort(worker);
+
+        // Send relay config if provided
+        if (options.relays && options.relays.length > 0) {
+            console.log('[Bridge] Sending relay config:', options.relays);
+            worker.postMessage({
+                type: 'RELAY_CONFIG',
+                id: crypto.randomUUID(),
+                action: 'SET',
+                relays: options.relays
+            });
+        }
+
+        // Send pubkey if provided
+        if (options.publicKey) {
+            console.log('[Bridge] Sending pubkey:', options.publicKey.slice(0, 8) + '...');
+            worker.postMessage({
+                type: 'SET_PUBKEY',
+                id: crypto.randomUUID(),
+                pubkey: options.publicKey
+            });
+        }
     }
 
     // 2. Install Polyfills & Interceptors
@@ -100,6 +131,5 @@ export function destroyBridge(): void {
     window.removeEventListener('message', handleEngineMessage);
 }
 
-// Re-export types for external use
-export type { BridgeOptions };
+// Re-export for external use
 export { MirageEventSource };

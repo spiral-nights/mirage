@@ -296,9 +296,73 @@ export class MirageHost {
         else if (message.type === 'ACTION_SIGN_EVENT') {
             this.handleSignRequest(message as SignEventMessage, true);
         }
+        // Route: ACTION_ENCRYPT from Engine -> Host (NIP-44 encryption)
+        else if (message.type === 'ACTION_ENCRYPT') {
+            this.handleEncryptRequest(message as any);
+        }
+        // Route: ACTION_DECRYPT from Engine -> Host (NIP-44 decryption)
+        else if (message.type === 'ACTION_DECRYPT') {
+            this.handleDecryptRequest(message as any);
+        }
         // Route: Streaming messages from Engine -> App
         else if (message.type === 'STREAM_CHUNK' || message.type === 'STREAM_CLOSE' || message.type === 'STREAM_ERROR') {
             this.postToIframe(message);
+        }
+    }
+
+    private async handleEncryptRequest(message: { id: string; pubkey: string; plaintext: string }): Promise<void> {
+        try {
+            if (!this.signer.isAvailable()) {
+                this.engineWorker.postMessage({
+                    type: 'ENCRYPT_RESULT',
+                    id: message.id,
+                    error: 'No signer available',
+                });
+                return;
+            }
+
+            // Use NIP-44 encryption via signer
+            const ciphertext = await this.signer.encrypt(message.pubkey, message.plaintext);
+
+            this.engineWorker.postMessage({
+                type: 'ENCRYPT_RESULT',
+                id: message.id,
+                ciphertext,
+            });
+        } catch (error) {
+            this.engineWorker.postMessage({
+                type: 'ENCRYPT_RESULT',
+                id: message.id,
+                error: error instanceof Error ? error.message : 'Encryption failed',
+            });
+        }
+    }
+
+    private async handleDecryptRequest(message: { id: string; pubkey: string; ciphertext: string }): Promise<void> {
+        try {
+            if (!this.signer.isAvailable()) {
+                this.engineWorker.postMessage({
+                    type: 'DECRYPT_RESULT',
+                    id: message.id,
+                    error: 'No signer available',
+                });
+                return;
+            }
+
+            // Use NIP-44 decryption via signer
+            const plaintext = await this.signer.decrypt(message.pubkey, message.ciphertext);
+
+            this.engineWorker.postMessage({
+                type: 'DECRYPT_RESULT',
+                id: message.id,
+                plaintext,
+            });
+        } catch (error) {
+            this.engineWorker.postMessage({
+                type: 'DECRYPT_RESULT',
+                id: message.id,
+                error: error instanceof Error ? error.message : 'Decryption failed',
+            });
         }
     }
 

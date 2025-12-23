@@ -3,6 +3,9 @@
  *
  * Provides key-value storage using Kind 30078 replaceable events.
  * Keys are scoped per app using the `d` tag.
+ * 
+ * SECURITY: All content is encrypted using NIP-44 self-encryption
+ * to prevent other apps/clients from reading the data.
  */
 
 import type { Event, Filter } from 'nostr-tools';
@@ -16,6 +19,8 @@ import type { UnsignedNostrEvent } from '../../types';
 export interface StorageRouteContext {
     pool: RelayPool;
     requestSign: (event: UnsignedNostrEvent) => Promise<Event>;
+    requestEncrypt: (pubkey: string, plaintext: string) => Promise<string>;
+    requestDecrypt: (pubkey: string, ciphertext: string) => Promise<string>;
     currentPubkey: string | null;
     appOrigin: string;
 }
@@ -32,7 +37,7 @@ interface StorageValue {
 
 /**
  * GET /mirage/v1/storage/:key
- * Fetch a stored value by key
+ * Fetch and decrypt a stored value by key
  */
 export async function getStorage(
     ctx: StorageRouteContext,
@@ -69,12 +74,22 @@ export async function getStorage(
         }
 
         const event = events[0];
-        let value: unknown;
 
+        // Decrypt the content (NIP-44 self-decryption)
+        let plaintext: string;
         try {
-            value = JSON.parse(event.content);
+            plaintext = await ctx.requestDecrypt(ctx.currentPubkey, event.content);
+        } catch (err) {
+            console.error('[Storage] Decryption failed:', err);
+            return { status: 500, body: { error: 'Failed to decrypt storage' } };
+        }
+
+        // Parse the decrypted JSON
+        let value: unknown;
+        try {
+            value = JSON.parse(plaintext);
         } catch {
-            value = event.content;
+            value = plaintext;
         }
 
         const response: StorageValue = {
@@ -92,7 +107,7 @@ export async function getStorage(
 
 /**
  * PUT /mirage/v1/storage/:key
- * Store or update a value
+ * Encrypt and store a value
  */
 export async function putStorage(
     ctx: StorageRouteContext,
@@ -104,13 +119,22 @@ export async function putStorage(
     }
 
     const dTag = `${ctx.appOrigin}:${key}`;
-    const content = typeof body === 'string' ? body : JSON.stringify(body);
+    const plaintext = typeof body === 'string' ? body : JSON.stringify(body);
+
+    // Encrypt the content (NIP-44 self-encryption)
+    let ciphertext: string;
+    try {
+        ciphertext = await ctx.requestEncrypt(ctx.currentPubkey, plaintext);
+    } catch (err) {
+        console.error('[Storage] Encryption failed:', err);
+        return { status: 500, body: { error: 'Failed to encrypt storage' } };
+    }
 
     const unsignedEvent: UnsignedNostrEvent = {
         kind: 30078,
         created_at: Math.floor(Date.now() / 1000),
         tags: [['d', dTag]],
-        content,
+        content: ciphertext,  // Encrypted content
     };
 
     try {
@@ -119,7 +143,7 @@ export async function putStorage(
 
         const response: StorageValue = {
             key,
-            value: body,
+            value: body,  // Return original value (not encrypted)
             updatedAt: signedEvent.created_at,
         };
 
@@ -132,7 +156,7 @@ export async function putStorage(
 
 /**
  * DELETE /mirage/v1/storage/:key
- * Delete a stored value by publishing an empty event with the same d tag
+ * Delete a stored value by publishing an encrypted empty event
  */
 export async function deleteStorage(
     ctx: StorageRouteContext,
@@ -144,14 +168,20 @@ export async function deleteStorage(
 
     const dTag = `${ctx.appOrigin}:${key}`;
 
-    // Publish an empty event to effectively "delete" the value
-    // In Nostr, you can't truly delete, but replacing with empty content
-    // signals deletion to clients
+    // Encrypt empty content to maintain consistency
+    let ciphertext: string;
+    try {
+        ciphertext = await ctx.requestEncrypt(ctx.currentPubkey, '');
+    } catch (err) {
+        console.error('[Storage] Encryption failed:', err);
+        return { status: 500, body: { error: 'Failed to encrypt deletion marker' } };
+    }
+
     const unsignedEvent: UnsignedNostrEvent = {
         kind: 30078,
         created_at: Math.floor(Date.now() / 1000),
         tags: [['d', dTag], ['deleted', 'true']],
-        content: '',
+        content: ciphertext,
     };
 
     try {

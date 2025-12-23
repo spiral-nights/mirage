@@ -1,18 +1,18 @@
 /**
- * Mirage Engine - Signing Utilities
+ * Mirage Engine - Signing & Encryption Utilities
  *
- * Handles NIP-07 signature requests via Host communication.
+ * Handles NIP-07 signature and NIP-44 encryption requests via Host communication.
  */
 
 import type { Event } from 'nostr-tools';
-import type { SignEventMessage, UnsignedNostrEvent } from '../types';
+import type { SignEventMessage, EncryptRequestMessage, DecryptRequestMessage, UnsignedNostrEvent } from '../types';
 
 // ============================================================================
 // Types
 // ============================================================================
 
-interface PendingSignature {
-    resolve: (event: Event) => void;
+interface PendingRequest<T> {
+    resolve: (result: T) => void;
     reject: (error: Error) => void;
 }
 
@@ -20,7 +20,9 @@ interface PendingSignature {
 // State
 // ============================================================================
 
-export const pendingSignatures = new Map<string, PendingSignature>();
+export const pendingSignatures = new Map<string, PendingRequest<Event>>();
+export const pendingEncryptions = new Map<string, PendingRequest<string>>();
+export const pendingDecryptions = new Map<string, PendingRequest<string>>();
 
 // ============================================================================
 // UUID Helper
@@ -60,7 +62,6 @@ export function requestSign(event: UnsignedNostrEvent): Promise<Event> {
 
         self.postMessage(message);
 
-        // Timeout after 60 seconds
         setTimeout(() => {
             if (pendingSignatures.has(id)) {
                 pendingSignatures.delete(id);
@@ -89,12 +90,110 @@ export function handleSignatureResult(
     if (message.error) {
         pending.reject(new Error(message.error));
     } else if (message.signedEvent) {
-        // Update current pubkey if we don't have it
         if (!currentPubkey && message.signedEvent.pubkey) {
             setCurrentPubkey(message.signedEvent.pubkey);
         }
         pending.resolve(message.signedEvent);
     } else {
         pending.reject(new Error('Invalid signature result'));
+    }
+}
+
+// ============================================================================
+// NIP-44 Encryption
+// ============================================================================
+
+/**
+ * Request NIP-44 encryption from Host
+ * For self-encryption, pass the user's own pubkey
+ */
+export function requestEncrypt(pubkey: string, plaintext: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const id = generateUUID();
+
+        pendingEncryptions.set(id, { resolve, reject });
+
+        const message: EncryptRequestMessage = {
+            type: 'ACTION_ENCRYPT',
+            id,
+            pubkey,
+            plaintext,
+        };
+
+        self.postMessage(message);
+
+        setTimeout(() => {
+            if (pendingEncryptions.has(id)) {
+                pendingEncryptions.delete(id);
+                reject(new Error('Encryption request timed out'));
+            }
+        }, 30000);
+    });
+}
+
+/**
+ * Handle encryption result from Host
+ */
+export function handleEncryptResult(
+    message: { id: string; ciphertext?: string; error?: string }
+): void {
+    const pending = pendingEncryptions.get(message.id);
+    if (!pending) return;
+
+    pendingEncryptions.delete(message.id);
+
+    if (message.error) {
+        pending.reject(new Error(message.error));
+    } else if (message.ciphertext) {
+        pending.resolve(message.ciphertext);
+    } else {
+        pending.reject(new Error('Invalid encryption result'));
+    }
+}
+
+/**
+ * Request NIP-44 decryption from Host
+ */
+export function requestDecrypt(pubkey: string, ciphertext: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const id = generateUUID();
+
+        pendingDecryptions.set(id, { resolve, reject });
+
+        const message: DecryptRequestMessage = {
+            type: 'ACTION_DECRYPT',
+            id,
+            pubkey,
+            ciphertext,
+        };
+
+        self.postMessage(message);
+
+        setTimeout(() => {
+            if (pendingDecryptions.has(id)) {
+                pendingDecryptions.delete(id);
+                reject(new Error('Decryption request timed out'));
+            }
+        }, 30000);
+    });
+}
+
+/**
+ * Handle decryption result from Host
+ */
+export function handleDecryptResult(
+    message: { id: string; plaintext?: string; error?: string }
+): void {
+    const pending = pendingDecryptions.get(message.id);
+    if (!pending) return;
+
+    pendingDecryptions.delete(message.id);
+
+    if (message.error) {
+        pending.reject(new Error(message.error));
+    } else if (message.plaintext) {
+        pending.resolve(message.plaintext);
+    } else {
+        pending.reject(new Error('Invalid decryption result'));
     }
 }

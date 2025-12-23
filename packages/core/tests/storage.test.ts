@@ -1,7 +1,7 @@
 /**
  * Storage Routes Tests
  *
- * Tests for NIP-78 application-specific storage handlers.
+ * Tests for NIP-78 application-specific storage handlers with NIP-44 encryption.
  */
 
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
@@ -27,9 +27,24 @@ function createMockContext(overrides?: Partial<StorageRouteContext>): StorageRou
         sig: 'test-signature-xyz789',
     }));
 
+    // Mock encryption: just base64 encode for testing
+    const mockEncrypt = mock(async (pubkey: string, plaintext: string): Promise<string> => {
+        return 'encrypted:' + btoa(plaintext);
+    });
+
+    // Mock decryption: decode the mock encrypted format
+    const mockDecrypt = mock(async (pubkey: string, ciphertext: string): Promise<string> => {
+        if (ciphertext.startsWith('encrypted:')) {
+            return atob(ciphertext.slice('encrypted:'.length));
+        }
+        throw new Error('Invalid ciphertext');
+    });
+
     return {
         pool: mockPool as any,
         requestSign: mockSign,
+        requestEncrypt: mockEncrypt,
+        requestDecrypt: mockDecrypt,
         currentPubkey: 'test-pubkey-abc123def456',
         appOrigin: 'test-app',
         ...overrides,
@@ -59,13 +74,15 @@ describe('getStorage', () => {
     });
 
     test('returns stored value when found', async () => {
+        // Content is encrypted (using our mock format)
+        const encryptedContent = 'encrypted:' + btoa(JSON.stringify({ theme: 'dark', fontSize: 14 }));
         const storedEvent: Event = {
             id: 'event-123',
             pubkey: 'test-pubkey-abc123def456',
             created_at: 1703203200,
             kind: 30078,
             tags: [['d', 'test-app:my-key']],
-            content: JSON.stringify({ theme: 'dark', fontSize: 14 }),
+            content: encryptedContent,
             sig: 'sig-xyz',
         };
 
@@ -85,13 +102,14 @@ describe('getStorage', () => {
     });
 
     test('handles non-JSON content gracefully', async () => {
+        const encryptedContent = 'encrypted:' + btoa('plain text value');
         const storedEvent: Event = {
             id: 'event-456',
             pubkey: 'test-pubkey-abc123def456',
             created_at: 1703203200,
             kind: 30078,
             tags: [['d', 'test-app:text-key']],
-            content: 'plain text value',
+            content: encryptedContent,
             sig: 'sig-abc',
         };
 
@@ -117,7 +135,7 @@ describe('putStorage', () => {
         expect(result.body).toEqual({ error: 'Not authenticated' });
     });
 
-    test('creates signed event with correct structure', async () => {
+    test('creates signed event with encrypted content', async () => {
         const ctx = createMockContext();
         const testData = { counter: 42, enabled: true };
 
@@ -125,16 +143,19 @@ describe('putStorage', () => {
 
         expect(result.status).toBe(200);
         expect((result.body as any).key).toBe('settings');
-        expect((result.body as any).value).toEqual(testData);
+        expect((result.body as any).value).toEqual(testData); // Returns original
 
-        // Verify requestSign was called with correct event structure
+        // Verify requestEncrypt was called
+        expect(ctx.requestEncrypt).toHaveBeenCalled();
+
+        // Verify requestSign was called with encrypted content (not plaintext)
         expect(ctx.requestSign).toHaveBeenCalled();
         const signCall = (ctx.requestSign as any).mock.calls[0];
         const unsignedEvent = signCall[0];
 
         expect(unsignedEvent.kind).toBe(30078);
         expect(unsignedEvent.tags).toContainEqual(['d', 'test-app:settings']);
-        expect(JSON.parse(unsignedEvent.content)).toEqual(testData);
+        expect(unsignedEvent.content).toMatch(/^encrypted:/);  // Content is encrypted
     });
 
     test('publishes signed event to relay pool', async () => {
@@ -144,12 +165,15 @@ describe('putStorage', () => {
         expect(ctx.pool.publish).toHaveBeenCalled();
     });
 
-    test('handles string values without double-encoding', async () => {
+    test('encrypts string values', async () => {
         const ctx = createMockContext();
         await putStorage(ctx, 'raw-string', 'just a string');
 
-        const signCall = (ctx.requestSign as any).mock.calls[0];
-        expect(signCall[0].content).toBe('just a string');
+        // Verify encryption was called with the string
+        expect(ctx.requestEncrypt).toHaveBeenCalledWith(
+            'test-pubkey-abc123def456',
+            'just a string'
+        );
     });
 });
 
@@ -162,7 +186,7 @@ describe('deleteStorage', () => {
         expect(result.body).toEqual({ error: 'Not authenticated' });
     });
 
-    test('publishes empty event with deleted tag', async () => {
+    test('publishes encrypted empty event with deleted tag', async () => {
         const ctx = createMockContext();
         const result = await deleteStorage(ctx, 'old-setting');
 
@@ -170,12 +194,15 @@ describe('deleteStorage', () => {
         expect((result.body as any).deleted).toBe(true);
         expect((result.body as any).key).toBe('old-setting');
 
+        // Verify encryption was called (even for empty content)
+        expect(ctx.requestEncrypt).toHaveBeenCalled();
+
         // Verify the event structure
         const signCall = (ctx.requestSign as any).mock.calls[0];
         const unsignedEvent = signCall[0];
 
         expect(unsignedEvent.kind).toBe(30078);
-        expect(unsignedEvent.content).toBe('');
+        expect(unsignedEvent.content).toMatch(/^encrypted:/);  // Encrypted empty content
         expect(unsignedEvent.tags).toContainEqual(['d', 'test-app:old-setting']);
         expect(unsignedEvent.tags).toContainEqual(['deleted', 'true']);
     });

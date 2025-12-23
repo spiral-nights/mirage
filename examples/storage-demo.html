@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mirage Storage Demo</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #1a1a2e;
+            color: #f0f0f0;
+            padding: 2rem;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: #e94560;
+        }
+
+        .section {
+            background: #2a2a4a;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+        }
+
+        button {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            background: #e94560;
+            color: white;
+            margin-right: 0.5rem;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        input,
+        textarea {
+            padding: 0.75rem;
+            border-radius: 8px;
+            border: 1px solid #3a3a5a;
+            background: #1a1a2e;
+            color: white;
+            width: 100%;
+            margin: 0.5rem 0;
+        }
+
+        pre {
+            background: #1a1a2e;
+            padding: 1rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 0.9rem;
+            white-space: pre-wrap;
+        }
+
+        .status {
+            padding: 0.5rem;
+            border-radius: 4px;
+            margin-top: 0.5rem;
+        }
+
+        .success {
+            background: rgba(0, 255, 0, 0.1);
+            border: 1px solid green;
+        }
+
+        .error {
+            background: rgba(255, 0, 0, 0.1);
+            border: 1px solid red;
+        }
+
+        .info {
+            background: rgba(0, 150, 255, 0.1);
+            border: 1px solid #0096ff;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>🔐 Mirage Encrypted Storage Demo</h1>
+    <p>Test NIP-44 encrypted storage. Requires a NIP-07 signer extension (Alby, nos2x, etc.)</p>
+
+    <div class="section">
+        <h3>1. Initialize</h3>
+        <button onclick="initBridge()">Initialize Bridge</button>
+        <div id="init-status"></div>
+    </div>
+
+    <div class="section">
+        <h3>2. Write Data</h3>
+        <input type="text" id="write-key" placeholder="Key (e.g. settings)" value="test-key">
+        <textarea id="write-value" placeholder='Value (JSON or string)'
+            rows="3">{"theme": "dark", "count": 42}</textarea>
+        <button onclick="writeData()">PUT Storage</button>
+        <div id="write-status"></div>
+    </div>
+
+    <div class="section">
+        <h3>3. Read Data</h3>
+        <input type="text" id="read-key" placeholder="Key to read" value="test-key">
+        <button onclick="readData()">GET Storage</button>
+        <div id="read-status"></div>
+        <pre id="read-result"></pre>
+    </div>
+
+    <div class="section">
+        <h3>4. Debug Info</h3>
+        <pre id="debug"></pre>
+    </div>
+
+    <script type="module">
+        // Import from compiled bridge
+        import { initBridge } from '../packages/core/dist/bridge.js';
+
+        const debug = (msg) => {
+            document.getElementById('debug').textContent += new Date().toISOString().slice(11, 19) + ' ' + msg + '\n';
+        };
+        window.debug = debug;
+
+        window.initBridge = async function () {
+            const status = document.getElementById('init-status');
+            try {
+                // Check for NIP-07 signer
+                if (!window.nostr) {
+                    status.innerHTML = '<div class="status error">❌ No NIP-07 signer found. Install Alby or nos2x.</div>';
+                    return;
+                }
+                debug('NIP-07 signer found: ' + (window.nostr.nip44 ? 'NIP-44 supported' : 'NIP-04 only'));
+
+                // Get pubkey
+                const pubkey = await window.nostr.getPublicKey();
+                debug('Pubkey: ' + pubkey.slice(0, 8) + '...');
+
+                // Initialize Bridge in standalone mode
+                await initBridge({
+                    workerUrl: '../packages/core/dist/engine.js',
+                    relays: ['wss://relay.damus.io', 'wss://nos.lol'],
+                    publicKey: pubkey
+                });
+                debug('Bridge initialized in standalone mode');
+
+                // Send relay config to engine
+                // The bridge now intercepts fetch, so storage calls will work
+                status.innerHTML = '<div class="status success">✅ Bridge initialized! Pubkey: ' + pubkey.slice(0, 16) + '...</div>';
+            } catch (err) {
+                status.innerHTML = '<div class="status error">❌ Error: ' + err.message + '</div>';
+                debug('Init error: ' + err.message);
+            }
+        };
+
+        window.writeData = async function () {
+            const status = document.getElementById('write-status');
+            const key = document.getElementById('write-key').value;
+            const valueStr = document.getElementById('write-value').value;
+
+            try {
+                // Parse JSON if possible
+                let value;
+                try { value = JSON.parse(valueStr); } catch { value = valueStr; }
+
+                debug('Writing to /mirage/v1/storage/' + key);
+                const response = await fetch('/mirage/v1/storage/' + key, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(value)
+                });
+
+                const result = await response.json();
+                debug('Response: ' + response.status + ' ' + JSON.stringify(result));
+
+                if (response.ok) {
+                    status.innerHTML = '<div class="status success">✅ Written! (encrypted on relay)</div>';
+                } else {
+                    status.innerHTML = '<div class="status error">❌ ' + result.error + '</div>';
+                }
+            } catch (err) {
+                status.innerHTML = '<div class="status error">❌ ' + err.message + '</div>';
+                debug('Write error: ' + err.message);
+            }
+        };
+
+        window.readData = async function () {
+            const status = document.getElementById('read-status');
+            const result = document.getElementById('read-result');
+            const key = document.getElementById('read-key').value;
+
+            try {
+                debug('Reading from /mirage/v1/storage/' + key);
+                const response = await fetch('/mirage/v1/storage/' + key);
+                const data = await response.json();
+                debug('Response: ' + response.status);
+
+                if (response.ok) {
+                    status.innerHTML = '<div class="status success">✅ Found! (decrypted from relay)</div>';
+                    result.textContent = JSON.stringify(data, null, 2);
+                } else {
+                    status.innerHTML = '<div class="status error">❌ ' + data.error + '</div>';
+                    result.textContent = '';
+                }
+            } catch (err) {
+                status.innerHTML = '<div class="status error">❌ ' + err.message + '</div>';
+                debug('Read error: ' + err.message);
+            }
+        };
+
+        // Auto-check for signer on load
+        setTimeout(() => {
+            if (window.nostr) {
+                debug('NIP-07 signer detected');
+            } else {
+                debug('No NIP-07 signer. Install Alby or nos2x browser extension.');
+            }
+        }, 500);
+    </script>
+</body>
+
+</html>

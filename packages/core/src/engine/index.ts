@@ -26,7 +26,7 @@ import type {
     RelayConfigMessage,
 } from '../types';
 import { handleStreamOpen, sendStreamError } from './streaming';
-import { requestSign, handleSignatureResult } from './signing';
+import { requestSign, handleSignatureResult, requestEncrypt, requestDecrypt, handleEncryptResult, handleDecryptResult } from './signing';
 
 // ============================================================================
 // State
@@ -76,6 +76,14 @@ self.onmessage = async (event: MessageEvent<MirageMessage>) => {
         case 'SET_PUBKEY':
             currentPubkey = message.pubkey;
             console.log('[Engine] Pubkey set:', currentPubkey?.slice(0, 8) + '...');
+            break;
+
+        case 'ENCRYPT_RESULT':
+            handleEncryptResult(message as any);
+            break;
+
+        case 'DECRYPT_RESULT':
+            handleDecryptResult(message as any);
             break;
 
         default:
@@ -224,6 +232,8 @@ function matchRoute(method: string, fullPath: string): RouteMatch | null {
         const storageCtx: StorageRouteContext = {
             pool: pool!,
             requestSign,
+            requestEncrypt,
+            requestDecrypt,
             currentPubkey,
             appOrigin,
         };

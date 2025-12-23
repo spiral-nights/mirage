@@ -103,6 +103,92 @@ export function handleEngineMessage(event: MessageEvent<MirageMessage>): void {
             activeStreams.delete(message.id);
         }
     }
+    // Route: Encryption Request (Standalone Mode - handle via window.nostr)
+    else if (message.type === 'ACTION_ENCRYPT') {
+        handleEncryptRequest(message as any);
+    }
+    // Route: Decryption Request (Standalone Mode)
+    else if (message.type === 'ACTION_DECRYPT') {
+        handleDecryptRequest(message as any);
+    }
+    // Route: Sign Request (Standalone Mode)
+    else if (message.type === 'ACTION_SIGN_EVENT') {
+        handleSignRequest(message as any);
+    }
+}
+
+/**
+ * Handle encryption request from Engine (Standalone Mode only)
+ */
+async function handleEncryptRequest(message: { id: string; pubkey: string; plaintext: string }): Promise<void> {
+    try {
+        const nostr = (window as any).nostr;
+        if (!nostr) {
+            postToEngine({ type: 'ENCRYPT_RESULT', id: message.id, error: 'No signer available' });
+            return;
+        }
+
+        let ciphertext: string;
+        if (nostr.nip44?.encrypt) {
+            ciphertext = await nostr.nip44.encrypt(message.pubkey, message.plaintext);
+        } else if (nostr.nip04?.encrypt) {
+            console.warn('[Bridge] NIP-44 not available, falling back to NIP-04');
+            ciphertext = await nostr.nip04.encrypt(message.pubkey, message.plaintext);
+        } else {
+            postToEngine({ type: 'ENCRYPT_RESULT', id: message.id, error: 'Signer does not support encryption' });
+            return;
+        }
+
+        postToEngine({ type: 'ENCRYPT_RESULT', id: message.id, ciphertext });
+    } catch (error) {
+        postToEngine({ type: 'ENCRYPT_RESULT', id: message.id, error: error instanceof Error ? error.message : 'Encryption failed' });
+    }
+}
+
+/**
+ * Handle decryption request from Engine (Standalone Mode only)
+ */
+async function handleDecryptRequest(message: { id: string; pubkey: string; ciphertext: string }): Promise<void> {
+    try {
+        const nostr = (window as any).nostr;
+        if (!nostr) {
+            postToEngine({ type: 'DECRYPT_RESULT', id: message.id, error: 'No signer available' });
+            return;
+        }
+
+        let plaintext: string;
+        if (nostr.nip44?.decrypt) {
+            plaintext = await nostr.nip44.decrypt(message.pubkey, message.ciphertext);
+        } else if (nostr.nip04?.decrypt) {
+            console.warn('[Bridge] NIP-44 not available, falling back to NIP-04');
+            plaintext = await nostr.nip04.decrypt(message.pubkey, message.ciphertext);
+        } else {
+            postToEngine({ type: 'DECRYPT_RESULT', id: message.id, error: 'Signer does not support decryption' });
+            return;
+        }
+
+        postToEngine({ type: 'DECRYPT_RESULT', id: message.id, plaintext });
+    } catch (error) {
+        postToEngine({ type: 'DECRYPT_RESULT', id: message.id, error: error instanceof Error ? error.message : 'Decryption failed' });
+    }
+}
+
+/**
+ * Handle sign request from Engine (Standalone Mode only)
+ */
+async function handleSignRequest(message: { id: string; event: any }): Promise<void> {
+    try {
+        const nostr = (window as any).nostr;
+        if (!nostr) {
+            postToEngine({ type: 'SIGNATURE_RESULT', id: message.id, error: 'No signer available' });
+            return;
+        }
+
+        const signedEvent = await nostr.signEvent(message.event);
+        postToEngine({ type: 'SIGNATURE_RESULT', id: message.id, signedEvent });
+    } catch (error) {
+        postToEngine({ type: 'SIGNATURE_RESULT', id: message.id, error: error instanceof Error ? error.message : 'Signing failed' });
+    }
 }
 
 /**

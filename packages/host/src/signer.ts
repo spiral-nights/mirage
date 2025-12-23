@@ -54,4 +54,42 @@ export class Signer {
 
         return this.signer.signEvent(eventWithPubkey);
     }
+
+    /**
+     * Encrypt data using NIP-44 (preferred) or NIP-04 (fallback)
+     */
+    async encrypt(recipientPubkey: string, plaintext: string): Promise<string> {
+        if (!this.signer) {
+            throw new Error('No signer available');
+        }
+
+        // Prefer NIP-44, fall back to NIP-04
+        if (this.signer.nip44?.encrypt) {
+            return this.signer.nip44.encrypt(recipientPubkey, plaintext);
+        } else if (this.signer.nip04?.encrypt) {
+            console.warn('[Signer] NIP-44 not available, falling back to NIP-04');
+            return this.signer.nip04.encrypt(recipientPubkey, plaintext);
+        }
+
+        throw new Error('Signer does not support encryption (NIP-44 or NIP-04)');
+    }
+
+    /**
+     * Decrypt data using NIP-44 (preferred) or NIP-04 (fallback)
+     */
+    async decrypt(senderPubkey: string, ciphertext: string): Promise<string> {
+        if (!this.signer) {
+            throw new Error('No signer available');
+        }
+
+        // Prefer NIP-44, fall back to NIP-04
+        if (this.signer.nip44?.decrypt) {
+            return this.signer.nip44.decrypt(senderPubkey, ciphertext);
+        } else if (this.signer.nip04?.decrypt) {
+            console.warn('[Signer] NIP-44 not available, falling back to NIP-04');
+            return this.signer.nip04.decrypt(senderPubkey, ciphertext);
+        }
+
+        throw new Error('Signer does not support decryption (NIP-44 or NIP-04)');
+    }
 }

@@ -126,13 +126,26 @@ const host = new MirageHost({
 host.mount(appHtml, document.getElementById('app-container'));
 ```
 
+## 🎮 Demo Pages
+
+Run a local server (`bunx serve .` or `bun run dev`) and open:
+
+| Demo | Path | Description |
+|------|------|-------------|
+| **Storage Demo** | `/examples/storage-demo.html` | Test encrypted storage (NIP-44). Requires NIP-07 signer. |
+| **Host Demo** | `/examples/demo-host.html` | Full Host + iframe integration demo. |
+| **Streaming Demo** | `/packages/host/test-streaming-demo.html` | SSE streaming verification. |
+
 ## 🗺️ Roadmap
 
 * [x] **Phase 1: Core Engine** ✅ (Fetch Proxy, Web Worker, NIP-01/07)
 * [x] **Phase 2: Persistence Layer** ✅ (NIP-78 Storage)
 * [x] **Phase 3: Streaming Layer** ✅ (SSE, Host-owned Engine, Background Sync)
-* [ ] **Phase 4: Privacy Layer** (Encrypted Channels, NIP-17 DMs)
+* [x] **Phase 4: Encryption** ✅ (NIP-44 storage encryption, both modes)
+* [ ] **Phase 5: Channels** (Encrypted group channels, key rotation)
+* [ ] **Phase 6: DMs** (NIP-17 direct messages)
 
 ## 📄 License
 
 MIT
+

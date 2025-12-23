@@ -19,6 +19,10 @@ export type MessageType =
     | 'STREAM_CHUNK'
     | 'STREAM_CLOSE'
     | 'STREAM_ERROR'
+    | 'ACTION_ENCRYPT'
+    | 'ENCRYPT_RESULT'
+    | 'ACTION_DECRYPT'
+    | 'DECRYPT_RESULT'
     | 'ERROR';
 
 export interface BaseMessage {
@@ -83,12 +87,19 @@ export type MirageMessage =
     | SignatureResultMessage
     | RelayConfigMessage
     | SetPubkeyMessage
-    | SetPubkeyMessage
     | StreamOpenMessage
     | StreamChunkMessage
     | StreamCloseMessage
     | StreamErrorMessage
+    | EncryptRequestMessage
+    | EncryptResultMessage
+    | DecryptRequestMessage
+    | DecryptResultMessage
     | ErrorMessage;
+
+// ============================================================================
+// Streaming Messages
+// ============================================================================
 
 /** Start a new stream (Bridge -> Engine) */
 export interface StreamOpenMessage extends BaseMessage {
@@ -114,6 +125,38 @@ export interface StreamCloseMessage extends BaseMessage {
 export interface StreamErrorMessage extends BaseMessage {
     type: 'STREAM_ERROR';
     error: string;
+}
+
+// ============================================================================
+// NIP-44 Encryption Messages (Engine <-> Host)
+// ============================================================================
+
+/** Request NIP-44 encryption from Host */
+export interface EncryptRequestMessage extends BaseMessage {
+    type: 'ACTION_ENCRYPT';
+    pubkey: string;      // Recipient pubkey (or self for self-encryption)
+    plaintext: string;
+}
+
+/** Encryption result from Host */
+export interface EncryptResultMessage extends BaseMessage {
+    type: 'ENCRYPT_RESULT';
+    ciphertext?: string;
+    error?: string;
+}
+
+/** Request NIP-44 decryption from Host */
+export interface DecryptRequestMessage extends BaseMessage {
+    type: 'ACTION_DECRYPT';
+    pubkey: string;      // Sender pubkey (or self for self-decryption)
+    ciphertext: string;
+}
+
+/** Decryption result from Host */
+export interface DecryptResultMessage extends BaseMessage {
+    type: 'DECRYPT_RESULT';
+    plaintext?: string;
+    error?: string;
 }
 
 // ============================================================================
@@ -226,7 +269,13 @@ export interface AppPermissions {
 export interface Nip07Signer {
     getPublicKey(): Promise<string>;
     signEvent(event: UnsignedNostrEvent): Promise<NostrEvent>;
+    /** NIP-04 encryption (legacy, deprecated) */
     nip04?: {
+        encrypt(pubkey: string, plaintext: string): Promise<string>;
+        decrypt(pubkey: string, ciphertext: string): Promise<string>;
+    };
+    /** NIP-44 encryption (recommended) */
+    nip44?: {
         encrypt(pubkey: string, plaintext: string): Promise<string>;
         decrypt(pubkey: string, ciphertext: string): Promise<string>;
     };
