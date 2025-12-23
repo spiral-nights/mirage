@@ -898,30 +898,65 @@ components:
     ChannelMessage:
       type: object
       description: A message in a channel (regular or system)
+      required: [id, channelId, author, content, type, createdAt]
       properties:
         id:
           type: string
+          description: Unique event identifier
+        channelId:
+          type: string
+          description: ID of the channel
+        author:
+          type: string
+          description: Sender's public key
+        content:
+          type: string
+          description: |
+            For regular messages: the decrypted message text.
+            For system messages: JSON-encoded SystemEvent.
         type:
           type: string
           enum: [message, system]
-          description: Regular message or system event
-        from:
-          type: string
-          description: Sender pubkey (for messages)
-        content:
-          type: string
-          description: Decrypted message content
-        event:
-          type: string
-          description: System event type (member_added, member_removed, etc.)
-        member:
-          type: string
-          description: Affected member pubkey (for system events)
-        by:
-          type: string
-          description: Actor pubkey (for system events)
+          description: |
+            - `message`: Regular user message
+            - `system`: System notification (member joined, left, etc.)
         createdAt:
           type: integer
+          description: Unix timestamp
+
+    SystemEvent:
+      type: object
+      description: Payload for system messages (parsed from content when type=system)
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [member_joined, member_left, member_removed, key_rotated, channel_created, channel_renamed]
+          description: Type of system event
+        pubkey:
+          type: string
+          description: Affected member's public key (for join/leave/remove)
+        invitedBy:
+          type: string
+          description: Who invited the member (for member_joined)
+        removedBy:
+          type: string
+          description: Who removed the member (for member_removed)
+        version:
+          type: integer
+          description: New key version (for key_rotated)
+        name:
+          type: string
+          description: Channel name (for channel_created)
+        createdBy:
+          type: string
+          description: Who created the channel (for channel_created)
+        oldName:
+          type: string
+          description: Previous name (for channel_renamed)
+        newName:
+          type: string
+          description: New name (for channel_renamed)
 
     ChannelMember:
       type: object

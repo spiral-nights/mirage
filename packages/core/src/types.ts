@@ -157,6 +157,43 @@ export interface FeedNote {
 }
 
 // ============================================================================
+// Channel Types (Encrypted Group Messaging)
+// ============================================================================
+
+/**
+ * A channel (encrypted group) that this app has access to
+ */
+export interface Channel {
+    id: string;
+    name: string;
+    createdAt: number;
+    memberCount: number;
+}
+
+/**
+ * A message in a channel - can be a regular message or system notification
+ */
+export interface ChannelMessage {
+    id: string;
+    channelId: string;
+    author: string;
+    content: string;
+    type: 'message' | 'system';
+    createdAt: number;
+}
+
+/**
+ * System event payload (content of system messages)
+ */
+export type SystemEvent =
+    | { action: 'member_joined'; pubkey: string; invitedBy: string }
+    | { action: 'member_left'; pubkey: string }
+    | { action: 'member_removed'; pubkey: string; removedBy: string }
+    | { action: 'key_rotated'; version: number }
+    | { action: 'channel_created'; name: string; createdBy: string }
+    | { action: 'channel_renamed'; oldName: string; newName: string };
+
+// ============================================================================
 // Configuration Types
 // ============================================================================
 

@@ -9,6 +9,16 @@ import { RelayPool } from './relay-pool';
 import { getFeed, postFeed, type FeedRouteContext } from './routes/feed';
 import { getCurrentUser, getUserByPubkey, type UserRouteContext } from './routes/user';
 import { getStorage, putStorage, deleteStorage, type StorageRouteContext } from './routes/storage';
+import {
+    listChannels,
+    createChannel,
+    getChannelMessages,
+    postChannelMessage,
+    inviteMember,
+    removeMember,
+    leaveChannel,
+    type ChannelRouteContext
+} from './routes/channels';
 import type {
     MirageMessage,
     ApiRequestMessage,
@@ -236,6 +246,81 @@ function matchRoute(method: string, fullPath: string): RouteMatch | null {
             return {
                 handler: async () => deleteStorage(storageCtx, key),
                 params: { key },
+            };
+        }
+    }
+
+    // =========================================================================
+    // Channel routes
+    // =========================================================================
+    const channelCtx: ChannelRouteContext = {
+        pool: pool!,
+        requestSign,
+        currentPubkey,
+        appOrigin,
+    };
+
+    // GET /mirage/v1/channels
+    if (method === 'GET' && path === '/mirage/v1/channels') {
+        return {
+            handler: async () => listChannels(channelCtx),
+            params: {},
+        };
+    }
+
+    // POST /mirage/v1/channels
+    if (method === 'POST' && path === '/mirage/v1/channels') {
+        return {
+            handler: async (body) => createChannel(channelCtx, body as { name: string }),
+            params: {},
+        };
+    }
+
+    // Channel-specific routes
+    const channelMatch = path.match(/^\/mirage\/v1\/channels\/([a-zA-Z0-9_-]+)/);
+    if (channelMatch) {
+        const channelId = channelMatch[1];
+
+        // GET /mirage/v1/channels/:id/messages
+        if (method === 'GET' && path.endsWith('/messages')) {
+            return {
+                handler: async () => getChannelMessages(channelCtx, channelId, {
+                    since: params.since ? parseInt(params.since, 10) : undefined,
+                    limit: params.limit ? parseInt(params.limit, 10) : undefined,
+                }),
+                params: { channelId },
+            };
+        }
+
+        // POST /mirage/v1/channels/:id/messages
+        if (method === 'POST' && path.endsWith('/messages')) {
+            return {
+                handler: async (body) => postChannelMessage(channelCtx, channelId, body as { content: string }),
+                params: { channelId },
+            };
+        }
+
+        // POST /mirage/v1/channels/:id/invite
+        if (method === 'POST' && path.endsWith('/invite')) {
+            return {
+                handler: async (body) => inviteMember(channelCtx, channelId, body as { pubkey: string }),
+                params: { channelId },
+            };
+        }
+
+        // POST /mirage/v1/channels/:id/remove
+        if (method === 'POST' && path.endsWith('/remove')) {
+            return {
+                handler: async (body) => removeMember(channelCtx, channelId, body as { pubkey: string }),
+                params: { channelId },
+            };
+        }
+
+        // POST /mirage/v1/channels/:id/leave
+        if (method === 'POST' && path.endsWith('/leave')) {
+            return {
+                handler: async () => leaveChannel(channelCtx, channelId),
+                params: { channelId },
             };
         }
     }
