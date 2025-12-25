@@ -29,3 +29,6 @@ coverage/
 .env
 .env.local
 .env.*.local
+
+# Temporary notes
+notes/
