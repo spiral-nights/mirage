@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Mirage DM Demo (NIP-17)</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #eee;
+        }
+
+        .box {
+            border: 1px solid #444;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            background: #2a2a2a;
+        }
+
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        input {
+            padding: 8px;
+            width: 300px;
+            background: #333;
+            color: white;
+            border: 1px solid #555;
+            border-radius: 4px;
+        }
+
+        code {
+            background: #111;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+            color: #a5d6ff;
+        }
+
+        pre {
+            background: #111;
+            padding: 10px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 250px 1fr;
+            gap: 20px;
+            height: 500px;
+        }
+
+        .sidebar {
+            border-right: 1px solid #444;
+            overflow-y: auto;
+        }
+
+        .chat-area {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+            background: #222;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+
+        .compose {
+            display: flex;
+            gap: 10px;
+        }
+
+        .user-item {
+            padding: 10px;
+            cursor: pointer;
+            border-bottom: 1px solid #333;
+        }
+
+        .user-item:hover {
+            background: #333;
+        }
+
+        .user-item.active {
+            background: #007bff;
+            color: white;
+        }
+
+        .msg {
+            margin-bottom: 8px;
+            padding: 8px;
+            border-radius: 8px;
+            max-width: 80%;
+        }
+
+        .msg.sent {
+            background: #005c4b;
+            align-self: flex-end;
+            margin-left: auto;
+        }
+
+        .msg.received {
+            background: #333;
+            align-self: flex-start;
+        }
+
+        .msg-meta {
+            font-size: 0.75em;
+            color: #aaa;
+            margin-top: 4px;
+            text-align: right;
+        }
+
+        .status {
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+
+        .status.success {
+            background: #1e4620;
+            color: #aaddaa;
+        }
+
+        .status.error {
+            background: #4a1e1e;
+            color: #ffaaaa;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>📨 Mirage Direct Messages</h1>
+
+    <div id="status" class="status">Initializing...</div>
+
+    <!-- Start Chat -->
+    <div class="box">
+        <h3>Start New Conversation</h3>
+        <input type="text" id="new-user-pubkey" placeholder="Enter npub... or hex pubkey">
+        <button onclick="startChat()">Open Chat</button>
+    </div>
+
+    <!-- Main Grid -->
+    <div class="grid box">
+        <!-- Sidebar (Inbox) -->
+        <div class="sidebar" id="inbox">
+            <div style="padding:10px; color:#888">Loading inbox...</div>
+        </div>
+
+        <!-- Chat Area -->
+        <div class="chat-area" id="chat-area">
+            <div id="chat-header" style="padding: 10px; border-bottom: 1px solid #444; font-weight: bold;">Select a
+                conversation</div>
+            <div class="messages" id="messages-list">
+                <!-- Messages go here -->
+            </div>
+            <div class="compose">
+                <input type="text" id="msg-input" placeholder="Type a message..." style="flex:1">
+                <button onclick="sendMessage()">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Logger -->
+    <div class="box">
+        <h3>Logs</h3>
+        <div id="logs" style="height: 150px; overflow-y: auto; font-family: monospace; font-size: 12px; color: #aaa;">
+        </div>
+    </div>
+
+    <script type="module">
+        import { initBridge } from '../packages/core/dist/bridge.js';
+
+        let activePubkey = null;
+        let relayCheckInterval;
+
+        function log(msg, type = 'info') {
+            const el = document.getElementById('logs');
+            const line = document.createElement('div');
+            line.style.color = type === 'error' ? '#ff5555' : '#aaa';
+            line.innerText = `${new Date().toLocaleTimeString()} ${msg}`;
+            el.appendChild(line);
+            el.scrollTop = el.scrollHeight;
+            console.log(msg);
+        }
+
+        // Initialize
+        window.onload = async () => {
+            try {
+                // Generate a random key for this session if not persisted
+                let key = localStorage.getItem('mirage_demo_key');
+                if (!key) {
+                    // Simple random hex generation for demo
+                    const bytes = new Uint8Array(32);
+                    crypto.getRandomValues(bytes);
+                    key = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+                    localStorage.setItem('mirage_demo_key', key);
+                }
+
+                await initBridge({
+                    workerUrl: '../packages/core/dist/engine.js',
+                    relays: ['wss://relay.damus.io', 'wss://nos.lol'],
+                    privateKey: key
+                });
+
+                document.getElementById('status').innerText = 'Status: Bridge Ready';
+                document.getElementById('status').classList.add('success');
+                log(`Bridge initialized. My Pubkey: ${key.slice(0, 8)}...`);
+
+                // Check Relays
+                checkRelayStatus();
+
+                // Load Inbox
+                loadInbox();
+
+                // Polling for new messages
+                setInterval(() => {
+                    if (activePubkey) loadMessages(activePubkey);
+                    loadInbox();
+                }, 5000);
+
+            } catch (e) {
+                document.getElementById('status').innerText = 'Init Failed: ' + e.message;
+                document.getElementById('status').classList.add('error');
+                log('Init failed: ' + e.message, 'error');
+            }
+        };
+
+        // Check Relays
+        async function checkRelayStatus() {
+            try {
+                const res = await fetch('/mirage/v1/ready');
+                const data = await res.json();
+                const statusEl = document.getElementById('status');
+                if (data.relayCount === 0) {
+                    statusEl.innerText = 'Status: Bridge Ready, BUT NO RELAYS CONNECTED!';
+                    statusEl.className = 'status error';
+                    log('Warning: No relays connected.', 'error');
+                } else {
+                    statusEl.innerText = `Status: Bridge Ready (${data.relayCount} relays connected)`;
+                }
+            } catch (e) {
+                console.error('Ready check failed:', e);
+            }
+        }
+
+        // 1. List DMs (Inbox)
+        window.loadInbox = async () => {
+            try {
+                const res = await fetch('/mirage/v1/dms');
+                const convos = await res.json();
+
+                const list = document.getElementById('inbox');
+                list.innerHTML = '';
+
+                if (convos.length === 0) {
+                    list.innerHTML = '<div style="padding:10px; color:#888">No conversations yet</div>';
+                    return;
+                }
+
+                convos.forEach(c => {
+                    const el = document.createElement('div');
+                    el.className = `user-item ${activePubkey === c.pubkey ? 'active' : ''}`;
+                    el.onclick = () => openChat(c.pubkey);
+                    el.innerHTML = `
+                        <div style="font-weight:bold">${c.pubkey.slice(0, 8)}...</div>
+                        <div style="font-size:0.8em; opacity:0.7; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">
+                            ${c.lastMessage}
+                        </div>
+                    `;
+                    list.appendChild(el);
+                });
+            } catch (e) {
+                log('Failed to load inbox: ' + e.message, 'error');
+            }
+        };
+
+        // 2. Open Chat
+        window.startChat = () => {
+            const pk = document.getElementById('new-user-pubkey').value.trim();
+            if (!pk) return;
+            openChat(pk);
+            document.getElementById('new-user-pubkey').value = '';
+        };
+
+        window.openChat = async (pubkey) => {
+            activePubkey = pubkey;
+            document.getElementById('chat-header').innerText = `Chatting with ${pubkey.slice(0, 12)}...`;
+            document.getElementById('messages-list').innerHTML = '<div style="padding:10px">Loading...</div>';
+            loadMessages(pubkey);
+            loadInbox(); // Refresh highlight
+        };
+
+        // 3. Load Messages
+        async function loadMessages(pubkey) {
+            try {
+                // Auto-fix npub if passed
+                const target = pubkey; // API handles npub normalization now
+
+                const res = await fetch(`/mirage/v1/dms/${target}`);
+                const msgs = await res.json();
+
+                const list = document.getElementById('messages-list');
+
+                // Preserve scroll if at bottom? For now simple rebuild
+                const wasAtBottom = list.scrollTop + list.clientHeight >= list.scrollHeight - 50;
+
+                list.innerHTML = '';
+
+                if (msgs.length === 0) {
+                    list.innerHTML = '<div style="text-align:center; color:#666; padding:20px">No messages yet. Say hi!</div>';
+                    return;
+                }
+
+                msgs.forEach(m => {
+                    const el = document.createElement('div');
+                    el.className = `msg ${m.isIncoming ? 'received' : 'sent'}`;
+                    const time = new Date(m.createdAt * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    el.innerHTML = `
+                        <div>${m.content}</div>
+                        <div class="msg-meta">${time}</div>
+                    `;
+                    list.appendChild(el);
+                });
+
+                if (wasAtBottom) {
+                    list.scrollTop = list.scrollHeight;
+                }
+            } catch (e) {
+                log('Failed to load messages: ' + e.message, 'error');
+            }
+        }
+
+        // 4. Send Message
+        window.sendMessage = async () => {
+            if (!activePubkey) return;
+
+            const input = document.getElementById('msg-input');
+            const content = input.value.trim();
+            if (!content) return;
+
+            input.value = ''; // Optimistic clear
+
+            try {
+                log(`Sending to ${activePubkey.slice(0, 6)}...`);
+                const res = await fetch(`/mirage/v1/dms/${activePubkey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content })
+                });
+
+                if (!res.ok) throw new Error(await res.text());
+
+                log('Message sent!');
+                loadMessages(activePubkey); // Refresh history (should see our sent msg)
+            } catch (e) {
+                log('Send failed: ' + e.message, 'error');
+                input.value = content; // Restore on fail
+            }
+        };
+
+        // Enter key to send
+        document.getElementById('msg-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+    </script>
+</body>
+
+</html>

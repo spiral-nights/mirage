@@ -19,6 +19,12 @@ import {
     syncInvites,
     type ChannelRouteContext
 } from './routes/channels';
+import {
+    listDMs,
+    getDMMessages,
+    sendDM,
+    type DMRouteContext
+} from './routes/dm';
 import { getEvents, postEvents, type EventsRouteContext } from './routes/events';
 import type {
     MirageMessage,
@@ -372,6 +378,51 @@ async function matchRoute(method: string, fullPath: string): Promise<RouteMatch 
         }
 
 
+    }
+
+    // =========================================================================
+    // Direct Message routes (NIP-17)
+    // =========================================================================
+    const dmCtx: DMRouteContext = {
+        pool: pool!,
+        requestSign,
+        requestEncrypt,
+        requestDecrypt,
+        currentPubkey,
+        appOrigin,
+    };
+
+    // GET /mirage/v1/dms
+    if (method === 'GET' && path === '/mirage/v1/dms') {
+        return {
+            handler: async () => listDMs(dmCtx),
+            params: {},
+        };
+    }
+
+    // GET /mirage/v1/dms/:pubkey
+    const dmMatch = path.match(/^\/mirage\/v1\/dms\/([a-zA-Z0-9]+)$/); // Allow npub/hex
+    if (dmMatch) {
+        const targetPubkey = dmMatch[1];
+
+        if (method === 'GET') {
+            const getIntParam = (p: string | string[] | undefined): number | undefined =>
+                p ? parseInt(String(p), 10) : undefined;
+
+            return {
+                handler: async () => getDMMessages(dmCtx, targetPubkey, {
+                    limit: getIntParam(params.limit)
+                }),
+                params: { pubkey: targetPubkey },
+            };
+        }
+
+        if (method === 'POST') {
+            return {
+                handler: async (body) => sendDM(dmCtx, targetPubkey, body as { content: string }),
+                params: { pubkey: targetPubkey },
+            };
+        }
     }
 
     return null;

@@ -5,6 +5,7 @@
  */
 
 import type { MirageMessage } from '../types';
+import { nip04, nip44, getPublicKey, finalizeEvent } from 'nostr-tools';
 
 // ============================================================================
 // Types
@@ -30,6 +31,30 @@ export interface ActiveStream {
 export let enginePort: MessagePort | Worker | Window | null = null;
 export let isChildMode = false;
 let engineReadyResolve: () => void;
+
+// Local Signer State
+let privateKeyBytes: Uint8Array | null = null;
+let publicKey: string | null = null;
+
+function hexToBytes(hex: string): Uint8Array {
+    let bytes = new Uint8Array(hex.length / 2);
+    for (let i = 0; i < hex.length; i += 2) {
+        bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
+    }
+    return bytes;
+}
+
+export function setPrivateKey(key: string): void {
+    try {
+        if (key) {
+            privateKeyBytes = hexToBytes(key);
+            publicKey = getPublicKey(privateKeyBytes);
+            console.log('[Bridge] Private key set for standalone mode:', publicKey.slice(0, 8) + '...');
+        }
+    } catch (e) {
+        console.error('[Bridge] Invalid private key:', e);
+    }
+}
 
 export const engineReady = new Promise<void>((resolve) => {
     engineReadyResolve = resolve;
@@ -122,6 +147,15 @@ export function handleEngineMessage(event: MessageEvent<MirageMessage>): void {
  */
 async function handleEncryptRequest(message: { id: string; pubkey: string; plaintext: string }): Promise<void> {
     try {
+        if (privateKeyBytes) {
+            console.log(`[Bridge] Encrypting for ${message.pubkey} (Local Signer)`);
+            const conversationKey = nip44.v2.utils.getConversationKey(privateKeyBytes, message.pubkey);
+            const ciphertext = nip44.v2.encrypt(message.plaintext, conversationKey);
+            console.log(`[Bridge] Encryption success. Ciphertext len: ${ciphertext.length}`);
+            postToEngine({ type: 'ENCRYPT_RESULT', id: message.id, ciphertext });
+            return;
+        }
+
         const nostr = (window as any).nostr;
         if (!nostr) {
             postToEngine({ type: 'ENCRYPT_RESULT', id: message.id, error: 'No signer available' });
@@ -130,14 +164,8 @@ async function handleEncryptRequest(message: { id: string; pubkey: string; plain
 
         let ciphertext: string;
         if (nostr.nip44?.encrypt) {
-            console.log(`[Bridge] Encrypting with NIP-44. Pubkey: ${message.pubkey}, Plaintext length: ${message.plaintext?.length}`);
-            if (!message.pubkey) throw new Error('Missing pubkey for encryption');
-            if (!message.plaintext) throw new Error('Missing plaintext for encryption');
-
             ciphertext = await nostr.nip44.encrypt(message.pubkey, message.plaintext);
-            console.log('[Bridge] NIP-44 returned type:', typeof ciphertext, 'Length:', ciphertext?.length);
         } else if (nostr.nip04?.encrypt) {
-            console.log('[Bridge] Encrypting with NIP-04 for', message.pubkey);
             ciphertext = await nostr.nip04.encrypt(message.pubkey, message.plaintext);
         } else {
             postToEngine({ type: 'ENCRYPT_RESULT', id: message.id, error: 'Signer does not support encryption' });
@@ -145,13 +173,11 @@ async function handleEncryptRequest(message: { id: string; pubkey: string; plain
         }
 
         if (!ciphertext) {
-            console.error('[Bridge] Signer returned empty/null ciphertext');
             throw new Error('Signer returned empty ciphertext');
         }
 
         postToEngine({ type: 'ENCRYPT_RESULT', id: message.id, ciphertext });
     } catch (error) {
-        console.error('[Bridge] Encryption error:', error);
         postToEngine({ type: 'ENCRYPT_RESULT', id: message.id, error: error instanceof Error ? error.message : 'Encryption failed' });
     }
 }
@@ -161,6 +187,19 @@ async function handleEncryptRequest(message: { id: string; pubkey: string; plain
  */
 async function handleDecryptRequest(message: { id: string; pubkey: string; ciphertext: string }): Promise<void> {
     try {
+        if (privateKeyBytes) {
+            console.log(`[Bridge] Decrypting from ${message.pubkey} (Local Signer). Ctext len: ${message.ciphertext?.length}`);
+            if (!message.ciphertext || message.ciphertext.startsWith('{')) {
+                console.warn('[Bridge] CRITICAL: Suspicious ciphertext (starts with {). Is it plaintext?');
+            }
+
+            const conversationKey = nip44.v2.utils.getConversationKey(privateKeyBytes, message.pubkey);
+            const plaintext = nip44.v2.decrypt(message.ciphertext, conversationKey);
+            console.log(`[Bridge] Decryption success.`);
+            postToEngine({ type: 'DECRYPT_RESULT', id: message.id, plaintext });
+            return;
+        }
+
         const nostr = (window as any).nostr;
         if (!nostr) {
             postToEngine({ type: 'DECRYPT_RESULT', id: message.id, error: 'No signer available' });
@@ -171,11 +210,9 @@ async function handleDecryptRequest(message: { id: string; pubkey: string; ciphe
         if (nostr.nip44?.decrypt) {
             plaintext = await nostr.nip44.decrypt(message.pubkey, message.ciphertext);
         } else if (nostr.nip04?.decrypt) {
-            console.warn('[Bridge] NIP-44 not available, falling back to NIP-04');
             plaintext = await nostr.nip04.decrypt(message.pubkey, message.ciphertext);
         } else {
-            postToEngine({ type: 'DECRYPT_RESULT', id: message.id, error: 'Signer does not support decryption' });
-            return;
+            throw new Error('Signer does not support decryption');
         }
 
         postToEngine({ type: 'DECRYPT_RESULT', id: message.id, plaintext });
@@ -189,6 +226,12 @@ async function handleDecryptRequest(message: { id: string; pubkey: string; ciphe
  */
 async function handleSignRequest(message: { id: string; event: any }): Promise<void> {
     try {
+        if (privateKeyBytes) {
+            const signedEvent = finalizeEvent(message.event, privateKeyBytes);
+            postToEngine({ type: 'SIGNATURE_RESULT', id: message.id, signedEvent });
+            return;
+        }
+
         const nostr = (window as any).nostr;
         if (!nostr) {
             postToEngine({ type: 'SIGNATURE_RESULT', id: message.id, error: 'No signer available' });

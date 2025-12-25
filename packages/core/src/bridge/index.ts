@@ -41,8 +41,20 @@ export interface BridgeOptions {
     /**
      * User's public key (Standalone Mode)
      */
+    /**
+     * User's private key (Standalone Mode).
+     * If provided, Bridge will perform signing/encryption locally using nostr-tools.
+     */
+    privateKey?: string;
+
+    /**
+     * User's public key (Standalone Mode)
+     */
     publicKey?: string;
 }
+
+import { getPublicKey } from 'nostr-tools';
+import { setPrivateKey } from './messaging';
 
 /**
  * Initialize the Mirage Bridge
@@ -55,13 +67,13 @@ export async function initBridge(options: BridgeOptions = {}): Promise<void> {
 
     // 1. Detect Environment
     if (window.parent !== window) {
-        // CHILD MODE
+        // ... Child Mode ...
         console.log('[Bridge] Detected Child Mode. Connecting to Parent Host...');
         setChildMode(true);
         setEnginePort(window.parent);
         window.addEventListener('message', handleEngineMessage);
     } else {
-        // STANDALONE MODE
+        // ... Standalone Mode ...
         console.log('[Bridge] Detected Standalone Mode. Spawning proper Worker...');
         if (!options.workerUrl) throw new Error('Worker URL required for Standalone Mode');
 
@@ -75,6 +87,32 @@ export async function initBridge(options: BridgeOptions = {}): Promise<void> {
         worker.onmessage = handleEngineMessage;
         setEnginePort(worker);
 
+        // Configure Local Signer if private key provided
+        let effectivePubkey = options.publicKey;
+
+        if (options.privateKey) {
+            setPrivateKey(options.privateKey);
+            // Derive public key if not explicitly given
+            if (!effectivePubkey) {
+                try {
+                    // Need to import hexToBytes helper or rely on nostr-tools handling hex string
+                    // nostr-tools v2 getPublicKey expects bytes usually.
+                    // But we used a helper in messaging.ts. 
+                    // Let's rely on messaging.ts having set the key?
+                    // Actually, let's keep it simple: 
+                    // We only set SET_PUBKEY message here.
+                    // We can re-derive it or trust the user.
+                    // Let's implement simple hex conversion here too or import it.
+                    // Wait, getPublicKey is imported from nostr-tools at top.
+                    // It needs bytes.
+                    const bytes = new Uint8Array(options.privateKey.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)));
+                    effectivePubkey = getPublicKey(bytes);
+                } catch (e) {
+                    console.error('[Bridge] Failed to derive pubkey from privacy key:', e);
+                }
+            }
+        }
+
         // Send relay config if provided
         if (options.relays && options.relays.length > 0) {
             console.log('[Bridge] Sending relay config:', options.relays);
@@ -86,9 +124,9 @@ export async function initBridge(options: BridgeOptions = {}): Promise<void> {
             });
         }
 
-        // Send pubkey if provided
-        if (options.publicKey) {
-            let hexKey = options.publicKey;
+        // Send pubkey if provided or derived
+        if (effectivePubkey) {
+            let hexKey = effectivePubkey;
             // Check for npub and convert if needed
             if (hexKey.startsWith('npub')) {
                 try {
