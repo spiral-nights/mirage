@@ -121,7 +121,14 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Event'
+                   $ref: '#/components/schemas/NostrEvent'
+              example:
+                - id: "4376c..."
+                  kind: 1
+                  content: "Hello Nostr!"
+                  pubkey: "abc..."
+                  created_at: 1678886400
+                  tags: []
 
     post:
       tags: [System]
@@ -158,27 +165,36 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Event'
+                $ref: '#/components/schemas/NostrEvent'
 
   /profiles/{pubkey}:
     get:
       tags: [Users]
       summary: Get user profile
-      description: Get profile details (Kind 0) for a user.
+      description: |
+        Fetch a user's profile metadata (Kind 0).
+        This includes name, bio, avatar, and other NIP-01 fields.
       operationId: getProfile
       parameters:
         - name: pubkey
           in: path
           required: true
+          description: Hex public key or npub
           schema:
             type: string
+            example: "39fe47...a6835c2f"
       responses:
         '200':
-          description: User profile
+          description: User profile found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MetadataContent'
+                $ref: '#/components/schemas/ProfileContent'
+              example:
+                name: "Alice"
+                about: "Crypto enthusiast"
+                picture: "https://example.com/alice.jpg"
+                nip05: "alice@example.com"
 
   /contacts:
     get:
@@ -409,7 +425,7 @@ paths:
                 $ref: '#/components/schemas/Error'
 
   # ===========================================================================
-  # Channels (Phase 3)
+  # Channels
   # ===========================================================================
 
   /channels:
@@ -524,11 +540,7 @@ paths:
                   $ref: '#/components/schemas/ChannelMessage'
             text/event-stream:
               schema:
-                type: string
-                description: |
-                  Real-time stream of new messages.
-                  Format: `data: {JSON}\n\n`.
-                  Or use `new EventSource('/channels/{id}/messages')`.
+                $ref: '#/components/schemas/EventStream'
 
     post:
       tags: [Channels]
@@ -663,7 +675,7 @@ paths:
           description: Left channel
 
   # ===========================================================================
-  # Direct Messages (Phase 4)
+  # Direct Messages (NIP-17)
   # ===========================================================================
 
   /dm:
@@ -727,11 +739,7 @@ paths:
                   $ref: '#/components/schemas/DirectMessage'
             text/event-stream:
               schema:
-                type: string
-                description: |
-                  Real-time stream of new messages.
-                  Format: `data: {JSON}\n\n`.
-                  Or use `new EventSource('/dm/{pubkey}')`.
+                $ref: '#/components/schemas/EventStream'
 
     post:
       tags: [DirectMessages]
@@ -775,83 +783,52 @@ components:
         user identity and signing securely. Apps don't need to implement this.
 
   schemas:
-    Event:
+    # =========================================================================
+    # Nostr Core Schemas
+    # =========================================================================
+
+    NostrEvent:
       type: object
-      description: |
-        A single data object on the network. Most commonly used for
-        short text posts (like tweets), but can represent any type of data.
-      required: [id, pubkey, created_at, content, kind, tags]
+      required: [id, pubkey, created_at, kind, content, tags]
       properties:
         id:
           type: string
-          description: Unique ID of the event (32-byte hex)
-        pubkey:
+          description: 32-byte hex ID
+        pubkey: 
           type: string
-          description: Author's user ID (public key)
+          description: Author's public key
         created_at:
           type: integer
-          description: Unix timestamp (seconds)
+          description: Unix timestamp
         kind:
           type: integer
-          description: |
-            The type of data this event represents.
-            
-            **Common Types:**
-            - `0`: **Metadata** (User profile: name, about, picture)
-            - `1`: **Short Text Note** (Like a tweet or status update)
-            - `3`: **Contacts** (List of follows)
-            - `6`: **Repost** (Sharing another event)
-            - `7`: **Reaction** (Like/Upvote - content is usually "+" or emoji)
-            - `30023`: **Long Form Article** (Blog post)
-            - `30078`: **App Data** (Private storage)
-            - `10002`: **Relay List** (Network connections)
-          example: 1
-        content:
-          type: string
-          description: |
-            The main data payload.
-            - For `kind: 1` (Note): The text content
-            - For `kind: 7` (Reaction): "+" or an emoji
-            - For `kind: 0` (Metadata): A JSON string matching `MetadataContent` schema
+          description: Event kind (0=Metadata, 1=Text, 3=Contacts, etc)
         tags:
           type: array
-          description: |
-            Metadata tags associated with the event.
-            Each tag is an array of strings: `["identifier", "value", ...]`
-            
-            **Common Tags:**
-            - `["e", "event_id"]`: Reference to another event (Reply/Quote)
-            - `["p", "pubkey"]`: Tagging a user (Mention)
-            - `["t", "hashtag"]`: Topic tag (Hashtag)
-            - `["r", "url"]`: Reference to a URL
-            - `["title", "My Blog Post"]`: Title for long-form content
           items:
             type: array
             items:
               type: string
-          example:
-            - ["e", "4376c..."]
-            - ["p", "82341..."]
-            - ["t", "nostr"]
+        content:
+          type: string
+          description: Payload string (JSON for kind 0/3, text for kind 1)
         sig:
           type: string
-          description: Cryptographic signature proving authorship
+          description: Schnorr signature
 
-    MetadataContent:
+    ProfileContent:
       type: object
-      description: |
-        Profile metadata structure (Kind 0 content).
-        Standardized fields for user profiles.
+      description: Parsed content of a Kind 0 Metadata event
       properties:
         name:
           type: string
-          description: Username or handle (e.g. "satoshi")
+          description: Short username
         display_name:
           type: string
-          description: Fancy display name (e.g. "Satoshi Nakamoto")
+          description: Full display name
         about:
           type: string
-          description: Bio or description
+          description: Bio / Description
         picture:
           type: string
           format: uri
@@ -859,17 +836,20 @@ components:
         banner:
           type: string
           format: uri
-          description: Profile header image URL
+          description: Banner image URL
         website:
           type: string
           format: uri
-          description: Website URL
         nip05:
           type: string
-          description: Verified web address (e.g. user@domain.com)
+          description: NIP-05 Verification ID (user@domain.com)
         lud16:
           type: string
-          description: Lightning Network address (e.g. satoshi@getalby.com)
+          description: Lightning Address (user@domain.com)
+
+    # =========================================================================
+    # App Storage (NIP-78)
+    # =========================================================================
 
     StorageValue:
       type: object
@@ -888,17 +868,34 @@ components:
           description: Unix timestamp of last update
           example: 1703203200
 
+    # =========================================================================
+    # Streaming
+    # =========================================================================
+
+    EventStream:
+      type: string
+      description: |
+        Server-Sent Events (SSE) stream.
+        Each message starts with `data: ` and ends with `\n\n`.
+      example: |
+        data: {"id":"123", "content":"Hello"}
+
+        data: {"id":"124", "content":"World"}
+
     Error:
       type: object
       required: [error]
       properties:
         error:
           type: string
-          description: Error message
-          example: "Relay pool not initialized"
+          description: Human-readable error message
+        code:
+          type: string
+          description: Machine-readable error code (optional)
+          example: "AUTH_REQUIRED"
 
     # =========================================================================
-    # Phase 3: Encrypted Channels
+    # Encrypted Channels
     # =========================================================================
 
     Channel:
@@ -996,7 +993,7 @@ components:
           type: integer
 
     # =========================================================================
-    # Phase 4: Direct Messages
+    # Direct Messages
     # =========================================================================
 
     Conversation:
@@ -1032,7 +1029,7 @@ components:
           type: integer
 
     # =========================================================================
-    # Phase 7: Contacts
+    # Contacts
     # =========================================================================
 
     Contact:
