@@ -35,12 +35,12 @@ Apps declare required permissions in HTML meta tags:
 |------------|--------|
 | `public_read` | Read public posts (feed) |
 | `public_write` | Publish public posts |
-| `storage_read` | Read app's encrypted storage |
-| `storage_write` | Write to app's encrypted storage |
-| `group_read` | Read encrypted channel messages |
-| `group_write` | Send to encrypted channels |
-| `dm_read` | Read direct messages |
-| `dm_write` | Send direct messages |
+| `storage_read` | Read NIP-78 app data |
+| `storage_write` | Write NIP-78 app data |
+| `space_read` | Read encrypted space data |
+| `space_write` | Write to encrypted spaces |
+| `dm_read` | Read NIP-17 direct messages |
+| `dm_write` | Send NIP-17 direct messages |
 
 The Host validates permissions before routing requests.
 

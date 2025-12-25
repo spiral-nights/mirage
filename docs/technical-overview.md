@@ -123,13 +123,14 @@ All endpoints use the `/mirage/v1/` prefix.
 | `PUT` | `/storage/{key}` | Store/update value |
 | `DELETE` | `/storage/{key}` | Delete value |
 
-### Private Channels
+### Private Spaces
 
 | Method | Endpoint | Streaming | Description |
 |--------|----------|-----------|-------------|
-| `GET` | `/channels` | No | List channels |
-| `GET` | `/channels/{id}/messages` | **Yes** | Channel messages |
-| `POST` | `/channels/{id}/messages` | No | Send message |
+| `GET` | `/spaces` | No | List spaces |
+| `GET` | `/spaces/{id}/store` | **Yes** | **Shared Key-Value Store** |
+| `GET` | `/spaces/{id}/messages` | **Yes** | Space messages |
+| `POST` | `/spaces/{id}/messages` | No | Send message |
 
 ### Direct Messages (NIP-17)
 
@@ -198,7 +199,6 @@ Apps declare required permissions:
 | Phase 1: Core Engine | ✅ Complete | Fetch proxy, Web Worker, NIP-01/07 |
 | Phase 2: Storage | ✅ Complete | NIP-78 app data |
 | Phase 3: Streaming | ✅ Complete | SSE, Host-owned Engine |
-| Phase 4: Channels | ✅ Complete | Encrypted group chats (NIP-44) |
-| Phase 5: Channel Keys | ✅ Complete | Key rotation & Management |
-| Phase 6: DMs | ✅ Complete | NIP-17 Direct Messages |
-| Phase 7: Contacts | ✅ Complete | NIP-02 Contact Lists |
+| Phase 4: Spaces | ✅ Complete | Encrypted shared spaces (NIP-44) |
+| Phase 5: DMs | ✅ Complete | NIP-17 Direct Messages |
+| Phase 6: Contacts | ✅ Complete | NIP-02 Contact Lists |

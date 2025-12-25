@@ -13,7 +13,7 @@ This allows developers (and AI agents) to build feature-rich social and data app
 * **True Serverless:** Apps are stored as Nostr events (Kind 30xxx) and run locally. No AWS, no Vercel, no backend maintenance.
 * **AI-Native Design:** The API is designed to be "self-documenting" for LLMs. You can prompt an AI: *"Make a grocery list app using the Mirage API"* and it will work instantly.
 * **Zero-Knowledge Security:** Apps run in a sandboxed `iframe` with a `null` origin. They **never** touch the user's private keys.
-* **Family-Ready:** Built-in support for encrypted channels and NIP-17 encryption allows for private, shared apps (e.g., "Family Chores" or "Team Notes").
+* **Family-Ready:** Built-in support for encrypted spaces and NIP-17 encryption allows for private, shared apps (e.g., "Family Chores" or "Team Notes").
 
 ## 🏗️ Architecture
 
@@ -74,11 +74,12 @@ await fetch('/mirage/v1/storage/settings', {
 | `/mirage/v1/user/me` | `GET` | Get current user profile |
 | `/mirage/v1/profiles/:pubkey` | `GET` | Get user by public key |
 | `/mirage/v1/storage/:key` | `GET/PUT/DELETE` | App data storage |
-| `/mirage/v1/channels/:id/messages` | `GET/POST` | Private group messages |
+| `/mirage/v1/spaces/:id/store` | `GET/PUT` | Shared Key-Value Store (Database) |
+| `/mirage/v1/spaces/:id/messages` | `GET/POST` | Private group messages |
 | `/mirage/v1/dm/:pubkey` | `GET/POST` | Encrypted direct messages |
 | `/mirage/v1/contacts` | `GET/PUT` | NIP-02 Contact Lists |
 
-> **Streaming:** `GET` endpoints for events, channels, and DMs support `EventSource` for real-time updates.
+> **Streaming:** `GET` endpoints for events, spaces, and DMs support `EventSource` for real-time updates.
 
 ## 🛡️ Security Model
 
@@ -88,7 +89,7 @@ Mirage implements a strict **"Air Gap"** between the app logic and user secrets.
 
 2. **Permission Manifest:** Apps declare intent via meta tags:
    ```html
-   <meta name="mirage-permissions" content="public_read, storage_read, storage_write">
+   <meta name="mirage-permissions" content="public_read, storage_read, space_read">
    ```
 
 3. **User Consent:** When an app tries to sign an event, the Host receives the request and can prompt the user. Private keys never enter the iframe.
@@ -101,7 +102,7 @@ Mirage implements a strict **"Air Gap"** between the app logic and user secrets.
 | **07** | Browser Signer | Delegating key operations to extensions |
 | **17** | Private DMs | Encrypted messaging |
 | **02** | Contact List | Manage follows/friends |
-| **44** | Encryption | NIP-44 v2 encryption for channels |
+| **44** | Encryption | NIP-44 v2 encryption for spaces |
 | **78** | App Data | Arbitrary JSON storage for apps |
 
 ## 🚀 Getting Started
@@ -135,7 +136,7 @@ Run a local server (`python3 -m http.server` or `bunx serve .`) and open:
 | Demo | Path | Description |
 |------|------|-------------|
 | **Events Debugger** | `/examples/events-demo.html` | **New!** Test generic `GET/POST /events` API. |
-| **Channels Demo** | `/examples/channels-demo.html` | **New!** Test encrypted channels & invites. |
+| **Spaces Demo** | `/examples/spaces-demo.html` | **New!** Test encrypted spaces & invites. |
 | **DM Demo** | `/examples/dm-demo.html` | **New!** Send/Receive NIP-17 Direct Messages. |
 | **Sample App** | `/examples/sample-app.html` | Hosted app using `/events` feed (Needs Host). |
 | **Storage Demo** | `/examples/storage-demo.html` | Test encrypted storage (NIP-44). |
@@ -148,7 +149,7 @@ Run a local server (`python3 -m http.server` or `bunx serve .`) and open:
 * [x] **Phase 2: Persistence Layer** ✅ (NIP-78 Storage)
 * [x] **Phase 3: Streaming Layer** ✅ (SSE, Host-owned Engine, Background Sync)
 * [x] **Phase 4: Encryption** ✅ (NIP-44 storage encryption, both modes)
-* [x] **Phase 5: Channels** ✅ (Encrypted group channels, key rotation)
+* [x] **Phase 5: Spaces** ✅ (Encrypted shared spaces)
 * [x] **Phase 6: DMs** ✅ (NIP-17 direct messages)
 * [x] **Phase 7: Contacts** ✅ (NIP-02 Contact Lists)
 

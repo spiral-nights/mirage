@@ -27,10 +27,10 @@ tags:
     description: |
       Save and load app data (settings, drafts, preferences).
       Data syncs across all your devices automatically.
-  - name: Channels
+  - name: Spaces
     description: |
-      Private group chats. Messages are encrypted so only members can read them.
-      Invite family or friends, and the app handles all the security.
+      Shared workspaces for collaboration. Data is encrypted and synced
+      between members. Use the `store` endpoint for easy shared state.
   - name: DirectMessages
     description: |
       Private one-on-one messages. Fully encrypted - only you and the
@@ -425,34 +425,34 @@ paths:
                 $ref: '#/components/schemas/Error'
 
   # ===========================================================================
-  # Channels
+  # Spaces
   # ===========================================================================
 
-  /channels:
+  /spaces:
     get:
-      tags: [Channels]
-      summary: List my group chats
-      description: Returns all private group chats you're a member of.
-      operationId: listChannels
+      tags: [Spaces]
+      summary: List my spaces
+      description: Returns all spaces you're a member of.
+      operationId: listSpaces
       security:
         - nip07: []
       responses:
         '200':
-          description: Your group chats
+          description: Your spaces
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Channel'
+                  $ref: '#/components/schemas/Space'
 
     post:
-      tags: [Channels]
-      summary: Create a group chat
+      tags: [Spaces]
+      summary: Create a space
       description: |
-        Start a new private group chat. You'll be the first member.
+        Start a new shared space. You'll be the owner.
         Invite others using the invite endpoint.
-      operationId: createChannel
+      operationId: createSpace
       security:
         - nip07: []
       requestBody:
@@ -465,63 +465,125 @@ paths:
               properties:
                 name:
                   type: string
-                  description: Name for the group (e.g., "Family", "Book Club")
-                  example: "Family Chat"
+                  description: Name for the space (e.g., "Family Groceries")
+                  example: "Family Space"
       responses:
         '201':
-          description: Group created
+          description: Space created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Channel'
+                $ref: '#/components/schemas/Space'
 
-  /channels/{channelId}:
+  /spaces/{spaceId}:
     get:
-      tags: [Channels]
-      summary: Get channel details
-      operationId: getChannel
+      tags: [Spaces]
+      summary: Get space details
+      operationId: getSpace
       security:
         - nip07: []
       parameters:
-        - name: channelId
+        - name: spaceId
           in: path
           required: true
           schema:
             type: string
       responses:
         '200':
-          description: Channel details
+          description: Space details
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Channel'
+                $ref: '#/components/schemas/Space'
 
-  /channels/{channelId}/messages:
+  /spaces/{spaceId}/store:
     get:
-      tags: [Channels]
-      summary: Get messages
+      tags: [Spaces]
+      summary: Get shared data (Shared KV)
       description: |
-        Get messages from the group chat. Supports real-time streaming.
+        Get the current state of the shared database.
+        Returns a JSON object where each key is the latest value.
         
         **Streaming (recommended):**
         ```javascript
-        const es = new EventSource('/mirage/v1/channels/{id}/messages');
-        es.onmessage = (event) => console.log(JSON.parse(event.data));
+        const es = new EventSource('/mirage/v1/spaces/{id}/store');
+        es.onmessage = (event) => {
+          const { key, value } = JSON.parse(event.data);
+          // Update state[key] = value
+        };
         ```
-        
-        **One-time fetch:** Use `limit` param to get recent messages.
-      operationId: getChannelMessages
+      operationId: getSpaceStore
       security:
         - nip07: []
       parameters:
-        - name: channelId
+        - name: spaceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Current state
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Key-Value map of current state
+                example: {"milk": true, "eggs": false}
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/StoreUpdate'
+
+  /spaces/{spaceId}/store/{key}:
+    put:
+      tags: [Spaces]
+      summary: Update shared data
+      description: |
+        Update a single key in the shared database.
+        Uses "Last-Write-Wins" logic.
+      operationId: putSpaceStore
+      security:
+        - nip07: []
+      parameters:
+        - name: spaceId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: Any JSON value
+              example: true
+      responses:
+        '200':
+          description: Updated
+
+  /spaces/{spaceId}/messages:
+    get:
+      tags: [Spaces]
+      summary: Get raw messages
+      description: |
+        Get raw event log from the space. Useful for chat apps or custom logic.
+      operationId: getSpaceMessages
+      security:
+        - nip07: []
+      parameters:
+        - name: spaceId
           in: path
           required: true
           schema:
             type: string
         - name: since
           in: query
-          description: Only return messages newer than this time (seconds since 1970)
+          description: Unix timestamp
           schema:
             type: integer
         - name: limit
@@ -537,19 +599,16 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/ChannelMessage'
-            text/event-stream:
-              schema:
-                $ref: '#/components/schemas/EventStream'
+                  $ref: '#/components/schemas/SpaceMessage'
 
     post:
-      tags: [Channels]
-      summary: Send a message
-      operationId: sendChannelMessage
+      tags: [Spaces]
+      summary: Send a raw message
+      operationId: sendSpaceMessage
       security:
         - nip07: []
       parameters:
-        - name: channelId
+        - name: spaceId
           in: path
           required: true
           schema:
@@ -570,43 +629,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ChannelMessage'
+                $ref: '#/components/schemas/SpaceMessage'
 
-  /channels/{channelId}/members:
-    get:
-      tags: [Channels]
-      summary: List channel members
-      operationId: getChannelMembers
-      security:
-        - nip07: []
-      parameters:
-        - name: channelId
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: List of members
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ChannelMember'
-
-  /channels/{channelId}/invite:
+  /spaces/{spaceId}/invite:
     post:
-      tags: [Channels]
-      summary: Invite someone to the group
+      tags: [Spaces]
+      summary: Invite someone to the space
       description: |
-        Add a person to your private group chat. They'll receive an
-        invitation and be able to see all future messages.
-      operationId: inviteToChannel
+        Add a person to your space. They'll receive an invitation.
+      operationId: inviteToSpace
       security:
         - nip07: []
       parameters:
-        - name: channelId
+        - name: spaceId
           in: path
           required: true
           schema:
@@ -625,54 +660,6 @@ paths:
       responses:
         '200':
           description: Invitation sent
-
-  /channels/{channelId}/remove:
-    post:
-      tags: [Channels]
-      summary: Remove someone from the group
-      description: |
-        Kick a person out of the group chat. They won't be able to
-        read any new messages after this.
-      operationId: removeFromChannel
-      security:
-        - nip07: []
-      parameters:
-        - name: channelId
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [pubkey]
-              properties:
-                pubkey:
-                  type: string
-      responses:
-        '200':
-          description: User removed, key rotated
-
-  /channels/{channelId}/leave:
-    post:
-      tags: [Channels]
-      summary: Leave the group
-      description: Remove yourself from the group chat.
-      operationId: leaveChannel
-      security:
-        - nip07: []
-      parameters:
-        - name: channelId
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Left channel
 
   # ===========================================================================
   # Direct Messages (NIP-17)
@@ -895,40 +882,37 @@ components:
           example: "AUTH_REQUIRED"
 
     # =========================================================================
-    # Encrypted Channels
+    # Spaces
     # =========================================================================
 
-    Channel:
+    Space:
       type: object
-      description: An encrypted group channel
+      description: A shared encrypted workspace
       properties:
         id:
           type: string
-          description: Channel identifier
+          description: Space identifier
         name:
           type: string
-          description: Channel display name
+          description: Space display name
         createdAt:
           type: integer
           description: Unix timestamp
         memberCount:
           type: integer
           description: Number of members
-        keyVersion:
-          type: integer
-          description: Current encryption key version
 
-    ChannelMessage:
+    SpaceMessage:
       type: object
-      description: A message in a channel (regular or system)
-      required: [id, channelId, author, content, type, createdAt]
+      description: A message in a space (regular or system)
+      required: [id, spaceId, author, content, type, createdAt]
       properties:
         id:
           type: string
           description: Unique event identifier
-        channelId:
+        spaceId:
           type: string
-          description: ID of the channel
+          description: ID of the space
         author:
           type: string
           description: Sender's public key
@@ -947,6 +931,17 @@ components:
           type: integer
           description: Unix timestamp
 
+    StoreUpdate:
+      type: object
+      description: Real-time update for the Shared KV Store
+      required: [key, value]
+      properties:
+        key:
+          type: string
+          description: The key that changed
+        value:
+          description: The new JSON value
+
     SystemEvent:
       type: object
       description: Payload for system messages (parsed from content when type=system)
@@ -954,34 +949,28 @@ components:
       properties:
         action:
           type: string
-          enum: [member_joined, member_left, member_removed, key_rotated, channel_created, channel_renamed]
+          enum: [member_joined, space_created, space_renamed]
           description: Type of system event
         pubkey:
           type: string
-          description: Affected member's public key (for join/leave/remove)
+          description: Affected member's public key
         invitedBy:
           type: string
-          description: Who invited the member (for member_joined)
-        removedBy:
-          type: string
-          description: Who removed the member (for member_removed)
-        version:
-          type: integer
-          description: New key version (for key_rotated)
+          description: Who invited the member
         name:
           type: string
-          description: Channel name (for channel_created)
+          description: Space name
         createdBy:
           type: string
-          description: Who created the channel (for channel_created)
+          description: Who created the space
         oldName:
           type: string
-          description: Previous name (for channel_renamed)
+          description: Previous name
         newName:
           type: string
-          description: New name (for channel_renamed)
+          description: New name
 
-    ChannelMember:
+    SpaceMember:
       type: object
       properties:
         pubkey:
