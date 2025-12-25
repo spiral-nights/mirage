@@ -66,39 +66,21 @@ graph TD
 
 ---
 
-## 3. Virtual SSE (Server-Sent Events)
+## 3. The "Virtual Database" (Shared KV Store)
 
-Mirage implements a "Virtual SSE" layer that allows apps to use standard `EventSource` for real-time data.
+A key feature for AI-generated apps is the **Shared Key-Value Store**. This allows apps to have state (like a Todo list) without needing a SQL database.
 
-### How It Works
+### Protocol Details
+*   **Events:** Kind 42 (Channel Message)
+*   **Tags:** `#t=mirage_store`
+*   **Content:** `["store_put", "key_name", { "json": "value" }]`
+*   **Conflict Resolution:** Last-Write-Wins (LWW) per key.
 
-```mermaid
-sequenceDiagram
-    participant App
-    participant Bridge
-    participant Host
-    participant Engine
-    participant Relays
-
-    App->>Bridge: new EventSource('/mirage/v1/feed')
-    Bridge->>Host: STREAM_OPEN {path: '/feed'}
-    Host->>Engine: Forward STREAM_OPEN
-    Engine->>Relays: SUB [kind:1, limit:50]
-    
-    loop Real-time Events
-        Relays-->>Engine: EVENT
-        Engine-->>Host: STREAM_CHUNK {data}
-        Host-->>Bridge: Forward STREAM_CHUNK
-        Bridge-->>App: MessageEvent {data}
-    end
-```
-
-### Transport Options
-
-| Method | Usage | Notes |
-|--------|-------|-------|
-| `EventSource` | `new EventSource('/mirage/v1/feed')` | Polyfilled by Bridge |
-| `fetch` streaming | `fetch().then(r => r.body.getReader())` | Returns ReadableStream |
+### Engine Logic
+The Engine automatically "flattens" the stream of events into a single JSON object state.
+1.  **Snapshot:** Engine caches the latest state.
+2.  **Merge:** New events overwrite old keys based on timestamp.
+3.  **Read:** `GET /spaces/:id/store` returns the clean, merged JSON.
 
 ---
 
@@ -120,17 +102,19 @@ All endpoints use the `/mirage/v1/` prefix.
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/storage/{key}` | Retrieve stored value |
-| `PUT` | `/storage/{key}` | Store/update value |
+| `PUT` | `/storage/{key}` | Store/update value (Encrypted by default) |
 | `DELETE` | `/storage/{key}` | Delete value |
+| *Note* | `?public=true` | Disables encryption (Essential for Vault Metadata) |
 
-### Private Spaces
+### Private Spaces (Encrypted Groups)
 
 | Method | Endpoint | Streaming | Description |
 |--------|----------|-----------|-------------|
 | `GET` | `/spaces` | No | List spaces |
-| `GET` | `/spaces/{id}/store` | **Yes** | **Shared Key-Value Store** |
-| `GET` | `/spaces/{id}/messages` | **Yes** | Space messages |
-| `POST` | `/spaces/{id}/messages` | No | Send message |
+| `GET` | `/spaces/{id}/store` | **Yes** | **Shared Key-Value Store** (Merged State) |
+| `PUT` | `/spaces/{id}/store/{key}` | No | Update a specific key |
+| `GET` | `/spaces/{id}/messages` | **Yes** | Chat messages |
+| `POST` | `/spaces/{id}/messages` | No | Send chat message |
 
 ### Direct Messages (NIP-17)
 
@@ -159,6 +143,12 @@ Apps run in an iframe with `srcdoc` and `sandbox="allow-scripts"`. This forces:
 - No localStorage/cookies access
 - No parent DOM access
 
+### The Vault Pattern (Client-Side Encryption)
+For high-security apps (e.g., Password Managers), we use a "Client-Side Vault" pattern.
+1.  **App Logic:** User enters a password -> App derives Key -> App encrypts data.
+2.  **Engine Role:** Engine receives ciphertext -> Saves to Store (Public or Space-Encrypted).
+3.  **Result:** Even if the Nostr Private Key (`nsec`) is leaked, the data remains secure because the App Password was never sent to the Engine.
+
 ### The Signing Flow
 
 ```mermaid
@@ -182,14 +172,6 @@ sequenceDiagram
     Bridge-->>App: Response {success}
 ```
 
-### Permission Manifest
-
-Apps declare required permissions:
-
-```html
-<meta name="mirage-permissions" content="public_read, storage_read, storage_write">
-```
-
 ---
 
 ## 6. Implementation Status
@@ -197,8 +179,8 @@ Apps declare required permissions:
 | Phase | Status | Features |
 |-------|--------|----------|
 | Phase 1: Core Engine | ✅ Complete | Fetch proxy, Web Worker, NIP-01/07 |
-| Phase 2: Storage | ✅ Complete | NIP-78 app data |
+| Phase 2: Storage | ✅ Complete | NIP-78 app data, Public/Private Support |
 | Phase 3: Streaming | ✅ Complete | SSE, Host-owned Engine |
-| Phase 4: Spaces | ✅ Complete | Encrypted shared spaces (NIP-44) |
-| Phase 5: DMs | ✅ Complete | NIP-17 Direct Messages |
-| Phase 6: Contacts | ✅ Complete | NIP-02 Contact Lists |
+| Phase 4: Spaces | ✅ Complete | Encrypted Shared Spaces, Invitation Flow |
+| Phase 5: Shared Store | ✅ Complete | Virtual Database (Kind 42 LWW) |
+| Phase 6: DMs/Contacts | ✅ Complete | NIP-17 DMs, NIP-02 Contacts |
