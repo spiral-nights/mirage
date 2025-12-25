@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mirage Channel Demo (NIP-78 + NIP-17)</title>
+    <!-- Simple CSS for layout -->
+    <style>
+        body {
+            font-family: sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f0f2f5;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        h2 {
+            margin-top: 0;
+        }
+
+        input,
+        button,
+        textarea {
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        button {
+            cursor: pointer;
+            background: #007bff;
+            color: white;
+            border: none;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        pre {
+            background: #fee;
+            padding: 10px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+
+        .success {
+            color: green;
+        }
+
+        .error {
+            color: red;
+        }
+
+        .channel-list-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .channel-list-item:hover {
+            background: #f9f9f9;
+            cursor: pointer;
+        }
+
+        .active-channel {
+            border: 2px solid #007bff;
+        }
+
+        .message {
+            background: #e9ecef;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>🔒 Encrypted Channels Demo</h1>
+    <p>Tests symmetric encryption (XChaCha20), NIP-78 persistence, and NIP-17 invites.</p>
+
+    <!-- Init -->
+    <div class="card">
+        <h2>1. Initialization</h2>
+        <div style="display: flex; gap: 10px;">
+            <input type="text" id="relays" value="wss://relay.damus.io,wss://nos.lol" style="flex: 1;"
+                placeholder="Relays (comma separated)">
+            <input type="text" id="pubkey" placeholder="Test Pubkey (Hex)" style="width: 150px;">
+            <button onclick="initBridge()">Init Bridge</button>
+        </div>
+        <div id="status">Status: Not Initialized</div>
+    </div>
+
+    <!-- Channels -->
+    <div class="card">
+        <h2>2. Channels</h2>
+        <div style="display: flex; gap: 10px;">
+            <input type="text" id="channelName" placeholder="New Channel Name">
+            <button onclick="createChannel()">Create Channel</button>
+            <button onclick="loadChannels()">Refresh List</button>
+        </div>
+        <div id="channelList" style="margin-top: 10px; border: 1px solid #ddd; max-height: 200px; overflow-y: auto;">
+            <div style="padding:10px; color:#777;">No channels loaded</div>
+        </div>
+    </div>
+
+    <!-- Active Channel -->
+    <div class="card" id="activeChannelPanel" style="display:none;">
+        <h2 id="activeChannelTitle">Channel: None</h2>
+
+        <!-- Invite -->
+        <div style="background: #eef; padding: 10px; margin-bottom: 10px; border-radius: 4px;">
+            <strong>Invite Member:</strong>
+            <input type="text" id="invitePubkey" placeholder="Member Pubkey (Hex)">
+            <button onclick="inviteMember()">Send Invite</button>
+        </div>
+
+        <!-- Remove -->
+        <div style="background: #fee; padding: 10px; margin-bottom: 10px; border-radius: 4px;">
+            <strong>Remove Member (Rotate Key):</strong>
+            <input type="text" id="removePubkey" placeholder="Member Pubkey (Hex)">
+            <button onclick="removeMember()">Rotate & Remove</button>
+        </div>
+
+        <!-- Messages -->
+        <div id="messageList"
+            style="height: 300px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin-bottom: 10px;">
+            <!-- Messages go here -->
+        </div>
+
+        <div style="display: flex; gap: 10px;">
+            <input type="text" id="msgContent" placeholder="Type a message..." style="flex: 1;">
+            <button onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+
+    <!-- Logs -->
+    <div class="card">
+        <h2>Debug Log</h2>
+        <pre id="debugLog"></pre>
+    </div>
+
+    <script type="module">
+        import { initBridge } from '../packages/core/dist/bridge.js';
+
+        // Globals
+        window.currentChannelId = null;
+
+        // Logger
+        function log(msg, type = 'info') {
+            const el = document.getElementById('debugLog');
+            el.innerText = `[${new Date().toISOString().split('T')[1]}] [${type}] ${msg}\n` + el.innerText;
+            if (type === 'error') console.error(msg);
+            else console.log(msg);
+        }
+
+        // 1. Init
+        window.initBridge = async () => {
+            const relays = document.getElementById('relays').value.split(',').map(r => r.trim());
+            const pubkey = document.getElementById('pubkey').value.trim();
+
+            if (!pubkey) return alert('Pubkey required (sandbox mode)');
+
+            try {
+                await initBridge({
+                    appOrigin: 'demo-app',
+                    workerUrl: '../packages/core/dist/engine.js',
+                    relays,
+                    publicKey: pubkey
+                });
+
+                document.getElementById('status').innerText = 'Status: Bridge Ready (Standalone)';
+                document.getElementById('status').classList.add('success');
+                log('Bridge initialized');
+
+                // Check Relays
+                checkRelayStatus();
+
+                // Auto-load
+                loadChannels();
+            } catch (e) {
+                log('Init failed: ' + e.message, 'error');
+            }
+        };
+
+        // Check Relay Status
+        async function checkRelayStatus() {
+            try {
+                const res = await fetch('/mirage/v1/ready');
+                const data = await res.json();
+                const statusEl = document.getElementById('status');
+                if (data.relayCount === 0) {
+                    statusEl.innerText = 'Status: Bridge Ready, BUT NO RELAYS CONNECTED!';
+                    statusEl.className = 'error';
+                    log('Warning: No relays connected. Persistence will fail.', 'error');
+                } else {
+                    statusEl.innerText = `Status: Bridge Ready (${data.relayCount} relays connected)`;
+                }
+            } catch (e) {
+                console.error('Ready check failed:', e);
+            }
+        }
+
+        // 2. List Channels
+        window.loadChannels = async () => {
+            try {
+                const res = await fetch('/mirage/v1/channels');
+                const channels = await res.json();
+
+                const list = document.getElementById('channelList');
+                list.innerHTML = '';
+
+                if (channels.length === 0) {
+                    list.innerHTML = '<div style="padding:10px; color:#777;">No channels found. Create one!</div>';
+                    return;
+                }
+
+                channels.forEach(ch => {
+                    const div = document.createElement('div');
+                    div.className = 'channel-list-item';
+                    div.innerHTML = `<strong>${ch.name}</strong> <small>ID: ${ch.id.slice(0, 8)}</small>`;
+                    div.onclick = () => selectChannel(ch);
+                    list.appendChild(div);
+                });
+                log(`Loaded ${channels.length} channels`);
+            } catch (e) {
+                log('Load channels failed: ' + e.message, 'error');
+            }
+        };
+
+        // 3. Create Channel
+        window.createChannel = async () => {
+            const name = document.getElementById('channelName').value;
+            if (!name) return alert('Name required');
+
+            try {
+                const res = await fetch('/mirage/v1/channels', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name })
+                });
+                const ch = await res.json();
+                if (ch.error) throw new Error(ch.error);
+
+                log('Created channel: ' + ch.id);
+                loadChannels(); // Refresh
+                selectChannel(ch); // Auto-select
+            } catch (e) {
+                log('Create failed: ' + e.message, 'error');
+            }
+        };
+
+        // 4. Select Channel
+        async function selectChannel(ch) {
+            window.currentChannelId = ch.id;
+            document.getElementById('activeChannelPanel').style.display = 'block';
+            document.getElementById('activeChannelTitle').innerText = `Channel: ${ch.name}`;
+
+            // Highlight
+            // (skip DOM logic for simplicity, just reload msgs)
+            loadMessages();
+        }
+
+        // 5. Load Messages
+        async function loadMessages() {
+            if (!window.currentChannelId) return;
+
+            try {
+                const res = await fetch(`/mirage/v1/channels/${window.currentChannelId}/messages?limit=20`);
+                const msgs = await res.json();
+
+                const list = document.getElementById('messageList');
+                list.innerHTML = '';
+
+                msgs.reverse().forEach(m => {
+                    const div = document.createElement('div');
+                    div.className = 'message';
+                    div.innerHTML = `<strong>${m.author.slice(0, 6)}...</strong>: ${m.content}`;
+                    list.appendChild(div);
+                });
+            } catch (e) {
+                log('Load messages failed: ' + e.message, 'error');
+            }
+        }
+
+        // 6. Send Message
+        window.sendMessage = async () => {
+            if (!window.currentChannelId) return;
+            const content = document.getElementById('msgContent').value;
+            if (!content) return;
+
+            try {
+                const res = await fetch(`/mirage/v1/channels/${window.currentChannelId}/messages`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content })
+                });
+                const msg = await res.json();
+                if (msg.error) throw new Error(msg.error);
+
+                document.getElementById('msgContent').value = ''; // Clear
+                loadMessages(); // Refresh
+                log('Sent message');
+            } catch (e) {
+                log('Send failed: ' + e.message, 'error');
+            }
+        };
+
+        // 7. Invite Member
+        window.inviteMember = async () => {
+            if (!window.currentChannelId) return;
+            const pubkey = document.getElementById('invitePubkey').value;
+            if (!pubkey) return alert('Pubkey required');
+
+            try {
+                const res = await fetch(`/mirage/v1/channels/${window.currentChannelId}/invite`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pubkey })
+                });
+                const body = await res.json();
+                if (body.error) throw new Error(body.error);
+                log('Invited ' + pubkey);
+            } catch (e) {
+                log('Invite failed: ' + e.message, 'error');
+            }
+        };
+
+        // 8. Remove Member (Rotate)
+        window.removeMember = async () => {
+            if (!window.currentChannelId) return;
+            const pubkey = document.getElementById('removePubkey').value; // Just for logging?
+
+            if (!confirm('This will ROTATE the key. You must re-invite others!')) return;
+
+            try {
+                const res = await fetch(`/mirage/v1/channels/${window.currentChannelId}/remove`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pubkey: pubkey || 'unknown' })
+                });
+                const body = await res.json();
+                if (body.error) throw new Error(body.error);
+                log(`Key rotated (v${body.version}). Old messages may be unreadable if we didn't cache old keys.`);
+            } catch (e) {
+                log('Remove failed: ' + e.message, 'error');
+            }
+        };
+
+        // Poll messages every 3s
+        setInterval(loadMessages, 3000);
+
+    </script>
+</body>
+
+</html>

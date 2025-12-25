@@ -113,6 +113,10 @@ export class RelayPool {
      * Publish an event to all relays
      */
     async publish(event: Event): Promise<void> {
+        if (this.relays.size === 0) {
+            console.error('[RelayPool] Cannot publish: No connected relays');
+            throw new Error('No connected relays');
+        }
         const promises = Array.from(this.relays.values()).map((relay) =>
             relay.publish(event).catch((error) => {
                 console.error(`[RelayPool] Failed to publish to ${relay.url}:`, error);

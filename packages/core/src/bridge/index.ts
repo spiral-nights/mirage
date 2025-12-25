@@ -6,6 +6,7 @@
  * Implements Virtual SSE for real-time streaming.
  */
 
+import { nip19 } from 'nostr-tools';
 import { interceptedFetch } from './fetch';
 import { MirageEventSource } from './event-source';
 import {
@@ -87,11 +88,25 @@ export async function initBridge(options: BridgeOptions = {}): Promise<void> {
 
         // Send pubkey if provided
         if (options.publicKey) {
-            console.log('[Bridge] Sending pubkey:', options.publicKey.slice(0, 8) + '...');
+            let hexKey = options.publicKey;
+            // Check for npub and convert if needed
+            if (hexKey.startsWith('npub')) {
+                try {
+                    console.log('[Bridge] Converting npub to hex...');
+                    const decoded = nip19.decode(hexKey);
+                    if (decoded.type === 'npub') {
+                        hexKey = decoded.data;
+                    }
+                } catch (e) {
+                    console.error('[Bridge] Failed to decode npub:', e);
+                }
+            }
+
+            console.log('[Bridge] Sending pubkey:', hexKey.slice(0, 8) + '...');
             worker.postMessage({
                 type: 'SET_PUBKEY',
                 id: crypto.randomUUID(),
-                pubkey: options.publicKey
+                pubkey: hexKey
             });
         }
     }

@@ -23,6 +23,7 @@
         "typecheck": "tsc --noEmit"
     },
     "dependencies": {
+        "@noble/ciphers": "^2.1.1",
         "nostr-tools": "^2.19.3"
     },
     "devDependencies": {

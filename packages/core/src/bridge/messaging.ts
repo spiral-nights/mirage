@@ -130,17 +130,28 @@ async function handleEncryptRequest(message: { id: string; pubkey: string; plain
 
         let ciphertext: string;
         if (nostr.nip44?.encrypt) {
+            console.log(`[Bridge] Encrypting with NIP-44. Pubkey: ${message.pubkey}, Plaintext length: ${message.plaintext?.length}`);
+            if (!message.pubkey) throw new Error('Missing pubkey for encryption');
+            if (!message.plaintext) throw new Error('Missing plaintext for encryption');
+
             ciphertext = await nostr.nip44.encrypt(message.pubkey, message.plaintext);
+            console.log('[Bridge] NIP-44 returned type:', typeof ciphertext, 'Length:', ciphertext?.length);
         } else if (nostr.nip04?.encrypt) {
-            console.warn('[Bridge] NIP-44 not available, falling back to NIP-04');
+            console.log('[Bridge] Encrypting with NIP-04 for', message.pubkey);
             ciphertext = await nostr.nip04.encrypt(message.pubkey, message.plaintext);
         } else {
             postToEngine({ type: 'ENCRYPT_RESULT', id: message.id, error: 'Signer does not support encryption' });
             return;
         }
 
+        if (!ciphertext) {
+            console.error('[Bridge] Signer returned empty/null ciphertext');
+            throw new Error('Signer returned empty ciphertext');
+        }
+
         postToEngine({ type: 'ENCRYPT_RESULT', id: message.id, ciphertext });
     } catch (error) {
+        console.error('[Bridge] Encryption error:', error);
         postToEngine({ type: 'ENCRYPT_RESULT', id: message.id, error: error instanceof Error ? error.message : 'Encryption failed' });
     }
 }

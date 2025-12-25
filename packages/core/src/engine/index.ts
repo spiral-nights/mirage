@@ -16,9 +16,10 @@ import {
     postChannelMessage,
     inviteMember,
     removeMember,
-    leaveChannel,
+    syncInvites,
     type ChannelRouteContext
 } from './routes/channels';
+import { getEvents, postEvents, type EventsRouteContext } from './routes/events';
 import type {
     MirageMessage,
     ApiRequestMessage,
@@ -132,7 +133,7 @@ async function handleApiRequest(message: ApiRequestMessage): Promise<void> {
     const { method, path, body } = message;
 
     try {
-        const route = matchRoute(method, path);
+        const route = await matchRoute(method, path);
 
         if (!route) {
             sendResponse(message.id, 404, { error: 'Not found' });
@@ -151,14 +152,12 @@ async function handleApiRequest(message: ApiRequestMessage): Promise<void> {
 // Route Matching
 // ============================================================================
 
-import { getEvents, postEvents, type EventsRouteContext } from './routes/events';
-
 interface RouteMatch {
     handler: (body: unknown, params: Record<string, string | string[]>) => Promise<{ status: number; body: unknown }>;
     params: Record<string, string | string[]>;
 }
 
-function matchRoute(method: string, fullPath: string): RouteMatch | null {
+async function matchRoute(method: string, fullPath: string): Promise<RouteMatch | null> {
     const [path, queryString] = fullPath.split('?');
     const params: Record<string, string | string[]> = {};
 
@@ -302,12 +301,17 @@ function matchRoute(method: string, fullPath: string): RouteMatch | null {
     const channelCtx: ChannelRouteContext = {
         pool: pool!,
         requestSign,
+        requestEncrypt,
+        requestDecrypt,
         currentPubkey,
         appOrigin,
     };
 
     // GET /mirage/v1/channels
     if (method === 'GET' && path === '/mirage/v1/channels') {
+        // Sync invites lazily on list
+        await syncInvites(channelCtx);
+
         return {
             handler: async () => listChannels(channelCtx),
             params: {},
@@ -323,16 +327,17 @@ function matchRoute(method: string, fullPath: string): RouteMatch | null {
     }
 
     // Channel-specific routes
-    const channelMatch = path.match(/^\/mirage\/v1\/channels\/([a-zA-Z0-9_-]+)/);
+    const channelMatch = path.match(/^\/mirage\/v1\/channels\/([a-zA-Z0-9_-]+)(.*)/);
     if (channelMatch) {
         const channelId = channelMatch[1];
+        const subPath = channelMatch[2]; // e.g. "/messages"
 
         // Use helper for safe parsing since params can be array
         const getIntParam = (p: string | string[] | undefined): number | undefined =>
             p ? parseInt(String(p), 10) : undefined;
 
-        // GET /mirage/v1/channels/:id/messages
-        if (method === 'GET' && path.endsWith('/messages')) {
+        // GET .../messages
+        if (method === 'GET' && subPath === '/messages') {
             return {
                 handler: async () => getChannelMessages(channelCtx, channelId, {
                     since: getIntParam(params.since),
@@ -342,37 +347,31 @@ function matchRoute(method: string, fullPath: string): RouteMatch | null {
             };
         }
 
-        // POST /mirage/v1/channels/:id/messages
-        if (method === 'POST' && path.endsWith('/messages')) {
+        // POST .../messages
+        if (method === 'POST' && subPath === '/messages') {
             return {
                 handler: async (body) => postChannelMessage(channelCtx, channelId, body as { content: string }),
                 params: { channelId },
             };
         }
 
-        // POST /mirage/v1/channels/:id/invite
-        if (method === 'POST' && path.endsWith('/invite')) {
+        // POST .../invite
+        if (method === 'POST' && subPath === '/invite') {
             return {
                 handler: async (body) => inviteMember(channelCtx, channelId, body as { pubkey: string }),
                 params: { channelId },
             };
         }
 
-        // POST /mirage/v1/channels/:id/remove
-        if (method === 'POST' && path.endsWith('/remove')) {
+        // POST .../remove
+        if (method === 'POST' && subPath === '/remove') {
             return {
                 handler: async (body) => removeMember(channelCtx, channelId, body as { pubkey: string }),
                 params: { channelId },
             };
         }
 
-        // POST /mirage/v1/channels/:id/leave
-        if (method === 'POST' && path.endsWith('/leave')) {
-            return {
-                handler: async () => leaveChannel(channelCtx, channelId),
-                params: { channelId },
-            };
-        }
+
     }
 
     return null;
@@ -392,6 +391,5 @@ function sendResponse(id: string, status: number, body: unknown): void {
     self.postMessage(response);
 }
 
-// Export for type checking
 // Export for type checking
 export type { UserRouteContext };

@@ -133,6 +133,7 @@ Run a local server (`python3 -m http.server` or `bunx serve .`) and open:
 | Demo | Path | Description |
 |------|------|-------------|
 | **Events Debugger** | `/examples/events-demo.html` | **New!** Test generic `GET/POST /events` API. |
+| **Channels Demo** | `/examples/channels-demo.html` | **New!** Test encrypted channels & invites. |
 | **Sample App** | `/examples/sample-app.html` | Hosted app using `/events` feed (Needs Host). |
 | **Storage Demo** | `/examples/storage-demo.html` | Test encrypted storage (NIP-44). |
 | **Host Demo** | `/examples/demo-host.html` | Full Host + Sample App integration. |
@@ -143,7 +144,7 @@ Run a local server (`python3 -m http.server` or `bunx serve .`) and open:
 * [x] **Phase 2: Persistence Layer** ✅ (NIP-78 Storage)
 * [x] **Phase 3: Streaming Layer** ✅ (SSE, Host-owned Engine, Background Sync)
 * [x] **Phase 4: Encryption** ✅ (NIP-44 storage encryption, both modes)
-* [ ] **Phase 5: Channels** (Encrypted group channels, key rotation)
+* [x] **Phase 5: Channels** ✅ (Encrypted group channels, key rotation)
 * [ ] **Phase 6: DMs** (NIP-17 direct messages)
 
 ## 📄 License

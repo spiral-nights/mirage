@@ -236,6 +236,14 @@ export type SystemEvent =
     | { action: 'channel_created'; name: string; createdBy: string }
     | { action: 'channel_renamed'; oldName: string; newName: string };
 
+/**
+ * Channel metadata stored locally (encrypted)
+ */
+export interface ChannelKey {
+    key: string;  // Base64 encoded symmetric key
+    version: number;
+}
+
 // ============================================================================
 // Configuration Types
 // ============================================================================
