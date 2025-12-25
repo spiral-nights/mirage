@@ -1,26 +1,26 @@
 /**
- * Channel Key Persistence (NIP-78)
+ * Space Key Persistence (NIP-78)
  * 
- * Manages the "private keychain" for channel keys.
- * Keys are stored in a Kind 30078 event with d-tag: "mirage:channel_keys".
+ * Manages the "private keychain" for space keys.
+ * Keys are stored in a Kind 30078 event with d-tag: "mirage:space_keys".
  * The content is encrypted (NIP-44 self-encryption) by the storage layer.
  */
 
-import type { ChannelKey } from '../../types';
+import type { SpaceKey } from '../../types';
 import type { StorageRouteContext } from './routes/storage';
 import { internalGetStorage, internalPutStorage } from './routes/storage';
 
-const KEY_STORAGE_ID = 'mirage:channel_keys';
+const KEY_STORAGE_ID = 'mirage:space_keys';
 
 interface KeyMap {
-    [channelId: string]: ChannelKey;
+    [spaceId: string]: SpaceKey;
 }
 
 /**
- * Load all channel keys from NIP-78 storage.
- * Returns a Map of ScopedChannelId -> ChannelKey.
+ * Load all space keys from NIP-78 storage.
+ * Returns a Map of ScopedSpaceId -> SpaceKey.
  */
-export async function loadChannelKeys(ctx: StorageRouteContext): Promise<Map<string, ChannelKey>> {
+export async function loadSpaceKeys(ctx: StorageRouteContext): Promise<Map<string, SpaceKey>> {
     try {
         const rawMap = await internalGetStorage<KeyMap>(ctx, KEY_STORAGE_ID);
 
@@ -28,7 +28,7 @@ export async function loadChannelKeys(ctx: StorageRouteContext): Promise<Map<str
             return new Map();
         }
 
-        const map = new Map<string, ChannelKey>();
+        const map = new Map<string, SpaceKey>();
         for (const [id, keyInfo] of Object.entries(rawMap)) {
             map.set(id, keyInfo);
         }
@@ -40,11 +40,11 @@ export async function loadChannelKeys(ctx: StorageRouteContext): Promise<Map<str
 }
 
 /**
- * Save all channel keys to NIP-78 storage.
+ * Save all space keys to NIP-78 storage.
  */
-export async function saveChannelKeys(
+export async function saveSpaceKeys(
     ctx: StorageRouteContext,
-    keys: Map<string, ChannelKey>
+    keys: Map<string, SpaceKey>
 ): Promise<void> {
     try {
         const rawMap: KeyMap = {};

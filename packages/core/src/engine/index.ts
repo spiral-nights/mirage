@@ -10,15 +10,16 @@ import { RelayPool } from './relay-pool';
 import { getCurrentUser, getUserByPubkey, type UserRouteContext } from './routes/user';
 import { getStorage, putStorage, deleteStorage, type StorageRouteContext } from './routes/storage';
 import {
-    listChannels,
-    createChannel,
-    getChannelMessages,
-    postChannelMessage,
+    listSpaces,
+    createSpace,
+    getSpaceMessages,
+    postSpaceMessage,
     inviteMember,
-    removeMember,
     syncInvites,
-    type ChannelRouteContext
-} from './routes/channels';
+    getSpaceStore,
+    updateSpaceStore,
+    type SpaceRouteContext
+} from './routes/spaces';
 import {
     listDMs,
     getDMMessages,
@@ -287,14 +288,14 @@ async function matchRoute(method: string, fullPath: string): Promise<RouteMatch 
 
         if (method === 'GET') {
             return {
-                handler: async () => getStorage(storageCtx, key),
+                handler: async () => getStorage(storageCtx, key, { pubkey: params.pubkey as string }),
                 params: { key },
             };
         }
 
         if (method === 'PUT') {
             return {
-                handler: async (body) => putStorage(storageCtx, key, body),
+                handler: async (body) => putStorage(storageCtx, key, body, { public: params.public as string }),
                 params: { key },
             };
         }
@@ -308,9 +309,9 @@ async function matchRoute(method: string, fullPath: string): Promise<RouteMatch 
     }
 
     // =========================================================================
-    // Channel routes
+    // Space routes
     // =========================================================================
-    const channelCtx: ChannelRouteContext = {
+    const spaceCtx: SpaceRouteContext = {
         pool: pool!,
         requestSign,
         requestEncrypt,
@@ -319,71 +320,79 @@ async function matchRoute(method: string, fullPath: string): Promise<RouteMatch 
         appOrigin,
     };
 
-    // GET /mirage/v1/channels
-    if (method === 'GET' && path === '/mirage/v1/channels') {
+    // GET /mirage/v1/spaces
+    if (method === 'GET' && path === '/mirage/v1/spaces') {
         // Sync invites lazily on list
-        await syncInvites(channelCtx);
+        await syncInvites(spaceCtx);
 
         return {
-            handler: async () => listChannels(channelCtx),
+            handler: async () => listSpaces(spaceCtx),
             params: {},
         };
     }
 
-    // POST /mirage/v1/channels
-    if (method === 'POST' && path === '/mirage/v1/channels') {
+    // POST /mirage/v1/spaces
+    if (method === 'POST' && path === '/mirage/v1/spaces') {
         return {
-            handler: async (body) => createChannel(channelCtx, body as { name: string }),
+            handler: async (body) => createSpace(spaceCtx, body as { name: string }),
             params: {},
         };
     }
 
-    // Channel-specific routes
-    const channelMatch = path.match(/^\/mirage\/v1\/channels\/([a-zA-Z0-9_-]+)(.*)/);
-    if (channelMatch) {
-        const channelId = channelMatch[1];
-        const subPath = channelMatch[2]; // e.g. "/messages"
+    // Space-specific routes
+    const spaceMatch = path.match(/^\/mirage\/v1\/spaces\/([a-zA-Z0-9_-]+)(.*)/);
+    if (spaceMatch) {
+        const spaceId = spaceMatch[1];
+        const subPath = spaceMatch[2]; // e.g. "/messages", "/store"
 
         // Use helper for safe parsing since params can be array
         const getIntParam = (p: string | string[] | undefined): number | undefined =>
             p ? parseInt(String(p), 10) : undefined;
 
+        // GET .../store (Shared KV)
+        if (method === 'GET' && subPath === '/store') {
+            return {
+                handler: async () => getSpaceStore(spaceCtx, spaceId),
+                params: { spaceId },
+            };
+        }
+
+        // PUT .../store/:key (Shared KV Update)
+        const storeKeyMatch = subPath.match(/^\/store\/(.+)$/);
+        if (method === 'PUT' && storeKeyMatch) {
+            const key = decodeURIComponent(storeKeyMatch[1]);
+            return {
+                handler: async (body) => updateSpaceStore(spaceCtx, spaceId, key, body),
+                params: { spaceId, key },
+            };
+        }
+
         // GET .../messages
         if (method === 'GET' && subPath === '/messages') {
             return {
-                handler: async () => getChannelMessages(channelCtx, channelId, {
+                handler: async () => getSpaceMessages(spaceCtx, spaceId, {
                     since: getIntParam(params.since),
                     limit: getIntParam(params.limit),
                 }),
-                params: { channelId },
+                params: { spaceId },
             };
         }
 
         // POST .../messages
         if (method === 'POST' && subPath === '/messages') {
             return {
-                handler: async (body) => postChannelMessage(channelCtx, channelId, body as { content: string }),
-                params: { channelId },
+                handler: async (body) => postSpaceMessage(spaceCtx, spaceId, body as { content: string }),
+                params: { spaceId },
             };
         }
 
         // POST .../invite
         if (method === 'POST' && subPath === '/invite') {
             return {
-                handler: async (body) => inviteMember(channelCtx, channelId, body as { pubkey: string }),
-                params: { channelId },
+                handler: async (body) => inviteMember(spaceCtx, spaceId, body as { pubkey: string }),
+                params: { spaceId },
             };
         }
-
-        // POST .../remove
-        if (method === 'POST' && subPath === '/remove') {
-            return {
-                handler: async (body) => removeMember(channelCtx, channelId, body as { pubkey: string }),
-                params: { channelId },
-            };
-        }
-
-
     }
 
     // =========================================================================

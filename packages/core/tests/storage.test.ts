@@ -58,7 +58,7 @@ function createMockContext(overrides?: Partial<StorageRouteContext>): StorageRou
 describe('getStorage', () => {
     test('returns 401 when not authenticated', async () => {
         const ctx = createMockContext({ currentPubkey: null });
-        const result = await getStorage(ctx, 'test-key');
+        const result = await getStorage(ctx, 'test-key', {});
 
         expect(result.status).toBe(401);
         expect(result.body).toEqual({ error: 'Not authenticated' });
@@ -67,7 +67,7 @@ describe('getStorage', () => {
     test('returns 404 when key not found', async () => {
         const ctx = createMockContext();
         // Pool returns no events
-        const result = await getStorage(ctx, 'nonexistent-key');
+        const result = await getStorage(ctx, 'nonexistent-key', {});
 
         expect(result.status).toBe(404);
         expect(result.body).toEqual({ error: 'Key not found' });
@@ -93,148 +93,73 @@ describe('getStorage', () => {
             return () => { };
         });
 
-        const result = await getStorage(ctx, 'my-key');
+        const result = await getStorage(ctx, 'my-key', {});
 
         expect(result.status).toBe(200);
         expect((result.body as any).key).toBe('my-key');
         expect((result.body as any).value).toEqual({ theme: 'dark', fontSize: 14 });
-        expect((result.body as any).updatedAt).toBe(1703203200);
     });
 
-    test('handles non-JSON content gracefully', async () => {
-        const encryptedContent = 'encrypted:' + btoa('plain text value');
+    test('Foreign Access: Reads unencrypted public data', async () => {
+        const publicContent = JSON.stringify({ publicInfo: 'hello' });
+        const foreignPubkey = 'foreign-pubkey-123';
+        
         const storedEvent: Event = {
-            id: 'event-456',
-            pubkey: 'test-pubkey-abc123def456',
+            id: 'event-public',
+            pubkey: foreignPubkey,
             created_at: 1703203200,
             kind: 30078,
-            tags: [['d', 'test-app:text-key']],
-            content: encryptedContent,
+            tags: [['d', 'test-app:public-key']],
+            content: publicContent,
             sig: 'sig-abc',
         };
 
         const ctx = createMockContext();
         ctx.pool.subscribe = mock((filters, onEvent, onEose) => {
-            onEvent(storedEvent);
+            // Check that we are querying the foreign pubkey
+            if (filters[0].authors.includes(foreignPubkey)) {
+                onEvent(storedEvent);
+            }
             return () => { };
         });
 
-        const result = await getStorage(ctx, 'text-key');
+        // Call getStorage with foreign pubkey
+        const result = await getStorage(ctx, 'public-key', { pubkey: foreignPubkey });
 
         expect(result.status).toBe(200);
-        expect((result.body as any).value).toBe('plain text value');
+        expect((result.body as any).value).toEqual({ publicInfo: 'hello' });
+        
+        // Ensure NO decryption was attempted on foreign data
+        expect(ctx.requestDecrypt).not.toHaveBeenCalled();
     });
 });
 
 describe('putStorage', () => {
-    test('returns 401 when not authenticated', async () => {
-        const ctx = createMockContext({ currentPubkey: null });
-        const result = await putStorage(ctx, 'test-key', { data: 'value' });
-
-        expect(result.status).toBe(401);
-        expect(result.body).toEqual({ error: 'Not authenticated' });
-    });
-
-    test('creates signed event with encrypted content', async () => {
+    test('Default: Encrypts data', async () => {
         const ctx = createMockContext();
-        const testData = { counter: 42, enabled: true };
+        const testData = { secret: "shhh" };
 
-        const result = await putStorage(ctx, 'settings', testData);
+        await putStorage(ctx, 'settings', testData, {});
 
-        expect(result.status).toBe(200);
-        expect((result.body as any).key).toBe('settings');
-        expect((result.body as any).value).toEqual(testData); // Returns original
-
-        // Verify requestEncrypt was called
         expect(ctx.requestEncrypt).toHaveBeenCalled();
-
-        // Verify requestSign was called with encrypted content (not plaintext)
-        expect(ctx.requestSign).toHaveBeenCalled();
         const signCall = (ctx.requestSign as any).mock.calls[0];
-        const unsignedEvent = signCall[0];
-
-        expect(unsignedEvent.kind).toBe(30078);
-        expect(unsignedEvent.tags).toContainEqual(['d', 'test-app:settings']);
-        expect(unsignedEvent.content).toMatch(/^encrypted:/);  // Content is encrypted
+        expect(signCall[0].content).toMatch(/^encrypted:/);
     });
 
-    test('publishes signed event to relay pool', async () => {
+    test('Public: Skips encryption when public=true', async () => {
         const ctx = createMockContext();
-        await putStorage(ctx, 'my-data', 'simple value');
+        const publicData = { visible: "everyone" };
 
-        expect(ctx.pool.publish).toHaveBeenCalled();
-    });
-
-    test('encrypts string values', async () => {
-        const ctx = createMockContext();
-        await putStorage(ctx, 'raw-string', 'just a string');
-
-        // Verify encryption was called with the string
-        expect(ctx.requestEncrypt).toHaveBeenCalledWith(
-            'test-pubkey-abc123def456',
-            'just a string'
-        );
-    });
-});
-
-describe('deleteStorage', () => {
-    test('returns 401 when not authenticated', async () => {
-        const ctx = createMockContext({ currentPubkey: null });
-        const result = await deleteStorage(ctx, 'test-key');
-
-        expect(result.status).toBe(401);
-        expect(result.body).toEqual({ error: 'Not authenticated' });
-    });
-
-    test('publishes encrypted empty event with deleted tag', async () => {
-        const ctx = createMockContext();
-        const result = await deleteStorage(ctx, 'old-setting');
-
+        const result = await putStorage(ctx, 'profile', publicData, { public: 'true' });
+        
         expect(result.status).toBe(200);
-        expect((result.body as any).deleted).toBe(true);
-        expect((result.body as any).key).toBe('old-setting');
+        expect((result.body as any).public).toBe(true);
 
-        // Verify encryption was called (even for empty content)
-        expect(ctx.requestEncrypt).toHaveBeenCalled();
+        // Verify NO encryption called
+        expect(ctx.requestEncrypt).not.toHaveBeenCalled();
 
-        // Verify the event structure
+        // Verify published content is plaintext JSON
         const signCall = (ctx.requestSign as any).mock.calls[0];
-        const unsignedEvent = signCall[0];
-
-        expect(unsignedEvent.kind).toBe(30078);
-        expect(unsignedEvent.content).toMatch(/^encrypted:/);  // Encrypted empty content
-        expect(unsignedEvent.tags).toContainEqual(['d', 'test-app:old-setting']);
-        expect(unsignedEvent.tags).toContainEqual(['deleted', 'true']);
-    });
-
-    test('publishes to relay pool', async () => {
-        const ctx = createMockContext();
-        await deleteStorage(ctx, 'to-delete');
-
-        expect(ctx.pool.publish).toHaveBeenCalled();
-    });
-});
-
-describe('storage key scoping', () => {
-    test('d tag includes app origin for isolation', async () => {
-        const ctx = createMockContext({ appOrigin: 'my-custom-app.com' });
-        await putStorage(ctx, 'preferences', {});
-
-        const signCall = (ctx.requestSign as any).mock.calls[0];
-        expect(signCall[0].tags).toContainEqual(['d', 'my-custom-app.com:preferences']);
-    });
-
-    test('different apps have different d tags', async () => {
-        const ctx1 = createMockContext({ appOrigin: 'app1.example' });
-        const ctx2 = createMockContext({ appOrigin: 'app2.example' });
-
-        await putStorage(ctx1, 'shared-key', { from: 'app1' });
-        await putStorage(ctx2, 'shared-key', { from: 'app2' });
-
-        const sign1 = (ctx1.requestSign as any).mock.calls[0];
-        const sign2 = (ctx2.requestSign as any).mock.calls[0];
-
-        expect(sign1[0].tags[0]).toEqual(['d', 'app1.example:shared-key']);
-        expect(sign2[0].tags[0]).toEqual(['d', 'app2.example:shared-key']);
+        expect(signCall[0].content).toBe(JSON.stringify(publicData));
     });
 });

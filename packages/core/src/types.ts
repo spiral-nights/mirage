@@ -200,13 +200,13 @@ export interface FeedNote {
 }
 
 // ============================================================================
-// Channel Types (Encrypted Group Messaging)
+// Space Types (Encrypted Shared Workspaces)
 // ============================================================================
 
 /**
- * A channel (encrypted group) that this app has access to
+ * A space (encrypted group) that this app has access to
  */
-export interface Channel {
+export interface Space {
     id: string;
     name: string;
     createdAt: number;
@@ -214,11 +214,11 @@ export interface Channel {
 }
 
 /**
- * A message in a channel - can be a regular message or system notification
+ * A message in a space - can be a regular message or system notification
  */
-export interface ChannelMessage {
+export interface SpaceMessage {
     id: string;
-    channelId: string;
+    spaceId: string;
     author: string;
     content: string;
     type: 'message' | 'system';
@@ -226,20 +226,25 @@ export interface ChannelMessage {
 }
 
 /**
+ * Real-time update for the Shared KV Store
+ */
+export interface StoreUpdate {
+    key: string;
+    value: unknown;
+}
+
+/**
  * System event payload (content of system messages)
  */
 export type SystemEvent =
     | { action: 'member_joined'; pubkey: string; invitedBy: string }
-    | { action: 'member_left'; pubkey: string }
-    | { action: 'member_removed'; pubkey: string; removedBy: string }
-    | { action: 'key_rotated'; version: number }
-    | { action: 'channel_created'; name: string; createdBy: string }
-    | { action: 'channel_renamed'; oldName: string; newName: string };
+    | { action: 'space_created'; name: string; createdBy: string }
+    | { action: 'space_renamed'; oldName: string; newName: string };
 
 /**
- * Channel metadata stored locally (encrypted)
+ * Space metadata stored locally (encrypted)
  */
-export interface ChannelKey {
+export interface SpaceKey {
     key: string;  // Base64 encoded symmetric key
     version: number;
 }
@@ -261,8 +266,8 @@ export type Permission =
     | 'public_write'
     | 'storage_read'
     | 'storage_write'
-    | 'group_read'
-    | 'group_write'
+    | 'space_read'
+    | 'space_write'
     | 'dm_read'
     | 'dm_write';
 

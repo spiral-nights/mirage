@@ -4,8 +4,8 @@
  * Provides key-value storage using Kind 30078 replaceable events.
  * Keys are scoped per app using the `d` tag.
  * 
- * SECURITY: All content is encrypted using NIP-44 self-encryption
- * to prevent other apps/clients from reading the data.
+ * SECURITY: Data is encrypted (NIP-44) by default.
+ * OPTION: 'public=true' skips encryption for shared data.
  */
 
 import type { Event, Filter } from 'nostr-tools';
@@ -25,12 +25,6 @@ export interface StorageRouteContext {
     appOrigin: string;
 }
 
-interface StorageValue {
-    key: string;
-    value: unknown;
-    updatedAt: number;
-}
-
 // ============================================================================
 // Internal Helpers (Headless)
 // ============================================================================
@@ -40,14 +34,17 @@ interface StorageValue {
  */
 export async function internalGetStorage<T = unknown>(
     ctx: StorageRouteContext,
-    key: string
+    key: string,
+    targetPubkey?: string
 ): Promise<T | null> {
-    if (!ctx.currentPubkey) throw new Error('Not authenticated');
+    if (!ctx.currentPubkey && !targetPubkey) throw new Error('Not authenticated');
 
+    const author = targetPubkey || ctx.currentPubkey!;
     const dTag = `${ctx.appOrigin}:${key}`;
+    
     const filter: Filter = {
         kinds: [30078],
-        authors: [ctx.currentPubkey],
+        authors: [author],
         '#d': [dTag],
         limit: 1,
     };
@@ -64,16 +61,39 @@ export async function internalGetStorage<T = unknown>(
     unsubscribe();
 
     if (events.length === 0) return null;
+    const content = events[0].content;
 
-    // Decrypt
-    const plaintext = await ctx.requestDecrypt(ctx.currentPubkey, events[0].content);
-
-    // Parse
+    // 1. Try to parse as JSON (Public Data)
     try {
-        return JSON.parse(plaintext);
+        const parsed = JSON.parse(content);
+        // If it looks like a NIP-44 ciphertext, it might be a false positive string, 
+        // but generally generic JSON is public.
+        // If the user is the author, we might try to decrypt if it fails to be useful?
+        // For simplicity: If it parses as JSON and doesn't look like NIP-44 (base64?iv=...), return it.
+        // NIP-44 usually isn't valid JSON.
+        return parsed as T;
     } catch {
-        return plaintext as unknown as T;
+        // Not JSON. Might be ciphertext or raw string.
     }
+
+    // 2. Try to Decrypt (Private Data)
+    // Only possible if we are the author (self-encrypted) OR it was encrypted for us (NIP-04/44/17).
+    // Standard Storage is Self-Encrypted.
+    if (ctx.currentPubkey === author) {
+        try {
+            const plaintext = await ctx.requestDecrypt(ctx.currentPubkey, content);
+            try {
+                return JSON.parse(plaintext);
+            } catch {
+                return plaintext as unknown as T;
+            }
+        } catch (e) {
+            // Decryption failed
+        }
+    }
+
+    // 3. Return Raw (If public string)
+    return content as unknown as T;
 }
 
 /**
@@ -82,21 +102,24 @@ export async function internalGetStorage<T = unknown>(
 export async function internalPutStorage<T>(
     ctx: StorageRouteContext,
     key: string,
-    value: T
+    value: T,
+    isPublic: boolean = false
 ): Promise<Event> {
     if (!ctx.currentPubkey) throw new Error('Not authenticated');
 
     const dTag = `${ctx.appOrigin}:${key}`;
     const plaintext = typeof value === 'string' ? value : JSON.stringify(value);
 
-    // Encrypt
-    const ciphertext = await ctx.requestEncrypt(ctx.currentPubkey, plaintext);
+    let content = plaintext;
+    if (!isPublic) {
+        content = await ctx.requestEncrypt(ctx.currentPubkey, plaintext);
+    }
 
     const unsignedEvent: UnsignedNostrEvent = {
         kind: 30078,
         created_at: Math.floor(Date.now() / 1000),
         tags: [['d', dTag]],
-        content: ciphertext,
+        content: content,
     };
 
     const signedEvent = await ctx.requestSign(unsignedEvent);
@@ -111,15 +134,18 @@ export async function internalPutStorage<T>(
 
 /**
  * GET /mirage/v1/storage/:key
+ * Params: pubkey (optional)
  */
 export async function getStorage(
     ctx: StorageRouteContext,
-    key: string
+    key: string,
+    params: { pubkey?: string }
 ): Promise<{ status: number; body: unknown }> {
     try {
-        if (!ctx.currentPubkey) return { status: 401, body: { error: 'Not authenticated' } };
+        // We allow anonymous reads if pubkey is provided (Public Storage)
+        if (!ctx.currentPubkey && !params.pubkey) return { status: 401, body: { error: 'Not authenticated' } };
 
-        const value = await internalGetStorage(ctx, key);
+        const value = await internalGetStorage(ctx, key, params.pubkey);
 
         if (value === null) {
             return { status: 404, body: { error: 'Key not found' } };
@@ -130,7 +156,7 @@ export async function getStorage(
             body: {
                 key,
                 value,
-                updatedAt: Math.floor(Date.now() / 1000) // Approximate, internalGetStorage doesn't return event yet
+                updatedAt: Math.floor(Date.now() / 1000)
             }
         };
     } catch (error) {
@@ -141,23 +167,28 @@ export async function getStorage(
 
 /**
  * PUT /mirage/v1/storage/:key
+ * Body: value
+ * Params: public (optional string "true")
  */
 export async function putStorage(
     ctx: StorageRouteContext,
     key: string,
-    body: unknown
+    body: unknown,
+    params: { public?: string }
 ): Promise<{ status: number; body: unknown }> {
     try {
         if (!ctx.currentPubkey) return { status: 401, body: { error: 'Not authenticated' } };
 
-        const event = await internalPutStorage(ctx, key, body);
+        const isPublic = params.public === 'true';
+        const event = await internalPutStorage(ctx, key, body, isPublic);
 
         return {
             status: 200,
             body: {
                 key,
                 value: body,
-                updatedAt: event.created_at
+                updatedAt: event.created_at,
+                public: isPublic
             }
         };
     } catch (error) {
@@ -173,10 +204,6 @@ export async function deleteStorage(
     ctx: StorageRouteContext,
     key: string
 ): Promise<{ status: number; body: unknown }> {
-    // ... keep existing implementation or use internalPutStorage?
-    // internalPutStorage can't easily add extra tags ('deleted').
-    // Keeping minimal copy for now.
-
     if (!ctx.currentPubkey) {
         return { status: 401, body: { error: 'Not authenticated' } };
     }
