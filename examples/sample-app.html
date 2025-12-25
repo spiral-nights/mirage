@@ -196,7 +196,7 @@
         async function loadFeed() {
             const container = document.getElementById('feed-container');
             try {
-                const response = await fetch('/mirage/v1/feed?limit=5');
+                const response = await fetch('/mirage/v1/events?kinds=1&limit=5');
                 const notes = await response.json();
 
                 if (notes.length === 0) {

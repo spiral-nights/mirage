@@ -72,51 +72,60 @@ paths:
                     type: integer
                     description: Number of active network connections
 
-  /feed:
+  /events:
     get:
-      tags: [Feed]
-      summary: Get recent posts
-      description: Returns a list of the latest public posts from your network.
-      operationId: getFeed
+      tags: [System]
+      summary: Query events
+      description: |
+        Low-level query interface for raw Nostr events.
+        Use this to fetch specific kinds of data (notes, profiles, etc).
+
+        **Common Queries:**
+        - **Feed:** `kinds=[1]`
+        - **Profiles:** `kinds=[0], authors=[pk]`
+      operationId: getEvents
       parameters:
-        - name: limit
+        - name: kinds
           in: query
-          description: Maximum number of notes to return
-          required: false
+          description: Event kinds to filter by (e.g. 1 for notes)
+          schema:
+            type: array
+            items:
+              type: integer
+        - name: authors
+          in: query
+          description: Public keys of authors to filter by
+          schema:
+            type: array
+            items:
+              type: string
+        - name: since
+          in: query
+          description: Only return events newer than this timestamp
           schema:
             type: integer
-            minimum: 1
-            maximum: 100
+        - name: limit
+          in: query
+          schema:
+            type: integer
             default: 20
       responses:
         '200':
-          description: List of notes
+          description: List of events
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: '#/components/schemas/Event'
-        '503':
-          description: Relay pool not initialized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Event'
-            text/event-stream:
-              schema:
-                type: string
-                description: |
-                  Stream of new events. Format: `data: {JSON}\n\n`.
-                  Connection stays open and pushes new posts as they appear.
 
     post:
-      tags: [Feed]
-      summary: Create a post
+      tags: [System]
+      summary: Publish raw event
       description: |
-        Publish a new public message to your followers.
-        The system handles signing and distribution automatically.
-      operationId: postFeed
+        Publish a raw Nostr event. The system will sign it and broadcast to relays.
+        Useful for custom event kinds not covered by helper endpoints.
+      operationId: publishEvent
       security:
         - nip07: []
       requestBody:
@@ -125,90 +134,40 @@ paths:
           application/json:
             schema:
               type: object
-              required: [content]
+              required: [content, kind]
               properties:
+                kind:
+                  type: integer
+                  description: Event kind (e.g. 1 for note)
                 content:
                   type: string
-                  description: Note content
-                  example: "Hello Nostr!"
+                  description: Event content
                 tags:
                   type: array
-                  description: Optional event tags
                   items:
                     type: array
                     items:
                       type: string
-                  example: [["t", "nostr"], ["p", "pubkey..."]]
       responses:
         '201':
-          description: Note published successfully
+          description: Event published
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Event'
-        '400':
-          description: Invalid request body
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '503':
-          description: Relay pool not initialized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
 
-  /user/me:
-    get:
-      tags: [Users]
-      summary: Get my profile
-      description: |
-        Get profile details for the currently signed-in user.
-      operationId: getCurrentUser
-      security:
-        - nip07: []
-      responses:
-        '200':
-          description: User profile
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MetadataContent'
-        '401':
-          description: No signer available
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '404':
-          description: Profile not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '503':
-          description: Relay pool not initialized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
-  /users/{pubkey}:
+  /profiles/{pubkey}:
     get:
       tags: [Users]
       summary: Get user profile
-      description: Get profile details for any user by their ID (public key).
-      operationId: getUserByPubkey
+      description: Get profile details (Kind 0) for a user.
+      operationId: getProfile
       parameters:
         - name: pubkey
           in: path
           required: true
-          description: User's public key (64-character hex)
           schema:
             type: string
-            pattern: '^[a-f0-9]{64}$'
-            example: "82341f882b6eabcd2ba7f1ef90aad961cf074af15b9ef44a09f9d2a8fbfbe6a2"
       responses:
         '200':
           description: User profile
@@ -216,18 +175,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MetadataContent'
-        '404':
-          description: Profile not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '503':
-          description: Relay pool not initialized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+
 
   /storage/{key}:
     get:

@@ -51,11 +51,11 @@ graph TD
 ### Quick Start
 
 ```javascript
-// Get recent posts
-const posts = await fetch('/mirage/v1/feed').then(r => r.json());
+// Get recent posts (Kind 1)
+const posts = await fetch('/mirage/v1/events?kinds=1&limit=20').then(r => r.json());
 
 // Stream live updates
-const stream = new EventSource('/mirage/v1/feed');
+const stream = new EventSource('/mirage/v1/events?kinds=1');
 stream.onmessage = (e) => console.log(JSON.parse(e.data));
 
 // Save app data
@@ -70,14 +70,14 @@ await fetch('/mirage/v1/storage/settings', {
 | Endpoint | Method | Description |
 | --- | --- | --- |
 | `/mirage/v1/ready` | `GET` | Check if system is ready |
-| `/mirage/v1/feed` | `GET/POST` | Read or post to public timeline |
+| `/mirage/v1/events` | `GET/POST` | Query or Publish Nostr events (Native) |
 | `/mirage/v1/user/me` | `GET` | Get current user profile |
-| `/mirage/v1/users/:pubkey` | `GET` | Get user by public key |
+| `/mirage/v1/profiles/:pubkey` | `GET` | Get user by public key |
 | `/mirage/v1/storage/:key` | `GET/PUT/DELETE` | App data storage |
 | `/mirage/v1/channels/:id/messages` | `GET/POST` | Private group messages |
 | `/mirage/v1/dm/:pubkey` | `GET/POST` | Encrypted direct messages |
 
-> **Streaming:** `GET` endpoints for feed, channels, and DMs support `EventSource` for real-time updates.
+> **Streaming:** `GET` endpoints for events, channels, and DMs support `EventSource` for real-time updates.
 
 ## 🛡️ Security Model
 
@@ -128,13 +128,14 @@ host.mount(appHtml, document.getElementById('app-container'));
 
 ## 🎮 Demo Pages
 
-Run a local server (`bunx serve .` or `bun run dev`) and open:
+Run a local server (`python3 -m http.server` or `bunx serve .`) and open:
 
 | Demo | Path | Description |
 |------|------|-------------|
-| **Storage Demo** | `/examples/storage-demo.html` | Test encrypted storage (NIP-44). Requires NIP-07 signer. |
-| **Host Demo** | `/examples/demo-host.html` | Full Host + iframe integration demo. |
-| **Streaming Demo** | `/packages/host/test-streaming-demo.html` | SSE streaming verification. |
+| **Events Debugger** | `/examples/events-demo.html` | **New!** Test generic `GET/POST /events` API. |
+| **Sample App** | `/examples/sample-app.html` | Hosted app using `/events` feed (Needs Host). |
+| **Storage Demo** | `/examples/storage-demo.html` | Test encrypted storage (NIP-44). |
+| **Host Demo** | `/examples/demo-host.html` | Full Host + Sample App integration. |
 
 ## 🗺️ Roadmap
 

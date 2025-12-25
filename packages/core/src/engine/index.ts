@@ -6,7 +6,7 @@
 
 import type { Event } from 'nostr-tools';
 import { RelayPool } from './relay-pool';
-import { getFeed, postFeed, type FeedRouteContext } from './routes/feed';
+
 import { getCurrentUser, getUserByPubkey, type UserRouteContext } from './routes/user';
 import { getStorage, putStorage, deleteStorage, type StorageRouteContext } from './routes/storage';
 import {
@@ -151,23 +151,33 @@ async function handleApiRequest(message: ApiRequestMessage): Promise<void> {
 // Route Matching
 // ============================================================================
 
+import { getEvents, postEvents, type EventsRouteContext } from './routes/events';
+
 interface RouteMatch {
-    handler: (body: unknown, params: Record<string, string>) => Promise<{ status: number; body: unknown }>;
-    params: Record<string, string>;
+    handler: (body: unknown, params: Record<string, string | string[]>) => Promise<{ status: number; body: unknown }>;
+    params: Record<string, string | string[]>;
 }
 
 function matchRoute(method: string, fullPath: string): RouteMatch | null {
     const [path, queryString] = fullPath.split('?');
-    const params: Record<string, string> = {};
+    const params: Record<string, string | string[]> = {};
 
     if (queryString) {
         const searchParams = new URLSearchParams(queryString);
         searchParams.forEach((value, key) => {
-            params[key] = value;
+            if (params[key]) {
+                if (Array.isArray(params[key])) {
+                    (params[key] as string[]).push(value);
+                } else {
+                    params[key] = [params[key] as string, value];
+                }
+            } else {
+                params[key] = value;
+            }
         });
     }
 
-    const feedCtx: FeedRouteContext = {
+    const eventsCtx: EventsRouteContext = {
         pool: pool!,
         requestSign,
     };
@@ -192,18 +202,35 @@ function matchRoute(method: string, fullPath: string): RouteMatch | null {
         };
     }
 
-    // GET /mirage/v1/feed
-    if (method === 'GET' && path === '/mirage/v1/feed') {
+    // GET /mirage/v1/events (Query events)
+    if (method === 'GET' && path === '/mirage/v1/events') {
         return {
-            handler: async () => getFeed(feedCtx, { limit: params.limit ? parseInt(params.limit, 10) : undefined }),
+            handler: async () => getEvents(eventsCtx, params),
             params,
         };
     }
 
-    // POST /mirage/v1/feed
+    // POST /mirage/v1/events (Publish event)
+    if (method === 'POST' && path === '/mirage/v1/events') {
+        return {
+            handler: async (body) => postEvents(eventsCtx, body as { kind: number; content: string; tags?: string[][] }),
+            params: {},
+        };
+    }
+
+    // Legacy /feed support -> redirected to /events?kinds=1
+    if (method === 'GET' && path === '/mirage/v1/feed') {
+        const feedParams = { ...params, kinds: ['1'] };
+        return {
+            handler: async () => getEvents(eventsCtx, feedParams),
+            params: feedParams,
+        };
+    }
+
+    // Legacy POST /feed -> redirected to /events with kind 1
     if (method === 'POST' && path === '/mirage/v1/feed') {
         return {
-            handler: async (body) => postFeed(feedCtx, body as { content: string; tags?: string[][] }),
+            handler: async (body: any) => postEvents(eventsCtx, { ...body, kind: 1 }),
             params: {},
         };
     }
@@ -216,7 +243,16 @@ function matchRoute(method: string, fullPath: string): RouteMatch | null {
         };
     }
 
-    // GET /mirage/v1/users/:pubkey
+    // GET /mirage/v1/profiles/:pubkey (New Standard)
+    const profilesMatch = path.match(/^\/mirage\/v1\/profiles\/([a-f0-9]{64})$/);
+    if (method === 'GET' && profilesMatch) {
+        return {
+            handler: async () => getUserByPubkey(userCtx, profilesMatch[1]),
+            params: { pubkey: profilesMatch[1] },
+        };
+    }
+
+    // GET /mirage/v1/users/:pubkey (Legacy Alias)
     const usersMatch = path.match(/^\/mirage\/v1\/users\/([a-f0-9]{64})$/);
     if (method === 'GET' && usersMatch) {
         return {
@@ -291,12 +327,16 @@ function matchRoute(method: string, fullPath: string): RouteMatch | null {
     if (channelMatch) {
         const channelId = channelMatch[1];
 
+        // Use helper for safe parsing since params can be array
+        const getIntParam = (p: string | string[] | undefined): number | undefined =>
+            p ? parseInt(String(p), 10) : undefined;
+
         // GET /mirage/v1/channels/:id/messages
         if (method === 'GET' && path.endsWith('/messages')) {
             return {
                 handler: async () => getChannelMessages(channelCtx, channelId, {
-                    since: params.since ? parseInt(params.since, 10) : undefined,
-                    limit: params.limit ? parseInt(params.limit, 10) : undefined,
+                    since: getIntParam(params.since),
+                    limit: getIntParam(params.limit),
                 }),
                 params: { channelId },
             };
@@ -353,4 +393,5 @@ function sendResponse(id: string, status: number, body: unknown): void {
 }
 
 // Export for type checking
-export type { FeedRouteContext, UserRouteContext };
+// Export for type checking
+export type { UserRouteContext };

@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mirage Events Demo</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #1a1a2e;
+            color: #f0f0f0;
+            padding: 2rem;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: #e94560;
+        }
+
+        .section {
+            background: #2a2a4a;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+        }
+
+        button {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            background: #e94560;
+            color: white;
+            margin-right: 0.5rem;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        input,
+        textarea {
+            padding: 0.75rem;
+            border-radius: 8px;
+            border: 1px solid #3a3a5a;
+            background: #1a1a2e;
+            color: white;
+            width: 100%;
+            margin: 0.5rem 0;
+            font-family: monospace;
+        }
+
+        pre {
+            background: #1a1a2e;
+            padding: 1rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 0.9rem;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .status {
+            padding: 0.5rem;
+            border-radius: 4px;
+            margin-top: 0.5rem;
+        }
+
+        .success {
+            background: rgba(0, 255, 0, 0.1);
+            border: 1px solid green;
+        }
+
+        .error {
+            background: rgba(255, 0, 0, 0.1);
+            border: 1px solid red;
+        }
+
+        .row {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .col {
+            flex: 1;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>📡 Mirage Events API Demo</h1>
+    <p>Test the new Nostr-Native API (GET/POST /events).</p>
+
+    <div class="section">
+        <h3>1. Initialize</h3>
+        <button onclick="initBridge()">Initialize Bridge</button>
+        <div id="init-status"></div>
+    </div>
+
+    <div class="section">
+        <h3>2. Query Events (GET /events)</h3>
+        <div class="row">
+            <div class="col">
+                <label>Kinds (comma-separated)</label>
+                <input type="text" id="query-kinds" value="1" placeholder="e.g. 1,0">
+            </div>
+            <div class="col">
+                <label>Limit</label>
+                <input type="number" id="query-limit" value="10">
+            </div>
+        </div>
+        <div class="row">
+            <div class="col">
+                <label>Authors (comma-separated pubkeys)</label>
+                <input type="text" id="query-authors" placeholder="Optional">
+            </div>
+        </div>
+        <button onclick="queryEvents()">Fetch Events</button>
+        <div id="query-status"></div>
+        <pre id="query-result"></pre>
+    </div>
+
+    <div class="section">
+        <h3>3. Publish Event (POST /events)</h3>
+        <div class="row">
+            <div class="col">
+                <label>Kind</label>
+                <input type="number" id="pub-kind" value="1">
+            </div>
+        </div>
+        <label>Content</label>
+        <textarea id="pub-content" rows="3">Hello from Mirage! 👻</textarea>
+        <label>Tags JSON (e.g. [["t", "nostr"]])</label>
+        <textarea id="pub-tags" rows="2">[]</textarea>
+
+        <button onclick="publishEvent()">Publish Event</button>
+        <div id="pub-status"></div>
+        <pre id="pub-result"></pre>
+    </div>
+
+    <div class="section">
+        <h3>Debug Log</h3>
+        <pre id="debug"></pre>
+    </div>
+
+    <script type="module">
+        import { initBridge } from '../packages/core/dist/bridge.js';
+
+        const debug = (msg) => {
+            const el = document.getElementById('debug');
+            el.textContent = new Date().toISOString().slice(11, 19) + ' ' + msg + '\n' + el.textContent.slice(0, 2000);
+        };
+
+        window.initBridge = async function () {
+            const status = document.getElementById('init-status');
+            try {
+                if (!window.nostr) {
+                    status.innerHTML = '<div class="status error">❌ No NIP-07 signer found.</div>';
+                    return;
+                }
+                const pubkey = await window.nostr.getPublicKey();
+                debug('Pubkey: ' + pubkey);
+
+                await initBridge({
+                    workerUrl: '../packages/core/dist/engine.js',
+                    relays: ['wss://relay.damus.io', 'wss://nos.lol'],
+                    publicKey: pubkey
+                });
+
+                status.innerHTML = '<div class="status success">✅ Bridge initialized!</div>';
+                debug('Bridge initialized');
+            } catch (err) {
+                status.innerHTML = '<div class="status error">❌ Error: ' + err.message + '</div>';
+                debug('Init error: ' + err.message);
+            }
+        };
+
+        window.queryEvents = async function () {
+            const status = document.getElementById('query-status');
+            const result = document.getElementById('query-result');
+            const kinds = document.getElementById('query-kinds').value;
+            const limit = document.getElementById('query-limit').value;
+            const authors = document.getElementById('query-authors').value;
+
+            try {
+                let url = `/mirage/v1/events?kinds=${kinds}&limit=${limit}`;
+                if (authors) url += `&authors=${authors}`;
+
+                debug('GET ' + url);
+                status.innerHTML = '<div class="status">Loading...</div>';
+
+                const response = await fetch(url);
+                const data = await response.json();
+
+                status.innerHTML = `<div class="status success">✅ Found ${data.length} events</div>`;
+                result.textContent = JSON.stringify(data, null, 2);
+                debug(`Got ${data.length} events`);
+            } catch (err) {
+                status.innerHTML = '<div class="status error">❌ ' + err.message + '</div>';
+                debug('Query error: ' + err.message);
+            }
+        };
+
+        window.publishEvent = async function () {
+            const status = document.getElementById('pub-status');
+            const result = document.getElementById('pub-result');
+            const kind = parseInt(document.getElementById('pub-kind').value, 10);
+            const content = document.getElementById('pub-content').value;
+            let tags = [];
+
+            try {
+                tags = JSON.parse(document.getElementById('pub-tags').value);
+            } catch (e) {
+                alert('Invalid JSON for tags');
+                return;
+            }
+
+            try {
+                debug(`POST /events (kind: ${kind})`);
+
+                const response = await fetch('/mirage/v1/events', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ kind, content, tags })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    status.innerHTML = '<div class="status success">✅ Published!</div>';
+                    result.textContent = JSON.stringify(data, null, 2);
+                    debug('Published event ' + data.id);
+                } else {
+                    status.innerHTML = '<div class="status error">❌ ' + (data.error || 'Failed') + '</div>';
+                    result.textContent = JSON.stringify(data, null, 2);
+                }
+            } catch (err) {
+                status.innerHTML = '<div class="status error">❌ ' + err.message + '</div>';
+                debug('Publish error: ' + err.message);
+            }
+        };
+    </script>
+</body>
+
+</html>
