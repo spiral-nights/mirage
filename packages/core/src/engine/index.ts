@@ -25,6 +25,12 @@ import {
     sendDM,
     type DMRouteContext
 } from './routes/dm';
+import {
+    listContacts,
+    getUserContacts,
+    updateContacts,
+    type ContactsRouteContext
+} from './routes/contacts';
 import { getEvents, postEvents, type EventsRouteContext } from './routes/events';
 import type {
     MirageMessage,
@@ -423,6 +429,42 @@ async function matchRoute(method: string, fullPath: string): Promise<RouteMatch 
                 params: { pubkey: targetPubkey },
             };
         }
+    }
+    // =========================================================================
+    // Contact List routes (NIP-02)
+    // =========================================================================
+    const contactsCtx: ContactsRouteContext = {
+        pool: pool!,
+        requestSign,
+        requestEncrypt, // Not needed but part of StorageContext
+        requestDecrypt,
+        currentPubkey,
+        appOrigin,
+    };
+
+    // GET /mirage/v1/contacts
+    if (method === 'GET' && path === '/mirage/v1/contacts') {
+        return {
+            handler: async () => listContacts(contactsCtx),
+            params: {},
+        };
+    }
+
+    // PUT /mirage/v1/contacts
+    if (method === 'PUT' && path === '/mirage/v1/contacts') {
+        return {
+            handler: async (body) => updateContacts(contactsCtx, body as any),
+            params: {},
+        };
+    }
+
+    // GET /mirage/v1/contacts/:pubkey
+    const contactsMatch = path.match(/^\/mirage\/v1\/contacts\/([a-zA-Z0-9]+)$/);
+    if (method === 'GET' && contactsMatch) {
+        return {
+            handler: async () => getUserContacts(contactsCtx, contactsMatch[1]),
+            params: { pubkey: contactsMatch[1] },
+        };
     }
 
     return null;

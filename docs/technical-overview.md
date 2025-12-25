@@ -139,6 +139,14 @@ All endpoints use the `/mirage/v1/` prefix.
 | `GET` | `/dm/{pubkey}` | **Yes** | Get messages |
 | `POST` | `/dm/{pubkey}` | No | Send message |
 
+### Contact Lists (NIP-02)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/contacts` | Get my follow list |
+| `GET` | `/contacts/{pubkey}` | Get user's follow list |
+| `PUT` | `/contacts` | Replace my follow list |
+
 ---
 
 ## 5. Security Model
@@ -190,4 +198,7 @@ Apps declare required permissions:
 | Phase 1: Core Engine | ✅ Complete | Fetch proxy, Web Worker, NIP-01/07 |
 | Phase 2: Storage | ✅ Complete | NIP-78 app data |
 | Phase 3: Streaming | ✅ Complete | SSE, Host-owned Engine |
-| Phase 4: Privacy | 🔄 In Progress | Encrypted channels, NIP-17 DMs |
+| Phase 4: Channels | ✅ Complete | Encrypted group chats (NIP-44) |
+| Phase 5: Channel Keys | ✅ Complete | Key rotation & Management |
+| Phase 6: DMs | ✅ Complete | NIP-17 Direct Messages |
+| Phase 7: Contacts | ✅ Complete | NIP-02 Contact Lists |

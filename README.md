@@ -76,6 +76,7 @@ await fetch('/mirage/v1/storage/settings', {
 | `/mirage/v1/storage/:key` | `GET/PUT/DELETE` | App data storage |
 | `/mirage/v1/channels/:id/messages` | `GET/POST` | Private group messages |
 | `/mirage/v1/dm/:pubkey` | `GET/POST` | Encrypted direct messages |
+| `/mirage/v1/contacts` | `GET/PUT` | NIP-02 Contact Lists |
 
 > **Streaming:** `GET` endpoints for events, channels, and DMs support `EventSource` for real-time updates.
 
@@ -99,6 +100,7 @@ Mirage implements a strict **"Air Gap"** between the app logic and user secrets.
 | **01** | Basic Protocol | Events, Metadata, Text Notes |
 | **07** | Browser Signer | Delegating key operations to extensions |
 | **17** | Private DMs | Encrypted messaging |
+| **02** | Contact List | Manage follows/friends |
 | **44** | Encryption | NIP-44 v2 encryption for channels |
 | **78** | App Data | Arbitrary JSON storage for apps |
 
@@ -137,6 +139,7 @@ Run a local server (`python3 -m http.server` or `bunx serve .`) and open:
 | **DM Demo** | `/examples/dm-demo.html` | **New!** Send/Receive NIP-17 Direct Messages. |
 | **Sample App** | `/examples/sample-app.html` | Hosted app using `/events` feed (Needs Host). |
 | **Storage Demo** | `/examples/storage-demo.html` | Test encrypted storage (NIP-44). |
+| **Contacts Demo** | `/examples/contacts-demo.html` | **New!** Manage NIP-02 Contact Lists. |
 | **Host Demo** | `/examples/demo-host.html` | Full Host + Sample App integration. |
 
 ## 🗺️ Roadmap
@@ -147,6 +150,7 @@ Run a local server (`python3 -m http.server` or `bunx serve .`) and open:
 * [x] **Phase 4: Encryption** ✅ (NIP-44 storage encryption, both modes)
 * [x] **Phase 5: Channels** ✅ (Encrypted group channels, key rotation)
 * [x] **Phase 6: DMs** ✅ (NIP-17 direct messages)
+* [x] **Phase 7: Contacts** ✅ (NIP-02 Contact Lists)
 
 ## 📄 License
 

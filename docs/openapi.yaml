@@ -35,6 +35,10 @@ tags:
     description: |
       Private one-on-one messages. Fully encrypted - only you and the
       recipient can read them.
+  - name: Contacts
+    description: |
+      Manage your social graph (following list). Add or remove friends
+      and see who other users are following.
 
 
 paths:
@@ -175,6 +179,80 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MetadataContent'
+
+  /contacts:
+    get:
+      tags: [Contacts]
+      summary: Get my contacts
+      description: Returns the list of people you follow (Kind 3).
+      operationId: getContacts
+      security:
+        - nip07: []
+      responses:
+        '200':
+          description: Your contact list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Contact'
+        '404':
+          description: No contact list found
+    
+    put:
+      tags: [Contacts]
+      summary: Update contact list
+      description: |
+        Replace your entire contact list.
+        To add a user, fetch the current list, append the new user, and PUT the result.
+      operationId: updateContacts
+      security:
+        - nip07: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [contacts]
+              properties:
+                contacts:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Contact'
+      responses:
+        '200':
+          description: Contact list updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: 
+                    type: boolean
+
+  /contacts/{pubkey}:
+    get:
+      tags: [Contacts]
+      summary: Get user's contacts
+      description: See who another user is following.
+      operationId: getUserContacts
+      parameters:
+        - name: pubkey
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User's contact list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Contact'
 
 
   /storage/{key}:
@@ -952,3 +1030,21 @@ components:
           description: Decrypted message content
         createdAt:
           type: integer
+
+    # =========================================================================
+    # Phase 7: Contacts
+    # =========================================================================
+
+    Contact:
+      type: object
+      required: [pubkey]
+      properties:
+        pubkey:
+          type: string
+          description: Public key of the contact
+        relay:
+          type: string
+          description: Recommended relay URL for this contact (optional)
+        petname:
+          type: string
+          description: Local nickname for this contact (optional)
