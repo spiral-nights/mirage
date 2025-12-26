@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "copy-artifacts": "cp ../core/dist/engine.js public/engine-worker.js && cp ../core/dist/bridge.js public/bridge.js",
+    "copy-artifacts": "cp ../core/dist/engine.js public/engine-worker.js && cp ../core/dist/bridge.js public/bridge.js && cp ../../docs/openapi.yaml src/assets/openapi.yaml",
     "dev": "bun run copy-artifacts && vite",
     "build": "bun run copy-artifacts && tsc -b && vite build",
     "lint": "eslint .",
