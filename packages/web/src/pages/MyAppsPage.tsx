@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { useMirage } from '../hooks/useMirage';
 import { LayoutGrid, Play } from 'lucide-react';
+import { type AppDefinition } from '@mirage/core';
 
 export const MyAppsPage = () => {
   const { apps, spaces } = useMirage();
@@ -52,7 +53,7 @@ export const MyAppsPage = () => {
   );
 };
 
-const AppCard = ({ app, index }: { app: any, index: number }) => (
+const AppCard = ({ app, index }: { app: AppDefinition, index: number }) => (
   <motion.div
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}

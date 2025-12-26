@@ -24,7 +24,7 @@ describe("Apps Route", () => {
         };
 
         const mockPool = {
-            query: mock(async () => [mockEvent])
+            query: mock(async () => mockEvent)
         } as unknown as RelayPool;
 
         const result = await fetchAppCode(mockPool, naddr);

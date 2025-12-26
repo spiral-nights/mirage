@@ -1,13 +1,7 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { useState, useEffect, createContext, useContext, type ReactNode } from 'react';
 import { MirageHost } from '@mirage/host';
-import type { UnsignedNostrEvent } from '@mirage/core';
+import { type AppDefinition } from '@mirage/core';
 import { nip19 } from 'nostr-tools';
-
-export interface AppDefinition {
-  naddr: string;
-  name: string;
-  createdAt: number;
-}
 
 interface MirageContextType {
   host: MirageHost | null;

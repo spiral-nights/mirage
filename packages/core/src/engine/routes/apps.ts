@@ -35,14 +35,14 @@ export async function fetchAppCode(
             limit: 1
         };
 
-        const events = await pool.query([filter]);
+        const event = await pool.query([filter]);
         
-        if (events.length === 0) {
+        if (!event) {
             return { error: 'App not found on relays' };
         }
 
         // 3. Return content
-        return { html: events[0].content };
+        return { html: event.content };
 
     } catch (error) {
         console.error('[Apps] Fetch failed:', error);

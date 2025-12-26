@@ -7138,6 +7138,25 @@
     getRelays() {
       return Array.from(this.relays.keys());
     }
+    async query(filters, timeout = 5000) {
+      return new Promise((resolve) => {
+        let resolved = false;
+        const unsub = this.subscribe(filters, (event) => {
+          if (!resolved) {
+            resolved = true;
+            unsub();
+            resolve(event);
+          }
+        });
+        setTimeout(() => {
+          if (!resolved) {
+            resolved = true;
+            unsub();
+            resolve(null);
+          }
+        }, timeout);
+      });
+    }
     subscribe(filters, onEvent, onEose) {
       const subscriptions = [];
       for (const relay of this.relays.values()) {
@@ -8204,6 +8223,12 @@
   // src/engine/routes/spaces.ts
   var keyCache = null;
   var storeCache = new Map;
+  async function setSessionKey(ctx, spaceId, key) {
+    const keys = await getKeys(ctx);
+    const scopedId = `${ctx.appOrigin}:${spaceId}`;
+    keys.set(scopedId, { key, version: 1 });
+    console.log("[Spaces] Session key injected for:", spaceId);
+  }
   async function getKeys(ctx) {
     if (!keyCache) {
       keyCache = await loadSpaceKeys(ctx);
@@ -8837,6 +8862,61 @@
     }
   }
 
+  // src/engine/routes/apps.ts
+  async function fetchAppCode(pool, naddr) {
+    try {
+      const decoded = nip19_exports.decode(naddr);
+      if (decoded.type !== "naddr") {
+        return { error: "Invalid naddr: Must be an addressable event (Kind 30078)" };
+      }
+      const { kind, pubkey, identifier } = decoded.data;
+      if (kind !== 30078) {
+        return { error: "Invalid kind: Mirage apps must be Kind 30078" };
+      }
+      const filter = {
+        kinds: [30078],
+        authors: [pubkey],
+        "#d": [identifier],
+        limit: 1
+      };
+      const event = await pool.query([filter]);
+      if (!event) {
+        return { error: "App not found on relays" };
+      }
+      return { html: event.content };
+    } catch (error) {
+      console.error("[Apps] Fetch failed:", error);
+      return { error: error instanceof Error ? error.message : "Unknown fetch error" };
+    }
+  }
+
+  // src/engine/library.ts
+  var APP_LIST_ID = "mirage:app_list";
+  async function loadAppLibrary(ctx) {
+    try {
+      const list = await internalGetStorage(ctx, APP_LIST_ID);
+      return list || [];
+    } catch (error) {
+      console.error("[Library] Failed to load apps:", error);
+      return [];
+    }
+  }
+  async function saveAppLibrary(ctx, apps) {
+    try {
+      await internalPutStorage(ctx, APP_LIST_ID, apps);
+      console.log("[Library] Saved app list to NIP-78");
+    } catch (error) {
+      console.error("[Library] Failed to save apps:", error);
+      throw error;
+    }
+  }
+  async function addAppToLibrary(ctx, app) {
+    const library = await loadAppLibrary(ctx);
+    const filtered = library.filter((a) => a.naddr !== app.naddr);
+    const updated = [app, ...filtered];
+    await saveAppLibrary(ctx, updated);
+  }
+
   // src/engine/streaming.ts
   var activeSubscriptions = new Map;
   async function handleStreamOpen(message, pool, currentPubkey) {
@@ -9042,6 +9122,12 @@
       case "API_REQUEST":
         await handleApiRequest(message);
         break;
+      case "ACTION_FETCH_APP":
+        await handleFetchApp(message);
+        break;
+      case "ACTION_SET_SESSION_KEY":
+        await handleSetSessionKey(message);
+        break;
       case "STREAM_OPEN":
         await poolReady;
         if (pool) {
@@ -9174,6 +9260,31 @@
         handler: async () => getCurrentUser(userCtx),
         params: {}
       };
+    }
+    if (path.startsWith("/mirage/v1/library/apps")) {
+      const storageCtx = {
+        pool,
+        requestSign,
+        requestEncrypt,
+        requestDecrypt,
+        currentPubkey,
+        appOrigin: "mirage-studio"
+      };
+      if (method === "GET") {
+        return {
+          handler: async () => ({ status: 200, body: await loadAppLibrary(storageCtx) }),
+          params: {}
+        };
+      }
+      if (method === "POST") {
+        return {
+          handler: async (body) => {
+            await addAppToLibrary(storageCtx, body);
+            return { status: 201, body: { success: true } };
+          },
+          params: {}
+        };
+      }
     }
     const profilesMatch = path.match(/^\/mirage\/v1\/profiles\/([a-f0-9]{64})$/);
     if (method === "GET" && profilesMatch) {
@@ -9351,5 +9462,39 @@
       body
     };
     self.postMessage(response);
+  }
+  async function handleFetchApp(message) {
+    await poolReady;
+    if (!pool) {
+      self.postMessage({
+        type: "FETCH_APP_RESULT",
+        id: message.id,
+        error: "Relay pool not initialized"
+      });
+      return;
+    }
+    const result = await fetchAppCode(pool, message.naddr);
+    self.postMessage({
+      type: "FETCH_APP_RESULT",
+      id: message.id,
+      ...result
+    });
+  }
+  async function handleSetSessionKey(message) {
+    const spaceCtx = {
+      pool,
+      requestSign,
+      requestEncrypt,
+      requestDecrypt,
+      currentPubkey,
+      appOrigin
+    };
+    await setSessionKey(spaceCtx, message.spaceId, message.key);
+    self.postMessage({
+      type: "API_RESPONSE",
+      id: message.id,
+      status: 200,
+      body: { success: true }
+    });
   }
 })();

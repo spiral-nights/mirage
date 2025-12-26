@@ -84,6 +84,33 @@ export class RelayPool {
     }
 
     /**
+     * Query for a single event matching filters
+     */
+    async query(filters: Filter[], timeout = 5000): Promise<Event | null> {
+        return new Promise((resolve) => {
+            let resolved = false;
+            const unsub = this.subscribe(
+                filters,
+                (event) => {
+                    if (!resolved) {
+                        resolved = true;
+                        unsub();
+                        resolve(event);
+                    }
+                }
+            );
+
+            setTimeout(() => {
+                if (!resolved) {
+                    resolved = true;
+                    unsub();
+                    resolve(null);
+                }
+            }, timeout);
+        });
+    }
+
+    /**
      * Subscribe to events matching filters
      */
     subscribe(

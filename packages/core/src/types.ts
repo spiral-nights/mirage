@@ -301,6 +301,12 @@ export interface AppPermissions {
     permissions: Permission[];
 }
 
+export interface AppDefinition {
+    naddr: string;
+    name: string;
+    createdAt: number;
+}
+
 // ============================================================================
 // NIP-07 Signer Interface
 // ============================================================================
