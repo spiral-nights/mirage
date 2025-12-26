@@ -12,6 +12,7 @@ import { getStorage, putStorage, deleteStorage, type StorageRouteContext } from 
 import {
     listSpaces,
     createSpace,
+    deleteSpace,
     getSpaceMessages,
     postSpaceMessage,
     inviteMember,
@@ -35,7 +36,7 @@ import {
 } from './routes/contacts';
 import { getEvents, postEvents, type EventsRouteContext } from './routes/events';
 import { fetchAppCode } from './routes/apps';
-import { loadAppLibrary, addAppToLibrary } from './library';
+import { loadAppLibrary, addAppToLibrary, removeAppFromLibrary } from './library';
 import { loadSpaceKeys } from './keys';
 import type {
     MirageMessage,
@@ -368,6 +369,24 @@ async function matchRoute(method: string, fullPath: string): Promise<RouteMatch 
                 params: {},
             };
         }
+
+        if (method === 'DELETE') {
+            return {
+                handler: async (body) => {
+                    const { naddr } = body as { naddr: string };
+                    if (!naddr) {
+                        return { status: 400, body: { error: 'naddr required' } };
+                    }
+                    const removed = await removeAppFromLibrary(storageCtx, naddr);
+                    if (removed) {
+                        return { status: 200, body: { deleted: naddr } };
+                    } else {
+                        return { status: 404, body: { error: 'App not found' } };
+                    }
+                },
+                params: {},
+            };
+        }
     }
 
     // GET /mirage/v1/profiles/:pubkey (New Standard)
@@ -461,14 +480,22 @@ async function matchRoute(method: string, fullPath: string): Promise<RouteMatch 
     }
 
     // Space-specific routes
-    const spaceMatch = path.match(/^\/mirage\/v1\/spaces\/([a-zA-Z0-9_-]+)(.*)/);
+    const spaceMatch = path.match(/^\/mirage\/v1\/spaces\/([a-zA-Z0-9_-]+)(.*)$/);
     if (spaceMatch) {
         const spaceId = spaceMatch[1];
-        const subPath = spaceMatch[2]; // e.g. "/messages", "/store"
+        const subPath = spaceMatch[2]; // e.g. "/messages", "/store", or ""
 
         // Use helper for safe parsing since params can be array
         const getIntParam = (p: string | string[] | undefined): number | undefined =>
             p ? parseInt(String(p), 10) : undefined;
+
+        // DELETE /mirage/v1/spaces/:id (delete the space itself)
+        if (method === 'DELETE' && (subPath === '' || subPath === '/')) {
+            return {
+                handler: async () => deleteSpace(spaceCtx, spaceId),
+                params: { spaceId },
+            };
+        }
 
         // GET .../store (Shared KV)
         if (method === 'GET' && subPath === '/store') {

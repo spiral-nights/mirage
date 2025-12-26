@@ -58,3 +58,25 @@ export async function addAppToLibrary(
     console.log('[Library] Library size: before=', library.length, ', after=', updated.length);
     await saveAppLibrary(ctx, updated);
 }
+
+/**
+ * Remove an app from the library and sync to relays.
+ */
+export async function removeAppFromLibrary(
+    ctx: StorageRouteContext,
+    naddr: string
+): Promise<boolean> {
+    console.log('[Library] Removing app from library:', naddr?.slice(0, 20) + '...');
+    const library = await loadAppLibrary(ctx);
+
+    const filtered = library.filter(a => a.naddr !== naddr);
+
+    if (filtered.length === library.length) {
+        console.log('[Library] App not found in library');
+        return false; // Not found
+    }
+
+    console.log('[Library] Library size: before=', library.length, ', after=', filtered.length);
+    await saveAppLibrary(ctx, filtered);
+    return true;
+}

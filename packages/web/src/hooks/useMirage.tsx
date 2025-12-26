@@ -12,6 +12,9 @@ interface MirageContextType {
   publishApp: (html: string, name?: string) => Promise<string>;
   fetchApp: (naddr: string) => Promise<string | null>;
   refreshApps: () => Promise<void>;
+  refreshSpaces: () => Promise<void>;
+  deleteApp: (naddr: string) => Promise<boolean>;
+  deleteSpace: (spaceId: string) => Promise<boolean>;
 }
 
 const MirageContext = createContext<MirageContextType | undefined>(undefined);
@@ -183,8 +186,74 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
     return naddr;
   };
 
+  // Refresh spaces from the engine
+  const refreshSpaces = useCallback(async () => {
+    const currentHost = host || globalHost;
+    if (!currentHost) {
+      console.warn('[useMirage] Cannot refresh spaces: host not ready');
+      return;
+    }
+
+    try {
+      console.log('[useMirage] Refreshing spaces from engine...');
+      const spacesData = await currentHost.request('GET', '/mirage/v1/spaces');
+      console.log('[useMirage] Loaded spaces:', spacesData);
+      if (Array.isArray(spacesData)) {
+        setSpaces(spacesData);
+      }
+    } catch (e) {
+      console.error('[useMirage] Failed to refresh spaces:', e);
+    }
+  }, [host]);
+
+  // Delete an app from the library
+  const deleteApp = async (naddr: string): Promise<boolean> => {
+    const currentHost = host || globalHost;
+    if (!currentHost) {
+      console.warn('[useMirage] Cannot delete app: host not ready');
+      return false;
+    }
+
+    try {
+      console.log('[useMirage] Deleting app:', naddr.slice(0, 20) + '...');
+      const result = await currentHost.request('DELETE', '/mirage/v1/library/apps', { naddr });
+      if (result.deleted) {
+        console.log('[useMirage] App deleted successfully');
+        setApps(prevApps => prevApps.filter(a => a.naddr !== naddr));
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.error('[useMirage] Failed to delete app:', e);
+      return false;
+    }
+  };
+
+  // Delete a space
+  const deleteSpace = async (spaceId: string): Promise<boolean> => {
+    const currentHost = host || globalHost;
+    if (!currentHost) {
+      console.warn('[useMirage] Cannot delete space: host not ready');
+      return false;
+    }
+
+    try {
+      console.log('[useMirage] Deleting space:', spaceId);
+      const result = await currentHost.request('DELETE', `/mirage/v1/spaces/${spaceId}`);
+      if (result.deleted) {
+        console.log('[useMirage] Space deleted successfully');
+        setSpaces(prevSpaces => prevSpaces.filter(s => s.id !== spaceId));
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.error('[useMirage] Failed to delete space:', e);
+      return false;
+    }
+  };
+
   return (
-    <MirageContext.Provider value={{ host, isReady, pubkey, apps, spaces, publishApp, fetchApp, refreshApps }}>
+    <MirageContext.Provider value={{ host, isReady, pubkey, apps, spaces, publishApp, fetchApp, refreshApps, refreshSpaces, deleteApp, deleteSpace }}>
       {children}
     </MirageContext.Provider>
   );

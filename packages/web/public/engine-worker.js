@@ -8308,6 +8308,19 @@
     console.log("[Spaces] Created space:", spaceId, "with name:", body.name);
     return { status: 201, body: space };
   }
+  async function deleteSpace(ctx, spaceId) {
+    if (!ctx.currentPubkey)
+      return { status: 401, body: { error: "Not authenticated" } };
+    const scopedId = `${ctx.appOrigin}:${spaceId}`;
+    const keys = await getKeys(ctx);
+    if (!keys.has(scopedId)) {
+      return { status: 404, body: { error: "Space not found" } };
+    }
+    console.log("[Spaces] Deleting space:", spaceId);
+    keys.delete(scopedId);
+    await saveSpaceKeys(ctx, keys);
+    return { status: 200, body: { deleted: spaceId } };
+  }
   async function getSpaceMessages(ctx, spaceId, params) {
     if (!ctx.currentPubkey)
       return { status: 401, body: { error: "Not authenticated" } };
@@ -8956,6 +8969,18 @@
     console.log("[Library] Library size: before=", library.length, ", after=", updated.length);
     await saveAppLibrary(ctx, updated);
   }
+  async function removeAppFromLibrary(ctx, naddr) {
+    console.log("[Library] Removing app from library:", naddr?.slice(0, 20) + "...");
+    const library = await loadAppLibrary(ctx);
+    const filtered = library.filter((a) => a.naddr !== naddr);
+    if (filtered.length === library.length) {
+      console.log("[Library] App not found in library");
+      return false;
+    }
+    console.log("[Library] Library size: before=", library.length, ", after=", filtered.length);
+    await saveAppLibrary(ctx, filtered);
+    return true;
+  }
 
   // src/engine/streaming.ts
   var activeSubscriptions = new Map;
@@ -9373,6 +9398,23 @@
           params: {}
         };
       }
+      if (method === "DELETE") {
+        return {
+          handler: async (body) => {
+            const { naddr } = body;
+            if (!naddr) {
+              return { status: 400, body: { error: "naddr required" } };
+            }
+            const removed = await removeAppFromLibrary(storageCtx, naddr);
+            if (removed) {
+              return { status: 200, body: { deleted: naddr } };
+            } else {
+              return { status: 404, body: { error: "App not found" } };
+            }
+          },
+          params: {}
+        };
+      }
     }
     const profilesMatch = path.match(/^\/mirage\/v1\/profiles\/([a-f0-9]{64})$/);
     if (method === "GET" && profilesMatch) {
@@ -9442,11 +9484,17 @@
         params: {}
       };
     }
-    const spaceMatch = path.match(/^\/mirage\/v1\/spaces\/([a-zA-Z0-9_-]+)(.*)/);
+    const spaceMatch = path.match(/^\/mirage\/v1\/spaces\/([a-zA-Z0-9_-]+)(.*)$/);
     if (spaceMatch) {
       const spaceId = spaceMatch[1];
       const subPath = spaceMatch[2];
       const getIntParam = (p) => p ? parseInt(String(p), 10) : undefined;
+      if (method === "DELETE" && (subPath === "" || subPath === "/")) {
+        return {
+          handler: async () => deleteSpace(spaceCtx, spaceId),
+          params: { spaceId }
+        };
+      }
       if (method === "GET" && subPath === "/store") {
         return {
           handler: async () => getSpaceStore(spaceCtx, spaceId),

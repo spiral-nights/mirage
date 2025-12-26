@@ -121,6 +121,30 @@ export async function createSpace(
 }
 
 /**
+ * DELETE /mirage/v1/spaces/:id
+ * Delete a space (removes key from storage, messages remain on relays)
+ */
+export async function deleteSpace(
+    ctx: SpaceRouteContext,
+    spaceId: string
+): Promise<{ status: number; body: unknown }> {
+    if (!ctx.currentPubkey) return { status: 401, body: { error: 'Not authenticated' } };
+
+    const scopedId = `${ctx.appOrigin}:${spaceId}`;
+    const keys = await getKeys(ctx);
+
+    if (!keys.has(scopedId)) {
+        return { status: 404, body: { error: 'Space not found' } };
+    }
+
+    console.log('[Spaces] Deleting space:', spaceId);
+    keys.delete(scopedId);
+    await saveSpaceKeys(ctx, keys);
+
+    return { status: 200, body: { deleted: spaceId } };
+}
+
+/**
  * GET /mirage/v1/spaces/:id/messages
  * Get and decrypt messages
  */
