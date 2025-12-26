@@ -97,6 +97,19 @@ export class MirageHost {
         return [...this.relays];
     }
 
+    /**
+     * Set the current pubkey on the Engine for authenticated API requests.
+     * This should be called after getting the pubkey from the signer.
+     */
+    setPubkey(pubkey: string): void {
+        console.log('[Host] Setting pubkey on engine:', pubkey.slice(0, 8) + '...');
+        this.engineWorker.postMessage({
+            type: 'SET_PUBKEY',
+            id: crypto.randomUUID(),
+            pubkey,
+        });
+    }
+
     private sendRelayConfig(action: 'SET' | 'ADD' | 'REMOVE', relays: string[]): void {
         const message: RelayConfigMessage = {
             type: 'RELAY_CONFIG',

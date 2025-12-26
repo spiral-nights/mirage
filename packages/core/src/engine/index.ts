@@ -36,6 +36,7 @@ import {
 import { getEvents, postEvents, type EventsRouteContext } from './routes/events';
 import { fetchAppCode } from './routes/apps';
 import { loadAppLibrary, addAppToLibrary } from './library';
+import { loadSpaceKeys } from './keys';
 import type {
     MirageMessage,
     ApiRequestMessage,
@@ -60,8 +61,76 @@ const poolReady = new Promise<void>((resolve) => {
 let currentPubkey: string | null = null;
 let appOrigin: string = 'mirage-app';
 
+// Keys preloading state - resolves when keys are loaded from relays
+let keysReadyResolve: (() => void) | null = null;
+let keysReady: Promise<void> | null = null;
+
 function setCurrentPubkey(pubkey: string): void {
     currentPubkey = pubkey;
+}
+
+/**
+ * Initialize the keys preloading promise.
+ * Called when SET_PUBKEY is received.
+ */
+function initKeysPreload(): void {
+    if (keysReady) return; // Already initializing
+    keysReady = new Promise<void>((resolve) => {
+        keysReadyResolve = resolve;
+    });
+}
+
+/**
+ * Wait for keys to be loaded. Used by spaces API to block until ready.
+ * If SET_PUBKEY hasn't been received yet, waits briefly then checks again.
+ */
+export async function waitForKeysReady(): Promise<void> {
+    console.log('[Engine] waitForKeysReady called, keysReady=', keysReady !== null);
+
+    // If keysReady is null, SET_PUBKEY hasn't been received yet
+    // Wait a bit for it to arrive
+    let attempts = 0;
+    while (!keysReady && attempts < 50) { // Wait up to 5 seconds
+        await new Promise(r => setTimeout(r, 100));
+        attempts++;
+    }
+
+    if (keysReady) {
+        console.log('[Engine] Waiting for keys to load...');
+        await keysReady;
+        console.log('[Engine] Keys ready!');
+    } else {
+        console.warn('[Engine] Keys never initialized - SET_PUBKEY not received');
+    }
+}
+
+/**
+ * Preload space keys so they're available when apps query for spaces.
+ * This prevents the race condition where an app queries before keys are loaded.
+ */
+async function preloadSpaceKeys(): Promise<void> {
+    await poolReady;
+    if (!pool || !currentPubkey) {
+        keysReadyResolve?.(); // Resolve anyway if not authenticated
+        return;
+    }
+
+    console.log('[Engine] Preloading space keys...');
+    const ctx = {
+        pool,
+        requestSign,
+        requestEncrypt,
+        requestDecrypt,
+        currentPubkey,
+        appOrigin,
+    };
+
+    try {
+        await loadSpaceKeys(ctx);
+        console.log('[Engine] Space keys preloaded');
+    } finally {
+        keysReadyResolve?.(); // Always resolve, even on error
+    }
 }
 
 // ============================================================================
@@ -104,6 +173,9 @@ self.onmessage = async (event: MessageEvent<MirageMessage>) => {
         case 'SET_PUBKEY':
             currentPubkey = message.pubkey;
             console.log('[Engine] Pubkey set:', currentPubkey?.slice(0, 8) + '...');
+            // Initialize keys promise and start preloading
+            initKeysPreload();
+            preloadSpaceKeys().catch((err: unknown) => console.warn('[Engine] Failed to preload keys:', err));
             break;
 
         case 'ENCRYPT_RESULT':
@@ -354,6 +426,12 @@ async function matchRoute(method: string, fullPath: string): Promise<RouteMatch 
     // =========================================================================
     // Space routes
     // =========================================================================
+
+    // Wait for keys to be loaded before handling any spaces requests
+    if (path.startsWith('/mirage/v1/spaces')) {
+        await waitForKeysReady();
+    }
+
     const spaceCtx: SpaceRouteContext = {
         pool: pool!,
         requestSign,
@@ -548,7 +626,7 @@ async function handleFetchApp(message: FetchAppRequestMessage): Promise<void> {
     }
 
     const result = await fetchAppCode(pool, message.naddr);
-    
+
     self.postMessage({
         type: 'FETCH_APP_RESULT',
         id: message.id,

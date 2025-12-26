@@ -138,18 +138,45 @@ export class RelayPool {
 
     /**
      * Publish an event to all relays
+     * Returns successfully if at least one relay accepts the event
      */
     async publish(event: Event): Promise<void> {
         if (this.relays.size === 0) {
             console.error('[RelayPool] Cannot publish: No connected relays');
             throw new Error('No connected relays');
         }
-        const promises = Array.from(this.relays.values()).map((relay) =>
-            relay.publish(event).catch((error) => {
-                console.error(`[RelayPool] Failed to publish to ${relay.url}:`, error);
+
+        console.log(`[RelayPool] Publishing event kind=${event.kind} id=${event.id?.slice(0, 8)}... to ${this.relays.size} relays`);
+
+        const results = await Promise.allSettled(
+            Array.from(this.relays.entries()).map(async ([url, relay]) => {
+                try {
+                    await relay.publish(event);
+                    console.log(`[RelayPool] ✓ Published to ${url}`);
+                    return { url, success: true };
+                } catch (error) {
+                    const errorMsg = error instanceof Error ? error.message : String(error);
+                    console.warn(`[RelayPool] ✗ Failed to publish to ${url}: ${errorMsg}`);
+                    return { url, success: false, error: errorMsg };
+                }
             })
         );
-        await Promise.allSettled(promises);
+
+        const successes = results.filter(
+            (r): r is PromiseFulfilledResult<{ url: string; success: true }> =>
+                r.status === 'fulfilled' && r.value.success
+        );
+        const failures = results.filter(
+            (r): r is PromiseFulfilledResult<{ url: string; success: false; error: string }> =>
+                r.status === 'fulfilled' && !r.value.success
+        );
+
+        console.log(`[RelayPool] Publish complete: ${successes.length}/${this.relays.size} relays accepted`);
+
+        if (successes.length === 0) {
+            const errorDetails = failures.map(f => `${f.value.url}: ${f.value.error}`).join('; ');
+            throw new Error(`All relays rejected the event: ${errorDetails}`);
+        }
     }
 
     /**

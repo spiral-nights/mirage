@@ -29,6 +29,9 @@
 
   // src/engine/index.ts
   var exports_engine = {};
+  __export(exports_engine, {
+    waitForKeysReady: () => waitForKeysReady
+  });
 
   // ../../node_modules/@noble/curves/node_modules/@noble/hashes/esm/_assert.js
   function number(n) {
@@ -7177,10 +7180,25 @@
         console.error("[RelayPool] Cannot publish: No connected relays");
         throw new Error("No connected relays");
       }
-      const promises = Array.from(this.relays.values()).map((relay) => relay.publish(event).catch((error) => {
-        console.error(`[RelayPool] Failed to publish to ${relay.url}:`, error);
+      console.log(`[RelayPool] Publishing event kind=${event.kind} id=${event.id?.slice(0, 8)}... to ${this.relays.size} relays`);
+      const results = await Promise.allSettled(Array.from(this.relays.entries()).map(async ([url, relay]) => {
+        try {
+          await relay.publish(event);
+          console.log(`[RelayPool] ✓ Published to ${url}`);
+          return { url, success: true };
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          console.warn(`[RelayPool] ✗ Failed to publish to ${url}: ${errorMsg}`);
+          return { url, success: false, error: errorMsg };
+        }
       }));
-      await Promise.allSettled(promises);
+      const successes = results.filter((r) => r.status === "fulfilled" && r.value.success);
+      const failures = results.filter((r) => r.status === "fulfilled" && !r.value.success);
+      console.log(`[RelayPool] Publish complete: ${successes.length}/${this.relays.size} relays accepted`);
+      if (successes.length === 0) {
+        const errorDetails = failures.map((f) => `${f.value.url}: ${f.value.error}`).join("; ");
+        throw new Error(`All relays rejected the event: ${errorDetails}`);
+      }
     }
     close() {
       for (const relay of this.relays.values()) {
@@ -7286,18 +7304,23 @@
       throw new Error("Not authenticated");
     const dTag = `${ctx.appOrigin}:${key}`;
     const plaintext = typeof value === "string" ? value : JSON.stringify(value);
+    console.log(`[Storage] PUT key="${key}" dTag="${dTag}" public=${isPublic}`);
     let content = plaintext;
     if (!isPublic) {
       content = await ctx.requestEncrypt(ctx.currentPubkey, plaintext);
     }
+    const created_at = Math.floor(Date.now() / 1000);
+    console.log(`[Storage] Creating event with created_at=${created_at}`);
     const unsignedEvent = {
       kind: 30078,
-      created_at: Math.floor(Date.now() / 1000),
+      created_at,
       tags: [["d", dTag]],
       content
     };
     const signedEvent = await ctx.requestSign(unsignedEvent);
+    console.log(`[Storage] Event signed: id=${signedEvent.id?.slice(0, 8)}... pubkey=${signedEvent.pubkey?.slice(0, 8)}...`);
     await ctx.pool.publish(signedEvent);
+    console.log(`[Storage] Event published successfully`);
     return signedEvent;
   }
   async function getStorage(ctx, key, params) {
@@ -8238,20 +8261,24 @@
   async function listSpaces(ctx) {
     if (!ctx.currentPubkey)
       return { status: 401, body: { error: "Not authenticated" } };
+    console.log("[Spaces] listSpaces called, appOrigin=", ctx.appOrigin);
     const keys = await getKeys(ctx);
+    console.log("[Spaces] Loaded keys, total count=", keys.size);
     const spaces = [];
     const appPrefix = `${ctx.appOrigin}:`;
     for (const [scopedId, keyInfo] of keys.entries()) {
+      console.log("[Spaces] Key:", scopedId, "matches prefix?", scopedId.startsWith(appPrefix), "name=", keyInfo.name);
       if (scopedId.startsWith(appPrefix)) {
         const id = scopedId.slice(appPrefix.length);
         spaces.push({
           id,
-          name: `Space ${id.slice(0, 8)}`,
-          createdAt: 0,
+          name: keyInfo.name || `Space ${id.slice(0, 8)}`,
+          createdAt: keyInfo.createdAt || 0,
           memberCount: 0
         });
       }
     }
+    console.log("[Spaces] Returning", spaces.length, "spaces");
     return { status: 200, body: spaces };
   }
   async function createSpace(ctx, body) {
@@ -8259,18 +8286,26 @@
       return { status: 401, body: { error: "Not authenticated" } };
     if (!body?.name)
       return { status: 400, body: { error: "Space name required" } };
+    console.log("[Spaces] createSpace called with name:", body.name);
     const spaceId = generateRandomId();
     const key = generateSymmetricKey();
     const scopedId = `${ctx.appOrigin}:${spaceId}`;
+    const createdAt = Math.floor(Date.now() / 1000);
     const keys = await getKeys(ctx);
-    keys.set(scopedId, { key, version: 1 });
+    keys.set(scopedId, {
+      key,
+      version: 1,
+      name: body.name,
+      createdAt
+    });
     await saveSpaceKeys(ctx, keys);
     const space = {
       id: spaceId,
       name: body.name,
-      createdAt: Math.floor(Date.now() / 1000),
+      createdAt,
       memberCount: 1
     };
+    console.log("[Spaces] Created space:", spaceId, "with name:", body.name);
     return { status: 201, body: space };
   }
   async function getSpaceMessages(ctx, spaceId, params) {
@@ -8893,8 +8928,10 @@
   // src/engine/library.ts
   var APP_LIST_ID = "mirage:app_list";
   async function loadAppLibrary(ctx) {
+    console.log("[Library] Loading app library...");
     try {
       const list = await internalGetStorage(ctx, APP_LIST_ID);
+      console.log("[Library] Loaded apps from NIP-78:", list?.length ?? 0, "apps");
       return list || [];
     } catch (error) {
       console.error("[Library] Failed to load apps:", error);
@@ -8902,6 +8939,7 @@
     }
   }
   async function saveAppLibrary(ctx, apps) {
+    console.log("[Library] Saving app library...", apps.length, "apps");
     try {
       await internalPutStorage(ctx, APP_LIST_ID, apps);
       console.log("[Library] Saved app list to NIP-78");
@@ -8911,9 +8949,11 @@
     }
   }
   async function addAppToLibrary(ctx, app) {
+    console.log("[Library] Adding app to library:", app.name, app.naddr?.slice(0, 20) + "...");
     const library = await loadAppLibrary(ctx);
     const filtered = library.filter((a) => a.naddr !== app.naddr);
     const updated = [app, ...filtered];
+    console.log("[Library] Library size: before=", library.length, ", after=", updated.length);
     await saveAppLibrary(ctx, updated);
   }
 
@@ -9110,8 +9150,54 @@
   });
   var currentPubkey = null;
   var appOrigin = "mirage-app";
+  var keysReadyResolve = null;
+  var keysReady = null;
   function setCurrentPubkey(pubkey) {
     currentPubkey = pubkey;
+  }
+  function initKeysPreload() {
+    if (keysReady)
+      return;
+    keysReady = new Promise((resolve) => {
+      keysReadyResolve = resolve;
+    });
+  }
+  async function waitForKeysReady() {
+    console.log("[Engine] waitForKeysReady called, keysReady=", keysReady !== null);
+    let attempts = 0;
+    while (!keysReady && attempts < 50) {
+      await new Promise((r) => setTimeout(r, 100));
+      attempts++;
+    }
+    if (keysReady) {
+      console.log("[Engine] Waiting for keys to load...");
+      await keysReady;
+      console.log("[Engine] Keys ready!");
+    } else {
+      console.warn("[Engine] Keys never initialized - SET_PUBKEY not received");
+    }
+  }
+  async function preloadSpaceKeys() {
+    await poolReady;
+    if (!pool || !currentPubkey) {
+      keysReadyResolve?.();
+      return;
+    }
+    console.log("[Engine] Preloading space keys...");
+    const ctx = {
+      pool,
+      requestSign,
+      requestEncrypt,
+      requestDecrypt,
+      currentPubkey,
+      appOrigin
+    };
+    try {
+      await loadSpaceKeys(ctx);
+      console.log("[Engine] Space keys preloaded");
+    } finally {
+      keysReadyResolve?.();
+    }
   }
   self.onmessage = async (event) => {
     const message = event.data;
@@ -9142,6 +9228,8 @@
       case "SET_PUBKEY":
         currentPubkey = message.pubkey;
         console.log("[Engine] Pubkey set:", currentPubkey?.slice(0, 8) + "...");
+        initKeysPreload();
+        preloadSpaceKeys().catch((err) => console.warn("[Engine] Failed to preload keys:", err));
         break;
       case "ENCRYPT_RESULT":
         handleEncryptResult(message);
@@ -9329,6 +9417,9 @@
           params: { key }
         };
       }
+    }
+    if (path.startsWith("/mirage/v1/spaces")) {
+      await waitForKeysReady();
     }
     const spaceCtx = {
       pool,

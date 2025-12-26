@@ -13,6 +13,8 @@ const VALID_PERMISSIONS: Permission[] = [
     'storage_write',
     'space_read',
     'space_write',
+    'spaces_read',  // Alias for space_read
+    'spaces_write', // Alias for space_write
     'dm_read',
     'dm_write',
 ];
@@ -68,8 +70,8 @@ export function isPathAllowed(path: string, method: string, permissions: AppPerm
 
     // /mirage/v1/spaces
     if (path.startsWith('/mirage/v1/spaces')) {
-        if (method === 'GET') return perms.includes('space_read');
-        if (method === 'PUT' || method === 'POST') return perms.includes('space_write');
+        if (method === 'GET') return perms.includes('space_read') || perms.includes('spaces_read');
+        if (method === 'PUT' || method === 'POST') return perms.includes('space_write') || perms.includes('spaces_write');
     }
 
     // /mirage/v1/dm

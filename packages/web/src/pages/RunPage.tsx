@@ -9,17 +9,37 @@ export const RunPage = () => {
   const { naddr } = useParams<{ naddr: string }>();
   const { fetchApp, host } = useMirage();
   const containerRef = useRef<HTMLDivElement>(null);
-  
+
   const [status, setStatus] = useState<'loading' | 'running' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
 
+  // Track if we've already loaded this app to prevent re-mounting
+  const loadedNaddrRef = useRef<string | null>(null);
+  const isLoadingRef = useRef(false);
+
   useEffect(() => {
+    // Skip if no naddr or host
+    if (!naddr || !host || !containerRef.current) return;
+
+    // Skip if already loaded this specific app
+    if (loadedNaddrRef.current === naddr) {
+      console.log('[RunPage] App already loaded, skipping');
+      return;
+    }
+
+    // Skip if already loading
+    if (isLoadingRef.current) {
+      console.log('[RunPage] Already loading, skipping');
+      return;
+    }
+
     let mounted = true;
+    isLoadingRef.current = true;
 
     const loadApp = async () => {
-      if (!naddr || !host || !containerRef.current) return;
-
+      console.log('[RunPage] Loading app:', naddr.slice(0, 20) + '...');
       setStatus('loading');
+
       try {
         // 1. Handle URL Hash (Deep Linking)
         const hash = window.location.hash.substring(1);
@@ -42,20 +62,27 @@ export const RunPage = () => {
         // 2. Fetch App HTML
         const html = await fetchApp(naddr);
         if (!mounted) return;
-        
+
         if (!html) {
           throw new Error('App not found on relays');
         }
 
         // 3. Mount the app
-        await host.mount(html, containerRef.current);
+        await host.mount(html, containerRef.current!);
+
+        if (!mounted) return;
+
+        loadedNaddrRef.current = naddr;
         setStatus('running');
+        console.log('[RunPage] App loaded successfully');
 
       } catch (err) {
         if (!mounted) return;
         console.error('Failed to run app:', err);
         setError(err instanceof Error ? err.message : 'Unknown error');
         setStatus('error');
+      } finally {
+        isLoadingRef.current = false;
       }
     };
 
@@ -64,12 +91,12 @@ export const RunPage = () => {
     return () => {
       mounted = false;
     };
-  }, [naddr, host, fetchApp]);
+  }, [naddr, host]); // Only depend on naddr and host, not fetchApp
 
   const handleShare = () => {
     // Current base URL
     const url = new URL(window.location.href);
-    
+
     // We should ideally fetch the current space from the engine
     // For now, if we have a space in the hash, we keep it
     navigator.clipboard.writeText(url.toString());
@@ -110,7 +137,7 @@ export const RunPage = () => {
               <div className="h-24 bg-white/5 rounded-2xl" />
             </div>
           </div>
-          
+
           <div className="mt-12 flex flex-col items-center">
             <div className="w-12 h-12 border-2 border-accent-primary/30 border-t-accent-primary rounded-full animate-spin mb-4" />
             <p className="text-gray-500 text-[10px] tracking-widest uppercase font-bold">Synchronizing with Nostr...</p>
@@ -119,7 +146,7 @@ export const RunPage = () => {
       )}
 
       {/* Immersive Pill Dock */}
-      <motion.div 
+      <motion.div
         initial={{ y: 100 }}
         animate={{ y: 0 }}
         className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20"
@@ -139,7 +166,7 @@ export const RunPage = () => {
 };
 
 const DockItem = ({ icon: Icon, active, tooltip, onClick }: { icon: any, active?: boolean, tooltip: string, onClick?: () => void }) => (
-  <button 
+  <button
     onClick={onClick}
     className={cn(
       "w-10 h-10 rounded-full flex items-center justify-center transition-all group relative",
@@ -147,7 +174,7 @@ const DockItem = ({ icon: Icon, active, tooltip, onClick }: { icon: any, active?
     )}
   >
     <Icon size={18} fill={active ? "currentColor" : "none"} />
-    
+
     {/* Tooltip */}
     <div className="absolute -top-10 left-1/2 -translate-x-1/2 px-2 py-1 bg-black text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
       {tooltip}

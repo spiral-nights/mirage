@@ -273,6 +273,8 @@ export type SystemEvent =
 export interface SpaceKey {
     key: string;  // Base64 encoded symmetric key
     version: number;
+    name?: string;  // Space name for display
+    createdAt?: number;  // When the space was created
 }
 
 // ============================================================================
@@ -294,6 +296,8 @@ export type Permission =
     | 'storage_write'
     | 'space_read'
     | 'space_write'
+    | 'spaces_read'   // Alias for space_read
+    | 'spaces_write'  // Alias for space_write
     | 'dm_read'
     | 'dm_write';
 

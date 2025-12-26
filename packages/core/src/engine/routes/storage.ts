@@ -41,7 +41,7 @@ export async function internalGetStorage<T = unknown>(
 
     const author = targetPubkey || ctx.currentPubkey!;
     const dTag = `${ctx.appOrigin}:${key}`;
-    
+
     const filter: Filter = {
         kinds: [30078],
         authors: [author],
@@ -110,20 +110,28 @@ export async function internalPutStorage<T>(
     const dTag = `${ctx.appOrigin}:${key}`;
     const plaintext = typeof value === 'string' ? value : JSON.stringify(value);
 
+    console.log(`[Storage] PUT key="${key}" dTag="${dTag}" public=${isPublic}`);
+
     let content = plaintext;
     if (!isPublic) {
         content = await ctx.requestEncrypt(ctx.currentPubkey, plaintext);
     }
 
+    const created_at = Math.floor(Date.now() / 1000);
+    console.log(`[Storage] Creating event with created_at=${created_at}`);
+
     const unsignedEvent: UnsignedNostrEvent = {
         kind: 30078,
-        created_at: Math.floor(Date.now() / 1000),
+        created_at,
         tags: [['d', dTag]],
         content: content,
     };
 
     const signedEvent = await ctx.requestSign(unsignedEvent);
+    console.log(`[Storage] Event signed: id=${signedEvent.id?.slice(0, 8)}... pubkey=${signedEvent.pubkey?.slice(0, 8)}...`);
+
     await ctx.pool.publish(signedEvent);
+    console.log(`[Storage] Event published successfully`);
 
     return signedEvent;
 }

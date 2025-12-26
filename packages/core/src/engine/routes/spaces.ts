@@ -52,24 +52,30 @@ export async function listSpaces(
 ): Promise<{ status: number; body: unknown }> {
     if (!ctx.currentPubkey) return { status: 401, body: { error: 'Not authenticated' } };
 
+    console.log('[Spaces] listSpaces called, appOrigin=', ctx.appOrigin);
+
     const keys = await getKeys(ctx);
+    console.log('[Spaces] Loaded keys, total count=', keys.size);
+
     const spaces: Space[] = [];
     const appPrefix = `${ctx.appOrigin}:`;
 
     for (const [scopedId, keyInfo] of keys.entries()) {
+        console.log('[Spaces] Key:', scopedId, 'matches prefix?', scopedId.startsWith(appPrefix), 'name=', keyInfo.name);
         if (scopedId.startsWith(appPrefix)) {
             const id = scopedId.slice(appPrefix.length);
             // In a real app, we'd fetch metadata (Kind 40/41).
             // For MVP, we return basic info.
             spaces.push({
                 id,
-                name: `Space ${id.slice(0, 8)}`, // Placeholder name
-                createdAt: 0,
+                name: keyInfo.name || `Space ${id.slice(0, 8)}`, // Use stored name or placeholder
+                createdAt: keyInfo.createdAt || 0,
                 memberCount: 0,
             });
         }
     }
 
+    console.log('[Spaces] Returning', spaces.length, 'spaces');
     return { status: 200, body: spaces };
 }
 
@@ -84,25 +90,33 @@ export async function createSpace(
     if (!ctx.currentPubkey) return { status: 401, body: { error: 'Not authenticated' } };
     if (!body?.name) return { status: 400, body: { error: 'Space name required' } };
 
+    console.log('[Spaces] createSpace called with name:', body.name);
+
     // 1. Generate ID and Key
     const spaceId = generateRandomId();
     const key = generateSymmetricKey(); // Base64
     const scopedId = `${ctx.appOrigin}:${spaceId}`;
+    const createdAt = Math.floor(Date.now() / 1000);
 
-    // 2. Save to NIP-78 (Owner's Keychain)
+    // 2. Save to NIP-78 (Owner's Keychain) - including name for persistence
     const keys = await getKeys(ctx);
-    keys.set(scopedId, { key, version: 1 });
+    keys.set(scopedId, {
+        key,
+        version: 1,
+        name: body.name,  // Store the name!
+        createdAt,
+    });
     await saveSpaceKeys(ctx, keys);
 
-    // 3. Publish System Event (Space Created)
-    // We return the space object immediately.
+    // 3. Return the space object
     const space: Space = {
         id: spaceId,
         name: body.name,
-        createdAt: Math.floor(Date.now() / 1000),
+        createdAt,
         memberCount: 1,
     };
 
+    console.log('[Spaces] Created space:', spaceId, 'with name:', body.name);
     return { status: 201, body: space };
 }
 
@@ -405,7 +419,7 @@ export async function getSpaceStore(
             const data = JSON.parse(plaintext);
             if (Array.isArray(data) && data[0] === 'store_put' && data.length === 3) {
                 const [_, key, value] = data;
-                
+
                 // LWW Check
                 const existing = cache.state.get(key);
                 if (!existing || ev.created_at >= existing.updatedAt) {
