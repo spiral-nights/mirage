@@ -18,6 +18,7 @@ import {
     syncInvites,
     getSpaceStore,
     updateSpaceStore,
+    setSessionKey,
     type SpaceRouteContext
 } from './routes/spaces';
 import {
@@ -33,11 +34,16 @@ import {
     type ContactsRouteContext
 } from './routes/contacts';
 import { getEvents, postEvents, type EventsRouteContext } from './routes/events';
+import { fetchAppCode } from './routes/apps';
+import { loadAppLibrary, addAppToLibrary } from './library';
 import type {
     MirageMessage,
     ApiRequestMessage,
     ApiResponseMessage,
     RelayConfigMessage,
+    FetchAppRequestMessage,
+    FetchAppResultMessage,
+    SetSessionKeyMessage,
 } from '../types';
 import { handleStreamOpen, sendStreamError } from './streaming';
 import { requestSign, handleSignatureResult, requestEncrypt, requestDecrypt, handleEncryptResult, handleDecryptResult } from './signing';
@@ -72,6 +78,14 @@ self.onmessage = async (event: MessageEvent<MirageMessage>) => {
 
         case 'API_REQUEST':
             await handleApiRequest(message);
+            break;
+
+        case 'ACTION_FETCH_APP':
+            await handleFetchApp(message as FetchAppRequestMessage);
+            break;
+
+        case 'ACTION_SET_SESSION_KEY':
+            await handleSetSessionKey(message as SetSessionKeyMessage);
             break;
 
         case 'STREAM_OPEN':
@@ -253,6 +267,35 @@ async function matchRoute(method: string, fullPath: string): Promise<RouteMatch 
             handler: async () => getCurrentUser(userCtx),
             params: {},
         };
+    }
+
+    // App Library Routes
+    if (path.startsWith('/mirage/v1/library/apps')) {
+        const storageCtx: StorageRouteContext = {
+            pool: pool!,
+            requestSign,
+            requestEncrypt,
+            requestDecrypt,
+            currentPubkey,
+            appOrigin: 'mirage-studio', // Explicit origin for studio data
+        };
+
+        if (method === 'GET') {
+            return {
+                handler: async () => ({ status: 200, body: await loadAppLibrary(storageCtx) }),
+                params: {},
+            };
+        }
+
+        if (method === 'POST') {
+            return {
+                handler: async (body) => {
+                    await addAppToLibrary(storageCtx, body as any);
+                    return { status: 201, body: { success: true } };
+                },
+                params: {},
+            };
+        }
     }
 
     // GET /mirage/v1/profiles/:pubkey (New Standard)
@@ -491,6 +534,45 @@ function sendResponse(id: string, status: number, body: unknown): void {
         body,
     };
     self.postMessage(response);
+}
+
+async function handleFetchApp(message: FetchAppRequestMessage): Promise<void> {
+    await poolReady;
+    if (!pool) {
+        self.postMessage({
+            type: 'FETCH_APP_RESULT',
+            id: message.id,
+            error: 'Relay pool not initialized',
+        });
+        return;
+    }
+
+    const result = await fetchAppCode(pool, message.naddr);
+    
+    self.postMessage({
+        type: 'FETCH_APP_RESULT',
+        id: message.id,
+        ...result
+    });
+}
+
+async function handleSetSessionKey(message: SetSessionKeyMessage): Promise<void> {
+    const spaceCtx: SpaceRouteContext = {
+        pool: pool!,
+        requestSign,
+        requestEncrypt,
+        requestDecrypt,
+        currentPubkey,
+        appOrigin,
+    };
+    await setSessionKey(spaceCtx, message.spaceId, message.key);
+    // No result message needed for now, but we'll send a dummy to resolve the promise if used via sendToEngine
+    self.postMessage({
+        type: 'API_RESPONSE',
+        id: message.id,
+        status: 200,
+        body: { success: true }
+    });
 }
 
 // Export for type checking

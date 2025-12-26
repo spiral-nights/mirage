@@ -22,6 +22,15 @@ let keyCache: Map<string, SpaceKey> | null = null;
 // Map<scopedSpaceId, { state: Map<string, { value: any; updatedAt: number }>; latestTimestamp: number }>
 const storeCache = new Map<string, { state: Map<string, { value: unknown; updatedAt: number }>; latestTimestamp: number }>();
 
+/**
+ * Injects a session-only key (e.g. from a shared URL)
+ */
+export async function setSessionKey(ctx: SpaceRouteContext, spaceId: string, key: string): Promise<void> {
+    const keys = await getKeys(ctx);
+    const scopedId = `${ctx.appOrigin}:${spaceId}`;
+    keys.set(scopedId, { key, version: 1 });
+    console.log('[Spaces] Session key injected for:', spaceId);
+}
 
 async function getKeys(ctx: SpaceRouteContext): Promise<Map<string, SpaceKey>> {
     if (!keyCache) {

@@ -23,11 +23,34 @@ export type MessageType =
     | 'ENCRYPT_RESULT'
     | 'ACTION_DECRYPT'
     | 'DECRYPT_RESULT'
+    | 'ACTION_FETCH_APP'
+    | 'FETCH_APP_RESULT'
+    | 'ACTION_SET_SESSION_KEY'
     | 'ERROR';
 
 export interface BaseMessage {
     type: MessageType;
     id: string;
+}
+
+/** Injects an ephemeral space key into the Engine session */
+export interface SetSessionKeyMessage extends BaseMessage {
+    type: 'ACTION_SET_SESSION_KEY';
+    spaceId: string;
+    key: string;
+}
+
+/** Request to fetch an app by naddr */
+export interface FetchAppRequestMessage extends BaseMessage {
+    type: 'ACTION_FETCH_APP';
+    naddr: string;
+}
+
+/** Result of app fetch */
+export interface FetchAppResultMessage extends BaseMessage {
+    type: 'FETCH_APP_RESULT';
+    html?: string;
+    error?: string;
 }
 
 /** API request from Bridge to Engine */
@@ -95,6 +118,9 @@ export type MirageMessage =
     | EncryptResultMessage
     | DecryptRequestMessage
     | DecryptResultMessage
+    | FetchAppRequestMessage
+    | FetchAppResultMessage
+    | SetSessionKeyMessage
     | ErrorMessage;
 
 // ============================================================================

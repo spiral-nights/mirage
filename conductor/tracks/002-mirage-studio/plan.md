@@ -25,11 +25,11 @@ Build a beautiful, functional web interface for prompting, publishing, and runni
     - [x] Initialize `packages/web` with Vite/React.
     - [x] Configure Tailwind CSS and shared workspace dependencies.
 - [x] **Phase 2: The Pages**
-    - [ ] **Prompt Page:** Create a "Copy to Clipboard" UI for the System Spec.
-        - [ ] Create `system-prompt.ts` with embedded OpenAPI spec.
-        - [ ] Add user input field for custom app description.
+    - [x] **Prompt Page:** Create a "Copy to Clipboard" UI for the System Spec.
+        - [x] Create `system-prompt.ts` with embedded OpenAPI spec.
+        - [x] Add user input field for custom app description.
     - [x] **Publish Page:** Create the "Paste HTML" editor and publishing logic (Kind 30078).
     - [x] **Run Page:** Implement the `naddr` loader and the iframe container.
 - [x] **Phase 3: Integration**
     - [x] Integrate `@mirage/host` for NIP-07 Login.
-    - [ ] Implement the "Link-to-Keychain" upgrade flow (saving shared keys to NIP-78).
+    - [x] Implement initial app list persistence (localStorage).

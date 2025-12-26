@@ -42,6 +42,7 @@ export class MirageHost {
     private engineWorker: Worker;
     private appPermissions: AppPermissions = { permissions: [] };
     private relays: string[];
+    private pendingInternalRequests = new Map<string, { resolve: (val: any) => void, reject: (err: any) => void }>();
 
     constructor(config: MirageHostConfig) {
         this.config = config;
@@ -177,6 +178,40 @@ export class MirageHost {
         this.appPermissions = { permissions: [] };
     }
 
+    /**
+     * Fetch an app's HTML code from Nostr relays
+     */
+    async fetchApp(naddr: string): Promise<string | null> {
+        return this.sendToEngine({
+            type: 'ACTION_FETCH_APP',
+            id: crypto.randomUUID(),
+            naddr
+        });
+    }
+
+    /**
+     * Send an API request to the Engine
+     */
+    async request(method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: string, body?: unknown): Promise<any> {
+        return this.sendToEngine({
+            type: 'API_REQUEST',
+            id: crypto.randomUUID(),
+            method,
+            path,
+            body
+        });
+    }
+
+    /**
+     * Send a message to the Engine and wait for a response
+     */
+    async sendToEngine(message: any): Promise<any> {
+        return new Promise((resolve, reject) => {
+            this.pendingInternalRequests.set(message.id, { resolve, reject });
+            this.engineWorker.postMessage(message);
+        });
+    }
+
     private injectBridge(html: string): string {
         // Two-phase bridge injection:
         // 1. Immediate synchronous stub that patches fetch and queues /mirage/ requests
@@ -288,6 +323,27 @@ export class MirageHost {
 
     private handleEngineMessage(event: MessageEvent<MirageMessage>): void {
         const message = event.data;
+
+        // Check if this is a response to an internal Host request
+        if (message.id && this.pendingInternalRequests.has(message.id)) {
+            const pending = this.pendingInternalRequests.get(message.id);
+            if (pending) {
+                this.pendingInternalRequests.delete(message.id);
+                if (message.type === 'ERROR' || (message as any).error) {
+                    pending.reject(new Error((message as any).error || 'Unknown error'));
+                } else {
+                    // Handle different message types
+                    if (message.type === 'API_RESPONSE') {
+                        pending.resolve((message as any).body);
+                    } else if (message.type === 'FETCH_APP_RESULT') {
+                        pending.resolve((message as any).html);
+                    } else {
+                        pending.resolve(message);
+                    }
+                }
+            }
+            return;
+        }
 
         // Route: API_RESPONSE from Engine -> App
         if (message.type === 'API_RESPONSE') {

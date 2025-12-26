@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { MirageHost } from '@mirage/host';
 import type { UnsignedNostrEvent } from '@mirage/core';
+import { nip19 } from 'nostr-tools';
 
 export interface AppDefinition {
   naddr: string;
@@ -13,6 +14,7 @@ interface MirageContextType {
   isReady: boolean;
   pubkey: string | null;
   apps: AppDefinition[];
+  spaces: any[];
   publishApp: (html: string, name?: string) => Promise<string>;
   fetchApp: (naddr: string) => Promise<string | null>;
 }
@@ -24,18 +26,9 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
   const [pubkey, setPubkey] = useState<string | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [apps, setApps] = useState<AppDefinition[]>([]);
+  const [spaces, setSpaces] = useState<any[]>([]);
 
   useEffect(() => {
-    // Load local apps
-    const saved = localStorage.getItem('mirage_apps');
-    if (saved) {
-      try {
-        setApps(JSON.parse(saved));
-      } catch (e) {
-        console.error('Failed to parse saved apps', e);
-      }
-    }
-
     const init = async () => {
       const origin = window.location.origin;
       const mirageHost = new MirageHost({
@@ -52,85 +45,77 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
         if ((window as any).nostr) {
             const pk = await (window as any).nostr.getPublicKey();
             setPubkey(pk);
+            
+            // Load apps and spaces from Engine (Nostr)
+            const [library, spacesData] = await Promise.all([
+              mirageHost.request('GET', '/mirage/v1/library/apps'),
+              mirageHost.request('GET', '/mirage/v1/spaces')
+            ]);
+
+            if (Array.isArray(library)) setApps(library);
+            if (Array.isArray(spacesData)) setSpaces(spacesData);
         }
       } catch (e) {
-        console.warn('Could not fetch pubkey:', e);
+        console.warn('Could not fetch pubkey or data:', e);
       }
 
       setIsReady(true);
     };
 
     init();
-
-    return () => {
-      // cleanup if needed
-    };
   }, []);
 
   const fetchApp = async (naddr: string): Promise<string | null> => {
     if (!host) return null;
     console.log('Fetching app:', naddr);
-    // TODO: Implement real fetch via Engine (Kind 30078 lookup)
-    // For now, return a dummy app
-    await new Promise(r => setTimeout(r, 1000));
-    return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <style>body { font-family: sans-serif; padding: 20px; text-align: center; }</style>
-      </head>
-      <body>
-        <h1>Hello from Mirage!</h1>
-        <p>This is a sandboxed app loaded from: ${naddr}</p>
-        <button onclick="alert('It works!')">Click Me</button>
-      </body>
-      </html>
-    `;
+    try {
+      return await host.fetchApp(naddr);
+    } catch (err) {
+      console.error('[useMirage] Failed to fetch app:', err);
+      return null;
+    }
   };
 
   const publishApp = async (html: string, name: string = 'Untitled App'): Promise<string> => {
     if (!host || !pubkey) throw new Error('Mirage not initialized or no signer found');
 
-    // Create Kind 30078 App Event
     const dTag = `mirage:app:${crypto.randomUUID()}`;
-    const event: UnsignedNostrEvent = {
+    
+    // 1. Publish to Nostr via Engine API
+    const result = await host.request('POST', '/mirage/v1/events', {
       kind: 30078,
-      created_at: Math.floor(Date.now() / 1000),
+      content: html,
       tags: [
         ['d', dTag],
         ['name', name],
         ['t', 'mirage_app']
-      ],
-      content: html,
-      pubkey: pubkey
-    };
-
-    // Sign using NIP-07
-    const signedEvent = await (window as any).nostr.signEvent(event);
-    
-    // Broadcast via Host's pool (this is a bit of a hack until Host has a direct pool access)
-    // For now, we'll manually send to the engine worker to publish
-    (host as any).engineWorker.postMessage({
-        type: 'API_REQUEST',
-        id: crypto.randomUUID(),
-        method: 'POST',
-        path: '/storage/internal_publish', // This doesn't exist yet, but we'll use a raw message
-        body: signedEvent
+      ]
     });
 
-    // Return the naddr (simplified mock for now)
-    const naddr = `naddr1${Math.random().toString(36).slice(2)}`;
+    if (result.error) {
+      throw new Error(result.error);
+    }
+
+    // 2. Generate naddr
+    const naddr = nip19.naddrEncode({
+      kind: 30078,
+      pubkey: pubkey,
+      identifier: dTag,
+      relays: host.getRelays()
+    });
     
     const newApp: AppDefinition = { naddr, name, createdAt: Date.now() };
-    const updatedApps = [newApp, ...apps];
-    setApps(updatedApps);
-    localStorage.setItem('mirage_apps', JSON.stringify(updatedApps));
+    
+    // 3. Save to Library
+    await host.request('POST', '/mirage/v1/library/apps', newApp);
+    
+    setApps([newApp, ...apps]);
 
     return naddr; 
   };
 
   return (
-    <MirageContext.Provider value={{ host, isReady, pubkey, apps, publishApp, fetchApp }}>
+    <MirageContext.Provider value={{ host, isReady, pubkey, apps, spaces, publishApp, fetchApp }}>
       {children}
     </MirageContext.Provider>
   );
