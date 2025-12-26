@@ -11,8 +11,8 @@ const VALID_PERMISSIONS: Permission[] = [
     'public_write',
     'storage_read',
     'storage_write',
-    'group_read',
-    'group_write',
+    'space_read',
+    'space_write',
     'dm_read',
     'dm_write',
 ];
@@ -66,10 +66,10 @@ export function isPathAllowed(path: string, method: string, permissions: AppPerm
         if (method === 'PUT' || method === 'DELETE') return perms.includes('storage_write');
     }
 
-    // /mirage/v1/groups
-    if (path.startsWith('/mirage/v1/groups')) {
-        if (method === 'GET') return perms.includes('group_read');
-        if (method === 'PUT' || method === 'POST') return perms.includes('group_write');
+    // /mirage/v1/spaces
+    if (path.startsWith('/mirage/v1/spaces')) {
+        if (method === 'GET') return perms.includes('space_read');
+        if (method === 'PUT' || method === 'POST') return perms.includes('space_write');
     }
 
     // /mirage/v1/dm

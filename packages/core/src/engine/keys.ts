@@ -6,7 +6,7 @@
  * The content is encrypted (NIP-44 self-encryption) by the storage layer.
  */
 
-import type { SpaceKey } from '../../types';
+import type { SpaceKey } from '../types';
 import type { StorageRouteContext } from './routes/storage';
 import { internalGetStorage, internalPutStorage } from './routes/storage';
 

@@ -3,15 +3,15 @@
     "version": "0.1.0",
     "type": "module",
     "main": "./dist/index.js",
-    "types": "./dist/index.d.ts",
+    "types": "./dist/host/src/index.d.ts",
     "exports": {
         ".": {
-            "types": "./dist/index.d.ts",
+            "types": "./dist/host/src/index.d.ts",
             "import": "./dist/index.js"
         }
     },
     "scripts": {
-        "build": "bun build ./src/index.ts --outfile ./dist/index.js --target browser",
+        "build": "tsc --emitDeclarationOnly --outDir ./dist && bun build ./src/index.ts --outfile ./dist/index.js --target browser",
         "dev": "bun run --hot ./dev-server.ts",
         "typecheck": "tsc --noEmit"
     },

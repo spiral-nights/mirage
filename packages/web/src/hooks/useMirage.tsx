@@ -1,12 +1,13 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { MirageHost } from '@mirage/host';
-import { UnsignedNostrEvent } from '@mirage/core';
+import type { UnsignedNostrEvent } from '@mirage/core';
 
 interface MirageContextType {
   host: MirageHost | null;
   isReady: boolean;
   pubkey: string | null;
   publishApp: (html: string, name?: string) => Promise<string>;
+  fetchApp: (naddr: string) => Promise<string | null>;
 }
 
 const MirageContext = createContext<MirageContextType | undefined>(undefined);
@@ -18,12 +19,11 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const init = async () => {
-      // In a real environment, we'd point to the built worker/bridge URLs
-      // For development, we assume these are served or bundled
+      const origin = window.location.origin;
       const mirageHost = new MirageHost({
         relays: ['wss://relay.damus.io', 'wss://nos.lol'],
-        engineUrl: '/engine-worker.js', // This needs to be available in public/
-        bridgeUrl: '/bridge.js',        // This needs to be available in public/
+        engineUrl: `${origin}/engine-worker.js`,
+        bridgeUrl: `${origin}/bridge.js`,
         signer: (window as any).nostr
       });
 
@@ -48,6 +48,27 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
       // cleanup if needed
     };
   }, []);
+
+  const fetchApp = async (naddr: string): Promise<string | null> => {
+    if (!host) return null;
+    console.log('Fetching app:', naddr);
+    // TODO: Implement real fetch via Engine (Kind 30078 lookup)
+    // For now, return a dummy app
+    await new Promise(r => setTimeout(r, 1000));
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>body { font-family: sans-serif; padding: 20px; text-align: center; }</style>
+      </head>
+      <body>
+        <h1>Hello from Mirage!</h1>
+        <p>This is a sandboxed app loaded from: ${naddr}</p>
+        <button onclick="alert('It works!')">Click Me</button>
+      </body>
+      </html>
+    `;
+  };
 
   const publishApp = async (html: string, name: string = 'Untitled App'): Promise<string> => {
     if (!host || !pubkey) throw new Error('Mirage not initialized or no signer found');
@@ -84,7 +105,7 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <MirageContext.Provider value={{ host, isReady, pubkey, publishApp }}>
+    <MirageContext.Provider value={{ host, isReady, pubkey, publishApp, fetchApp }}>
       {children}
     </MirageContext.Provider>
   );

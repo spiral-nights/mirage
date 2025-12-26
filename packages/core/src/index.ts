@@ -10,7 +10,7 @@
 export * from './types';
 
 // Bridge
-export { initBridge, destroyBridge, sendToWorker, type BridgeOptions } from './bridge/index';
+export { initBridge, destroyBridge, type BridgeOptions } from './bridge/index';
 
 // Engine components (for advanced usage)
 export { RelayPool, type RelayPoolOptions } from './engine/relay-pool';

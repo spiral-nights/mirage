@@ -122,6 +122,7 @@ export class MirageHost {
         this.iframe = document.createElement('iframe');
         this.iframe.sandbox.add('allow-scripts');
         this.iframe.sandbox.add('allow-forms');
+        this.iframe.sandbox.add('allow-modals');
         this.iframe.style.width = '100%';
         this.iframe.style.height = '100%';
         this.iframe.style.border = 'none';

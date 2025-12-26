@@ -36,9 +36,9 @@ describe('parsePermissions', () => {
         expect(result.permissions).toEqual(['public_read', 'storage_write']);
     });
 
-    test('handles all valid permission types', () => {
+    test('allows all valid permission types', () => {
         const html = `
-      <meta name="mirage-permissions" content="public_read, public_write, storage_read, storage_write, group_read, group_write, dm_read, dm_write">
+      <meta name="mirage-permissions" content="public_read, public_write, storage_read, storage_write, space_read, space_write, dm_read, dm_write">
     `;
 
         const result = parsePermissions(html);
@@ -77,13 +77,14 @@ describe('isPathAllowed', () => {
         expect(isPathAllowed('/mirage/v1/storage/mykey', 'PUT', permissions)).toBe(false);
     });
 
-    test('allows group routes with appropriate permissions', () => {
-        const readPerms = { permissions: ['group_read' as const] };
-        const writePerms = { permissions: ['group_write' as const] };
+    test('allows space routes with appropriate permissions', () => {
+        const readPerms = { permissions: ['space_read' as const] };
+        const writePerms = { permissions: ['space_write' as const] };
 
-        expect(isPathAllowed('/mirage/v1/groups', 'GET', readPerms)).toBe(true);
-        expect(isPathAllowed('/mirage/v1/groups/123/storage', 'PUT', writePerms)).toBe(true);
+        expect(isPathAllowed('/mirage/v1/spaces', 'GET', readPerms)).toBe(true);
+        expect(isPathAllowed('/mirage/v1/spaces/123/storage', 'PUT', writePerms)).toBe(true);
     });
+
 
     test('allows dm routes with appropriate permissions', () => {
         const readPerms = { permissions: ['dm_read' as const] };

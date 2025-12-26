@@ -71,9 +71,8 @@ export async function listDMs(
             if (!sealEvent || sealEvent.kind !== 13) continue;
 
             // LAYER 2: Decrypt Seal (13) -> Rumor (14)
-            // The seal content is encrypted with the SENDER'S key.
-            // We need to ask Host to decrypt it using SENDER'S pubkey.
-            const senderPubkey = sealEvent.pubkey;
+            if (!sealEvent.pubkey) continue;
+            const senderPubkey = sealEvent.pubkey as string;
 
             let rumorJson: string;
             try {
@@ -84,6 +83,7 @@ export async function listDMs(
             }
 
             const rumor = JSON.parse(rumorJson) as UnsignedNostrEvent;
+            if (!rumor.pubkey) continue;
 
             // Deduplicate
             const uniqueId = (rumor as any).id || `${rumor.pubkey}:${rumor.created_at}:${rumor.content.slice(0, 20)}`;
@@ -169,7 +169,9 @@ export async function getDMMessages(
             if (!sealEvent || sealEvent.kind !== 13) continue;
 
             // LAYER 2: Decrypt Seal -> Rumor
-            const senderPubkey = sealEvent.pubkey;
+            if (!sealEvent.pubkey) continue;
+            const senderPubkey = sealEvent.pubkey as string;
+
             let rumorJson: string;
             try {
                 rumorJson = await ctx.requestDecrypt(senderPubkey, sealEvent.content);
@@ -178,6 +180,7 @@ export async function getDMMessages(
             }
 
             const rumor = JSON.parse(rumorJson) as UnsignedNostrEvent;
+            if (!rumor.pubkey) continue;
 
             const uniqueId = (rumor as any).id || `${rumor.pubkey}:${rumor.created_at}:${rumor.content}`;
             if (seenIds.has(uniqueId)) continue;
