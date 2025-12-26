@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-background text-white antialiased;
+  }
+}
+
+.blob {
+  @apply absolute rounded-full blur-[80px] opacity-[0.15] pointer-events-none;
+}
+
+.glass-panel {
+  @apply bg-[#1A1A22]/60 border border-[#2E2E36] backdrop-blur-xl;
+}
