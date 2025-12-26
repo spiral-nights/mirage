@@ -2,10 +2,17 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { MirageHost } from '@mirage/host';
 import type { UnsignedNostrEvent } from '@mirage/core';
 
+export interface AppDefinition {
+  naddr: string;
+  name: string;
+  createdAt: number;
+}
+
 interface MirageContextType {
   host: MirageHost | null;
   isReady: boolean;
   pubkey: string | null;
+  apps: AppDefinition[];
   publishApp: (html: string, name?: string) => Promise<string>;
   fetchApp: (naddr: string) => Promise<string | null>;
 }
@@ -16,8 +23,19 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
   const [host, setHost] = useState<MirageHost | null>(null);
   const [pubkey, setPubkey] = useState<string | null>(null);
   const [isReady, setIsReady] = useState(false);
+  const [apps, setApps] = useState<AppDefinition[]>([]);
 
   useEffect(() => {
+    // Load local apps
+    const saved = localStorage.getItem('mirage_apps');
+    if (saved) {
+      try {
+        setApps(JSON.parse(saved));
+      } catch (e) {
+        console.error('Failed to parse saved apps', e);
+      }
+    }
+
     const init = async () => {
       const origin = window.location.origin;
       const mirageHost = new MirageHost({
@@ -101,11 +119,18 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
     });
 
     // Return the naddr (simplified mock for now)
-    return `naddr1...`; 
+    const naddr = `naddr1${Math.random().toString(36).slice(2)}`;
+    
+    const newApp: AppDefinition = { naddr, name, createdAt: Date.now() };
+    const updatedApps = [newApp, ...apps];
+    setApps(updatedApps);
+    localStorage.setItem('mirage_apps', JSON.stringify(updatedApps));
+
+    return naddr; 
   };
 
   return (
-    <MirageContext.Provider value={{ host, isReady, pubkey, publishApp, fetchApp }}>
+    <MirageContext.Provider value={{ host, isReady, pubkey, apps, publishApp, fetchApp }}>
       {children}
     </MirageContext.Provider>
   );

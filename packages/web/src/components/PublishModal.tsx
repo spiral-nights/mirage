@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, UploadCloud, CheckCircle2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { cn } from '../lib/utils';
 import { useMirage } from '../hooks/useMirage';
 
@@ -14,6 +15,7 @@ export const PublishModal = ({ isOpen, onClose }: PublishModalProps) => {
   const [isPublishing, setIsPublishing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const { publishApp } = useMirage();
+  const navigate = useNavigate();
 
   const handlePublish = async () => {
     if (!code.trim()) return;
@@ -28,7 +30,8 @@ export const PublishModal = ({ isOpen, onClose }: PublishModalProps) => {
         onClose();
         setIsSuccess(false);
         setCode('');
-      }, 2000);
+        navigate(`/run/${naddr}`);
+      }, 1500);
     } catch (error) {
       console.error('Publishing failed:', error);
       alert('Publishing failed. Do you have a Nostr extension (NIP-07) installed?');
