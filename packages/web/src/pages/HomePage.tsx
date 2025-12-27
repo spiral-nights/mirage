@@ -1,11 +1,15 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, Zap, Copy, Check } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { Plus, Copy, Check } from 'lucide-react';
 import { PublishModal } from '../components/PublishModal';
+import { useMirage } from '../hooks/useMirage';
 import { generateSystemPrompt } from '../lib/system-prompt';
 import { cn } from '../lib/utils';
 
 export const HomePage = () => {
+  const navigate = useNavigate();
+  useMirage();
   const [isPublishOpen, setIsPublishOpen] = useState(false);
   const [promptInput, setPromptInput] = useState('');
   const [copied, setCopied] = useState(false);
@@ -20,21 +24,38 @@ export const HomePage = () => {
   return (
     <div className="max-w-5xl">
       <header className="mb-20">
-        <motion.h1
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-7xl font-black mb-8 tracking-tighter"
-        >
-          Build something <span className="serif-italic px-3">magic.</span>
-        </motion.h1>
-        <motion.p
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="text-gray-400 text-2xl font-light max-w-3xl leading-relaxed"
+          className="max-w-4xl pt-12 md:pt-20"
         >
-          Create state-of-the-art applications using natural language, powered by the Nostr protocol.
-        </motion.p>
+          <h1 className="text-5xl md:text-8xl font-black mb-8 md:mb-12 tracking-tighter leading-[0.9]">
+            Build something <br />
+            <span className="serif-italic pr-4 text-vivid-cyan">magic.</span>
+          </h1>
+
+          <p className="text-lg md:text-2xl text-gray-500 font-light italic mb-12 md:mb-20 max-w-2xl leading-relaxed">
+            The decentralized platform for building, running, and sharing cluster applications. No servers, just pure protocol.
+          </p>
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-6 mb-20 md:mb-32">
+            <button
+              onClick={() => setIsPublishOpen(true)} // Assuming setIsModalOpen should be setIsPublishOpen
+              className="px-10 py-5 bg-vivid-magenta text-white rounded-[24px] font-black text-sm uppercase tracking-widest shadow-vivid-glow hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3"
+            >
+              <Plus size={20} /> {/* Assuming PlusCircle should be Plus from lucide-react */}
+              Publish App
+            </button>
+
+            <button
+              onClick={() => navigate('/create')}
+              className="px-10 py-5 bg-vivid-teal/10 text-vivid-teal border border-vivid-teal/20 rounded-[24px] font-black text-sm uppercase tracking-widest hover:bg-vivid-teal/20 transition-all flex items-center justify-center gap-3"
+            >
+              <Zap size={20} fill="currentColor" />
+              Connect Space
+            </button>
+          </div>
+        </motion.div>
       </header>
 
       <motion.div
@@ -49,7 +70,6 @@ export const HomePage = () => {
 
           <div className="flex items-center gap-3 mb-8">
             <h2 className="text-sm font-black text-gray-400 uppercase tracking-[0.3em]">Ignition Sequence</h2>
-            <div className="h-px flex-1 bg-white/5" />
           </div>
 
           <div className="mb-10">

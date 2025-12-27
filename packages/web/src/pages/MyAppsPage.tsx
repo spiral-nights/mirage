@@ -91,26 +91,26 @@ export const MyAppsPage = () => {
 
   return (
     <div className="max-w-5xl">
-      <header className="mb-16">
-        <h1 className="text-6xl font-black mb-6 tracking-tighter">
-          Your <span className="serif-italic px-3">Library</span>
+      <header className="mb-10 md:mb-16">
+        <h1 className="text-4xl md:text-6xl font-black mb-4 md:mb-6 tracking-tighter">
+          Your <span className="serif-italic px-1 md:px-3">Library</span>
         </h1>
-        <p className="text-gray-400 text-xl font-light italic max-w-2xl leading-relaxed">
+        <p className="text-gray-400 text-base md:text-xl font-light italic max-w-2xl leading-relaxed">
           Manage your decentralized application clusters and their associated encrypted data spaces.
         </p>
       </header>
 
       {/* Main Apps Section */}
-      <section className="mb-20">
-        <div className="flex items-center gap-4 mb-10">
-          <div className="w-10 h-10 rounded-2xl bg-vivid-magenta/10 flex items-center justify-center text-vivid-magenta">
-            <LayoutGrid size={20} />
+      <section className="mb-12 md:mb-20">
+        <div className="flex items-center gap-4 mb-8 md:mb-10">
+          <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl md:rounded-2xl bg-vivid-magenta/10 flex items-center justify-center text-vivid-magenta">
+            <LayoutGrid size={18} />
           </div>
-          <h2 className="text-sm font-black text-gray-400 uppercase tracking-[0.3em]">Active Applications</h2>
+          <h2 className="text-[10px] md:text-sm font-black text-gray-400 uppercase tracking-[0.2em] md:tracking-[0.3em]">Active Applications</h2>
           <div className="h-px flex-1 bg-white/5" />
         </div>
 
-        <div className="grid grid-cols-1 gap-8">
+        <div className="grid grid-cols-1 gap-6 md:gap-8">
           {apps.length > 0 ? (
             apps.map((app, i) => (
               <AppWithSpaces
@@ -125,8 +125,8 @@ export const MyAppsPage = () => {
               />
             ))
           ) : (
-            <div className="p-20 text-center bg-card/40 border border-white/5 rounded-[48px] backdrop-blur-sm">
-              <p className="text-xl text-gray-600 font-light italic">No apps in your library. Start by creating one from the home screen.</p>
+            <div className="p-12 md:p-20 text-center bg-card/40 border border-white/5 rounded-[32px] md:rounded-[48px] backdrop-blur-sm">
+              <p className="text-lg md:text-xl text-gray-600 font-light italic">No apps in your library. Start by creating one from the home screen.</p>
             </div>
           )}
         </div>
@@ -135,15 +135,15 @@ export const MyAppsPage = () => {
       {/* Legacy/Orphan Spaces Section */}
       {orphanSpaces.length > 0 && (
         <section>
-          <div className="flex items-center gap-4 mb-10">
-            <div className="w-10 h-10 rounded-2xl bg-vivid-cyan/10 flex items-center justify-center text-vivid-cyan">
-              <Database size={20} />
+          <div className="flex items-center gap-4 mb-8 md:mb-10">
+            <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl md:rounded-2xl bg-vivid-cyan/10 flex items-center justify-center text-vivid-cyan">
+              <Database size={18} />
             </div>
-            <h2 className="text-sm font-black text-gray-400 uppercase tracking-[0.3em]">Legacy Data Spaces</h2>
+            <h2 className="text-[10px] md:text-sm font-black text-gray-400 uppercase tracking-[0.2em] md:tracking-[0.3em]">Legacy Data Spaces</h2>
             <div className="h-px flex-1 bg-white/5" />
           </div>
 
-          <div className="bg-card/40 border border-white/5 rounded-[40px] p-6 backdrop-blur-sm">
+          <div className="bg-card/40 border border-white/5 rounded-[32px] md:rounded-[40px] p-4 md:p-6 backdrop-blur-sm">
             <div className="space-y-3">
               {orphanSpaces.map((space, i) => (
                 <OrphanSpaceRow key={space.id} space={space} index={i} onDelete={deleteSpace} />
@@ -247,37 +247,39 @@ const AppWithSpaces = ({
           )}
         </AnimatePresence>
 
-        <div className="flex items-center gap-6">
+        <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
           {/* Icon */}
-          <div className="w-16 h-16 bg-gradient-to-tr from-[#0D0D12] to-[#1F1F26] border border-white/5 rounded-2xl flex items-center justify-center text-2xl shadow-inner group-hover/card:border-vivid-magenta/30 transition-all duration-500">
+          <div className="w-14 h-14 md:w-16 md:h-16 bg-gradient-to-tr from-[#0D0D12] to-[#1F1F26] border border-white/5 rounded-2xl flex items-center justify-center text-xl md:text-2xl shadow-inner group-hover/card:border-vivid-magenta/30 transition-all duration-500">
             {app.name.charAt(0) || '🚀'}
           </div>
 
           {/* Info */}
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-3 mb-2">
-              <h3 className="text-2xl font-black truncate group-hover/card:text-vivid-magenta transition-colors duration-500">
+            <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-2">
+              <h3 className="text-xl md:text-2xl font-black truncate group-hover/card:text-vivid-magenta transition-colors duration-500">
                 {app.name}
               </h3>
-              <span className="flex items-center gap-1.5 text-[10px] text-vivid-magenta bg-vivid-magenta/10 border border-vivid-magenta/20 px-3 py-1 rounded-full uppercase font-black tracking-widest">
-                <Sparkles size={10} fill="currentColor" />
-                Verified
-              </span>
-              {spaces.length > 0 && (
-                <span className="flex items-center gap-1.5 text-[10px] text-vivid-cyan bg-vivid-cyan/10 border border-vivid-cyan/20 px-3 py-1 rounded-full uppercase font-black tracking-widest">
-                  <Database size={10} />
-                  {spaces.length} Storage
+              <div className="flex items-center gap-2">
+                <span className="flex items-center gap-1.5 text-[8px] md:text-[10px] text-vivid-magenta bg-vivid-magenta/10 border border-vivid-magenta/20 px-2 md:px-3 py-0.5 md:py-1 rounded-full uppercase font-black tracking-widest">
+                  <Sparkles size={8} fill="currentColor" className="md:w-[10px] md:h-[10px]" />
+                  Verified
                 </span>
-              )}
+                {spaces.length > 0 && (
+                  <span className="flex items-center gap-1.5 text-[8px] md:text-[10px] text-vivid-cyan bg-vivid-cyan/10 border border-vivid-cyan/20 px-2 md:px-3 py-0.5 md:py-1 rounded-full uppercase font-black tracking-widest">
+                    <Database size={8} className="md:w-[10px] md:h-[10px]" />
+                    {spaces.length} Storage
+                  </span>
+                )}
+              </div>
             </div>
-            <p className="text-sm text-gray-500 font-light italic">
+            <p className="text-xs md:text-sm text-gray-500 font-light italic">
               Added {new Date(app.createdAt).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}
             </p>
           </div>
 
           {/* Actions */}
-          <div className="flex items-center gap-4">
-            <div className="flex items-center bg-white/5 rounded-2xl p-1 opacity-0 group-hover/card:opacity-100 transition-opacity duration-300">
+          <div className="w-full md:w-auto flex items-center justify-between md:justify-end gap-3 md:gap-4 mt-4 md:mt-0">
+            <div className="flex items-center bg-white/5 rounded-2xl p-0.5 md:p-1 md:opacity-0 md:group-hover/card:opacity-100 transition-opacity duration-300">
               <button
                 onClick={() => onOpenSource(app, isAuthor ? 'edit' : 'view')}
                 title={isAuthor ? "Edit Source" : "View Source"}
@@ -294,23 +296,25 @@ const AppWithSpaces = ({
               </button>
             </div>
 
-            <Link
-              to={`/run/${app.naddr}`}
-              className="h-11 px-6 rounded-2xl bg-vivid-magenta text-white hover:opacity-90 transition-all flex items-center gap-3 font-black text-sm shadow-vivid-glow active:scale-95 translate-y-0 hover:-translate-y-0.5"
-            >
-              <Play size={16} fill="currentColor" />
-              Launch
-            </Link>
+            <div className="flex items-center gap-3">
+              <Link
+                to={`/run/${app.naddr}`}
+                className="h-10 md:h-11 px-4 md:px-6 rounded-2xl bg-vivid-magenta text-white hover:opacity-90 transition-all flex items-center gap-3 font-black text-xs md:text-sm shadow-vivid-glow active:scale-95 translate-y-0 hover:-translate-y-0.5"
+              >
+                <Play size={14} className="md:w-4 md:h-4" fill="currentColor" />
+                Launch
+              </Link>
 
-            <button
-              onClick={() => setIsExpanded(!isExpanded)}
-              className={cn(
-                "w-11 h-11 rounded-2xl bg-white/5 flex items-center justify-center text-gray-500 hover:bg-white/10 transition-all",
-                isExpanded && "bg-white/10 text-white"
-              )}
-            >
-              {isExpanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
-            </button>
+              <button
+                onClick={() => setIsExpanded(!isExpanded)}
+                className={cn(
+                  "w-10 h-10 md:w-11 md:h-11 rounded-2xl bg-white/5 flex items-center justify-center text-gray-500 hover:bg-white/10 transition-all",
+                  isExpanded && "bg-white/10 text-white"
+                )}
+              >
+                {isExpanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+              </button>
+            </div>
           </div>
         </div>
       </div>

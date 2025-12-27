@@ -631,6 +631,116 @@ paths:
               schema:
                 $ref: '#/components/schemas/SpaceMessage'
 
+  /library/apps:
+    get:
+      tags: [System]
+      summary: List my applications
+      description: Returns all Mirage applications you've published or added to your library.
+      operationId: listLibraryApps
+      security:
+        - nip07: []
+      responses:
+        '200':
+          description: Your applications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AppDefinition'
+
+    post:
+      tags: [System]
+      summary: Add app to library
+      description: Save an application to your personal library.
+      operationId: addLibraryApp
+      security:
+        - nip07: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppDefinition'
+      responses:
+        '201':
+          description: App added
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+
+    delete:
+      tags: [System]
+      summary: Remove app from library
+      description: Deletes an application from your library.
+      operationId: deleteLibraryApp
+      security:
+        - nip07: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [naddr]
+              properties:
+                naddr:
+                  type: string
+                  description: The unique identifier (naddr) of the app
+      responses:
+        '200':
+          description: App removed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: string
+
+  /spaces/all:
+    get:
+      tags: [Spaces]
+      summary: List all spaces
+      description: Returns all spaces across all applications, including invitations.
+      operationId: listAllSpaces
+      security:
+        - nip07: []
+      responses:
+        '200':
+          description: All spaces
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Space'
+
+  /spaces/{spaceId}:
+    get:
+      tags: [Spaces]
+      summary: Get space details
+      operationId: getSpace
+      security:
+        - nip07: []
+      parameters:
+        - name: spaceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Space details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Space'
+
   /spaces/{spaceId}/invite:
     post:
       tags: [Spaces]
@@ -1034,3 +1144,21 @@ components:
         petname:
           type: string
           description: Local nickname for this contact (optional)
+
+    AppDefinition:
+      type: object
+      description: Metadata for a Mirage application
+      required: [naddr, name, createdAt]
+      properties:
+        naddr:
+          type: string
+          description: Bech32 address for the application (NIP-19)
+          example: "naddr1..."
+        name:
+          type: string
+          description: Custom name for the application
+          example: "My Awesome App"
+        createdAt:
+          type: integer
+          description: Unix timestamp of when the app was added/published
+          example: 1703635200
