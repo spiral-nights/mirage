@@ -84,9 +84,10 @@ export class RelayPool {
     }
 
     /**
-     * Query for a single event matching filters
+     * Query for a single event matching filters.
+     * Resolves on the first event received.
      */
-    async query(filters: Filter[], timeout = 5000): Promise<Event | null> {
+    async query(filters: Filter[], timeout = 3000): Promise<Event | null> {
         return new Promise((resolve) => {
             let resolved = false;
             const unsub = this.subscribe(
@@ -111,19 +112,61 @@ export class RelayPool {
     }
 
     /**
+     * Query for all events matching filters from all relays.
+     * Resolves when all relays have sent EOSE or after a timeout.
+     */
+    async queryAll(filters: Filter[], timeout = 3000): Promise<Event[]> {
+        return new Promise((resolve) => {
+            const events: Event[] = [];
+            const eoseReceived = new Set<string>();
+            let resolved = false;
+
+            const unsub = this.subscribe(
+                filters,
+                (event) => {
+                    if (!resolved) {
+                        // Deduplicate by ID
+                        if (!events.some(e => e.id === event.id)) {
+                            events.push(event);
+                        }
+                    }
+                },
+                (relayUrl) => {
+                    if (!resolved) {
+                        eoseReceived.add(relayUrl);
+                        if (eoseReceived.size >= this.relays.size) {
+                            resolved = true;
+                            unsub();
+                            resolve(events);
+                        }
+                    }
+                }
+            );
+
+            setTimeout(() => {
+                if (!resolved) {
+                    resolved = true;
+                    unsub();
+                    resolve(events);
+                }
+            }, timeout);
+        });
+    }
+
+    /**
      * Subscribe to events matching filters
      */
     subscribe(
         filters: Filter[],
         onEvent: (event: Event) => void,
-        onEose?: () => void
+        onEose?: (relayUrl: string) => void
     ): () => void {
         const subscriptions: Array<{ close: () => void }> = [];
 
-        for (const relay of this.relays.values()) {
+        for (const [url, relay] of this.relays.entries()) {
             const sub = relay.subscribe(filters, {
                 onevent: onEvent,
-                oneose: onEose,
+                oneose: () => onEose?.(url),
             });
             subscriptions.push(sub);
         }

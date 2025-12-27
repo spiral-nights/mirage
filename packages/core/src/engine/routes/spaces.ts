@@ -217,15 +217,8 @@ export async function getSpaceMessages(
     };
     if (params.since) filter.since = params.since;
 
-    const events: Event[] = [];
-    const unsubscribe = ctx.pool.subscribe(
-        [filter],
-        (e) => events.push(e),
-        () => { }
-    );
-
-    await new Promise(r => setTimeout(r, 1500)); // Wait for relays
-    unsubscribe();
+    // 2. Fetch messages
+    const events = await ctx.pool.queryAll([filter], 3000);
 
     // Decrypt
     const messages: SpaceMessage[] = [];
@@ -379,15 +372,8 @@ export async function syncInvites(ctx: SpaceRouteContext): Promise<void> {
         since: Math.floor(Date.now() / 1000) - (24 * 60 * 60)
     };
 
-    const events: Event[] = [];
-    const unsubscribe = ctx.pool.subscribe(
-        [filter],
-        (e) => events.push(e),
-        () => { }
-    );
+    const events = await ctx.pool.queryAll([filter], 3000);
 
-    await new Promise(r => setTimeout(r, 2000));
-    unsubscribe();
 
     const keys = await getKeys(ctx);
     let updated = false;
@@ -458,15 +444,8 @@ export async function getSpaceStore(
         since: cache.latestTimestamp + 1,
     };
 
-    const events: Event[] = [];
-    const unsubscribe = ctx.pool.subscribe(
-        [filter],
-        (e) => events.push(e),
-        () => { }
-    );
+    const events = await ctx.pool.queryAll([filter], 3000);
 
-    await new Promise(r => setTimeout(r, 1500)); // Wait for relays
-    unsubscribe();
 
     // 3. Merge Events (Last-Write-Wins)
     let hasUpdates = false;

@@ -79,10 +79,13 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
 
       // Create new init promise
       initPromise = (async () => {
+        const startTime = performance.now();
         try {
           console.log('[useMirage] Creating new MirageHost instance');
           const origin = window.location.origin;
-          // 1. Wait for window.nostr to appear (some extensions are async)
+
+          // 1. Wait for window.nostr
+          const nostrWaitStart = performance.now();
           const waitForNostr = async (limit: number) => {
             for (let i = 0; i < limit / 100; i++) {
               if ((window as any).nostr) return true;
@@ -90,8 +93,8 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
             }
             return !!(window as any).nostr;
           };
-
           await waitForNostr(2000);
+          console.log(`[useMirage] Nostr wait took: ${(performance.now() - nostrWaitStart).toFixed(2)}ms`);
 
           const signer = (window as any).nostr;
           const mirageHost = new MirageHost({
@@ -107,6 +110,7 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
           // 2. Attempt to get pubkey with retries
           try {
             if (signer) {
+              const pubkeyStart = performance.now();
               let pk = '';
               let attempts = 0;
               while (attempts < 3) {
@@ -123,6 +127,7 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
                   if (attempts < 3) await new Promise(r => setTimeout(r, 500));
                 }
               }
+              console.log(`[useMirage] Pubkey retrieval took: ${(performance.now() - pubkeyStart).toFixed(2)}ms`);
 
               if (pk) {
                 console.log('[useMirage] Received pubkey:', pk.slice(0, 8) + '...');
@@ -131,11 +136,13 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
 
                 // Load initial data
                 console.log('[useMirage] Loading initial data...');
+                const dataLoadStart = performance.now();
                 try {
                   const [library, spacesData] = await Promise.all([
                     mirageHost.request('GET', '/mirage/v1/library/apps'),
                     mirageHost.request('GET', '/mirage/v1/spaces/all')
                   ]);
+                  console.log(`[useMirage] Initial data load took: ${(performance.now() - dataLoadStart).toFixed(2)}ms`);
 
                   if (Array.isArray(library)) setApps(library);
                   if (Array.isArray(spacesData)) setSpaces(spacesData);
@@ -152,6 +159,7 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
         } catch (e) {
           console.error('[useMirage] Host initialization failed:', e);
         } finally {
+          console.log(`[useMirage] Total initialization took: ${(performance.now() - startTime).toFixed(2)}ms`);
           setIsReady(true);
           initPromise = null;
         }

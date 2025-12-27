@@ -37,22 +37,10 @@ async function fetchContactList(ctx: ContactsRouteContext, pubkey: string): Prom
         limit: 1
     };
 
-    const events: Event[] = [];
-    const unsubscribe = ctx.pool.subscribe(
-        [filter],
-        (e) => events.push(e),
-        () => { }
-    );
+    const event = await ctx.pool.query([filter], 3000);
 
-    // Short wait for relays
-    await new Promise(r => setTimeout(r, 1500));
-    unsubscribe();
-
-    if (events.length === 0) return [];
-
-    // Sort by created_at desc to get latest
-    events.sort((a, b) => b.created_at - a.created_at);
-    const latest = events[0];
+    if (!event) return [];
+    const latest = event;
 
     return latest.tags
         .filter(t => t[0] === 'p')

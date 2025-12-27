@@ -214,6 +214,7 @@ export class MirageHost {
      * Send a message to the Engine and wait for a response
      */
     async sendToEngine(message: any): Promise<any> {
+        const start = performance.now();
         return new Promise((resolve, reject) => {
             const timeout = setTimeout(() => {
                 if (this.pendingInternalRequests.has(message.id)) {
@@ -225,6 +226,10 @@ export class MirageHost {
             this.pendingInternalRequests.set(message.id, {
                 resolve: (val) => {
                     clearTimeout(timeout);
+                    const duration = performance.now() - start;
+                    if (duration > 100) {
+                        console.log(`[MirageHost] SLOW REQUEST: ${message.type} ${message.path || ''} took ${duration.toFixed(2)}ms`);
+                    }
                     resolve(val);
                 },
                 reject: (err) => {

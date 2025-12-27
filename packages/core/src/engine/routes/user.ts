@@ -39,53 +39,25 @@ export async function getUserByPubkey(
         limit: 1,
     };
 
-    return new Promise((resolve) => {
-        let profile: UserProfile | null = null;
-        let resolved = false;
+    const event = await ctx.pool.query([filter], 3000);
 
-        const timeout = setTimeout(() => {
-            if (!resolved) {
-                resolved = true;
-                unsubscribe();
-                if (profile) {
-                    resolve({ status: 200, body: profile });
-                } else {
-                    resolve({ status: 404, body: { error: 'User not found' } });
-                }
-            }
-        }, 3000);
+    if (!event) {
+        return { status: 404, body: { error: 'User not found' } };
+    }
 
-        const unsubscribe = ctx.pool.subscribe(
-            [filter],
-            (event: Event) => {
-                try {
-                    const metadata = JSON.parse(event.content);
-                    profile = {
-                        pubkey: event.pubkey,
-                        name: metadata.name,
-                        displayName: metadata.display_name || metadata.displayName,
-                        about: metadata.about,
-                        picture: metadata.picture,
-                        nip05: metadata.nip05,
-                        lud16: metadata.lud16,
-                    };
-                } catch {
-                    // Invalid JSON in profile, skip
-                }
-            },
-            () => {
-                // EOSE
-                if (!resolved) {
-                    resolved = true;
-                    clearTimeout(timeout);
-                    unsubscribe();
-                    if (profile) {
-                        resolve({ status: 200, body: profile });
-                    } else {
-                        resolve({ status: 404, body: { error: 'User not found' } });
-                    }
-                }
-            }
-        );
-    });
+    try {
+        const metadata = JSON.parse(event.content);
+        const profile: UserProfile = {
+            pubkey: event.pubkey,
+            name: metadata.name,
+            displayName: metadata.display_name || metadata.displayName,
+            about: metadata.about,
+            picture: metadata.picture,
+            nip05: metadata.nip05,
+            lud16: metadata.lud16,
+        };
+        return { status: 200, body: profile };
+    } catch {
+        return { status: 500, body: { error: 'Invalid metadata format' } };
+    }
 }

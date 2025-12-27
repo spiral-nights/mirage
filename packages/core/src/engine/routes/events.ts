@@ -60,34 +60,8 @@ export async function getEvents(
         });
     }
 
-    return new Promise((resolve) => {
-        const events: Event[] = [];
-        let resolved = false;
-
-        const timeout = setTimeout(() => {
-            if (!resolved) {
-                resolved = true;
-                unsubscribe();
-                resolve({ status: 200, body: events });
-            }
-        }, 5000);
-
-        const unsubscribe = ctx.pool.subscribe(
-            [filter],
-            (event: Event) => {
-                events.push(event);
-            },
-            () => {
-                // EOSE
-                if (!resolved) {
-                    resolved = true;
-                    clearTimeout(timeout);
-                    unsubscribe();
-                    resolve({ status: 200, body: events });
-                }
-            }
-        );
-    });
+    const events = await ctx.pool.queryAll([filter], 5000);
+    return { status: 200, body: events };
 }
 
 /**

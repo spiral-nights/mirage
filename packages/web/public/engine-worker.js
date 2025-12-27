@@ -7141,7 +7141,7 @@
     getRelays() {
       return Array.from(this.relays.keys());
     }
-    async query(filters, timeout = 5000) {
+    async query(filters, timeout = 3000) {
       return new Promise((resolve) => {
         let resolved = false;
         const unsub = this.subscribe(filters, (event) => {
@@ -7160,12 +7160,42 @@
         }, timeout);
       });
     }
+    async queryAll(filters, timeout = 3000) {
+      return new Promise((resolve) => {
+        const events = [];
+        const eoseReceived = new Set;
+        let resolved = false;
+        const unsub = this.subscribe(filters, (event) => {
+          if (!resolved) {
+            if (!events.some((e) => e.id === event.id)) {
+              events.push(event);
+            }
+          }
+        }, (relayUrl) => {
+          if (!resolved) {
+            eoseReceived.add(relayUrl);
+            if (eoseReceived.size >= this.relays.size) {
+              resolved = true;
+              unsub();
+              resolve(events);
+            }
+          }
+        });
+        setTimeout(() => {
+          if (!resolved) {
+            resolved = true;
+            unsub();
+            resolve(events);
+          }
+        }, timeout);
+      });
+    }
     subscribe(filters, onEvent, onEose) {
       const subscriptions = [];
-      for (const relay of this.relays.values()) {
+      for (const [url, relay] of this.relays.entries()) {
         const sub = relay.subscribe(filters, {
           onevent: onEvent,
-          oneose: onEose
+          oneose: () => onEose?.(url)
         });
         subscriptions.push(sub);
       }
@@ -7222,46 +7252,25 @@
       authors: [pubkey],
       limit: 1
     };
-    return new Promise((resolve) => {
-      let profile = null;
-      let resolved = false;
-      const timeout = setTimeout(() => {
-        if (!resolved) {
-          resolved = true;
-          unsubscribe();
-          if (profile) {
-            resolve({ status: 200, body: profile });
-          } else {
-            resolve({ status: 404, body: { error: "User not found" } });
-          }
-        }
-      }, 3000);
-      const unsubscribe = ctx.pool.subscribe([filter], (event) => {
-        try {
-          const metadata = JSON.parse(event.content);
-          profile = {
-            pubkey: event.pubkey,
-            name: metadata.name,
-            displayName: metadata.display_name || metadata.displayName,
-            about: metadata.about,
-            picture: metadata.picture,
-            nip05: metadata.nip05,
-            lud16: metadata.lud16
-          };
-        } catch {}
-      }, () => {
-        if (!resolved) {
-          resolved = true;
-          clearTimeout(timeout);
-          unsubscribe();
-          if (profile) {
-            resolve({ status: 200, body: profile });
-          } else {
-            resolve({ status: 404, body: { error: "User not found" } });
-          }
-        }
-      });
-    });
+    const event = await ctx.pool.query([filter], 3000);
+    if (!event) {
+      return { status: 404, body: { error: "User not found" } };
+    }
+    try {
+      const metadata = JSON.parse(event.content);
+      const profile = {
+        pubkey: event.pubkey,
+        name: metadata.name,
+        displayName: metadata.display_name || metadata.displayName,
+        about: metadata.about,
+        picture: metadata.picture,
+        nip05: metadata.nip05,
+        lud16: metadata.lud16
+      };
+      return { status: 200, body: profile };
+    } catch {
+      return { status: 500, body: { error: "Invalid metadata format" } };
+    }
   }
 
   // src/engine/routes/storage.ts
@@ -7276,13 +7285,10 @@
       "#d": [dTag],
       limit: 1
     };
-    const events = [];
-    const unsubscribe = ctx.pool.subscribe([filter], (event) => events.push(event), () => {});
-    await new Promise((resolve) => setTimeout(resolve, 3000));
-    unsubscribe();
-    if (events.length === 0)
+    const event = await ctx.pool.query([filter], 3000);
+    if (!event)
       return null;
-    const content = events[0].content;
+    const content = event.content;
     try {
       const parsed = JSON.parse(content);
       return parsed;
@@ -8372,10 +8378,7 @@
     };
     if (params.since)
       filter.since = params.since;
-    const events = [];
-    const unsubscribe = ctx.pool.subscribe([filter], (e) => events.push(e), () => {});
-    await new Promise((r) => setTimeout(r, 1500));
-    unsubscribe();
+    const events = await ctx.pool.queryAll([filter], 3000);
     const messages = [];
     for (const ev of events) {
       try {
@@ -8483,10 +8486,7 @@
       limit: 20,
       since: Math.floor(Date.now() / 1000) - 24 * 60 * 60
     };
-    const events = [];
-    const unsubscribe = ctx.pool.subscribe([filter], (e) => events.push(e), () => {});
-    await new Promise((r) => setTimeout(r, 2000));
-    unsubscribe();
+    const events = await ctx.pool.queryAll([filter], 3000);
     const keys = await getKeys(ctx);
     let updated = false;
     for (const wrap of events) {
@@ -8534,10 +8534,7 @@
       "#t": ["mirage_store"],
       since: cache.latestTimestamp + 1
     };
-    const events = [];
-    const unsubscribe = ctx.pool.subscribe([filter], (e) => events.push(e), () => {});
-    await new Promise((r) => setTimeout(r, 1500));
-    unsubscribe();
+    const events = await ctx.pool.queryAll([filter], 3000);
     let hasUpdates = false;
     for (const ev of events) {
       if (ev.created_at > cache.latestTimestamp) {
@@ -8615,10 +8612,7 @@
       "#p": [ctx.currentPubkey],
       limit: 100
     };
-    const events = [];
-    const unsubscribe = ctx.pool.subscribe([filter], (e) => events.push(e), () => {});
-    await new Promise((r) => setTimeout(r, 1500));
-    unsubscribe();
+    const events = await ctx.pool.queryAll([filter], 3000);
     const conversations = new Map;
     const seenIds = new Set;
     for (const wrap of events) {
@@ -8684,10 +8678,7 @@
       "#p": [ctx.currentPubkey],
       limit: params.limit || 50
     };
-    const events = [];
-    const unsubscribe = ctx.pool.subscribe([filter], (e) => events.push(e), () => {});
-    await new Promise((r) => setTimeout(r, 1500));
-    unsubscribe();
+    const events = await ctx.pool.queryAll([filter], 3000);
     const messages = [];
     const seenIds = new Set;
     for (const wrap of events) {
@@ -8815,14 +8806,10 @@
       authors: [pubkey],
       limit: 1
     };
-    const events = [];
-    const unsubscribe = ctx.pool.subscribe([filter], (e) => events.push(e), () => {});
-    await new Promise((r) => setTimeout(r, 1500));
-    unsubscribe();
-    if (events.length === 0)
+    const event = await ctx.pool.query([filter], 3000);
+    if (!event)
       return [];
-    events.sort((a, b) => b.created_at - a.created_at);
-    const latest = events[0];
+    const latest = event;
     return latest.tags.filter((t) => t[0] === "p").map((t) => ({
       pubkey: t[1],
       relay: t[2] || undefined,
@@ -8899,27 +8886,8 @@
         }
       });
     }
-    return new Promise((resolve) => {
-      const events = [];
-      let resolved = false;
-      const timeout = setTimeout(() => {
-        if (!resolved) {
-          resolved = true;
-          unsubscribe();
-          resolve({ status: 200, body: events });
-        }
-      }, 5000);
-      const unsubscribe = ctx.pool.subscribe([filter], (event) => {
-        events.push(event);
-      }, () => {
-        if (!resolved) {
-          resolved = true;
-          clearTimeout(timeout);
-          unsubscribe();
-          resolve({ status: 200, body: events });
-        }
-      });
-    });
+    const events = await ctx.pool.queryAll([filter], 5000);
+    return { status: 200, body: events };
   }
   async function postEvents(ctx, body) {
     if (body.kind === undefined || body.content === undefined) {
@@ -9335,32 +9303,36 @@
     poolReadyResolve();
   }
   async function handleApiRequest(message) {
+    const start = performance.now();
     await poolReady;
     if (!pool) {
       sendResponse(message.id, 503, { error: "Relay pool not initialized" });
       return;
     }
     const { method, path, body } = message;
+    const sender = message._sender;
     if (path.startsWith("/mirage/v1/spaces") || path.startsWith("/mirage/v1/library")) {
-      const ready = await waitForKeysReady();
-      if (!ready) {
-        sendResponse(message.id, 503, {
-          error: "Engine initialization failed: pubkey not received"
-        });
+      const keysReady2 = await waitForKeysReady();
+      if (!keysReady2) {
+        sendResponse(message.id, 503, { error: "Keys not ready" });
         return;
       }
     }
+    const route = await matchRoute(method, path);
+    if (!route) {
+      sendResponse(message.id, 404, { error: "Not found" });
+      return;
+    }
     try {
-      const route = await matchRoute(method, path);
-      if (!route) {
-        sendResponse(message.id, 404, { error: "Not found" });
-        return;
-      }
       const result = await route.handler(body, route.params);
+      const duration = performance.now() - start;
+      if (duration > 100) {
+        console.log(`[Engine] SLOW API: ${method} ${path} took ${duration.toFixed(2)}ms`);
+      }
       sendResponse(message.id, result.status, result.body);
-    } catch (error) {
-      console.error("[Engine] Error handling request:", error);
-      sendResponse(message.id, 500, { error: "Internal server error" });
+    } catch (err) {
+      console.error(`[Engine] API Error: ${method} ${path}`, err);
+      sendResponse(message.id, err.status || 500, { error: err.message });
     }
   }
   async function matchRoute(method, fullPath) {

@@ -237,6 +237,7 @@ async function handleRelayConfig(message: RelayConfigMessage): Promise<void> {
 // ============================================================================
 
 async function handleApiRequest(message: ApiRequestMessage): Promise<void> {
+    const start = performance.now();
     await poolReady;
 
     if (!pool) {
@@ -246,30 +247,34 @@ async function handleApiRequest(message: ApiRequestMessage): Promise<void> {
 
     const { method, path, body } = message;
 
+    // Track original sender
+    const sender = (message as any)._sender;
+
     // Wait for keys to be loaded before handling any spaces or library requests
     if (path.startsWith('/mirage/v1/spaces') || path.startsWith('/mirage/v1/library')) {
-        const ready = await waitForKeysReady();
-        if (!ready) {
-            sendResponse(message.id, 503, {
-                error: 'Engine initialization failed: pubkey not received'
-            });
+        const keysReady = await waitForKeysReady();
+        if (!keysReady) {
+            sendResponse(message.id, 503, { error: 'Keys not ready' });
             return;
         }
     }
 
+    const route = await matchRoute(method, path);
+    if (!route) {
+        sendResponse(message.id, 404, { error: 'Not found' });
+        return;
+    }
+
     try {
-        const route = await matchRoute(method, path);
-
-        if (!route) {
-            sendResponse(message.id, 404, { error: 'Not found' });
-            return;
-        }
-
         const result = await route.handler(body, route.params);
+        const duration = performance.now() - start;
+        if (duration > 100) {
+            console.log(`[Engine] SLOW API: ${method} ${path} took ${duration.toFixed(2)}ms`);
+        }
         sendResponse(message.id, result.status, result.body);
-    } catch (error) {
-        console.error('[Engine] Error handling request:', error);
-        sendResponse(message.id, 500, { error: 'Internal server error' });
+    } catch (err: any) {
+        console.error(`[Engine] API Error: ${method} ${path}`, err);
+        sendResponse(message.id, err.status || 500, { error: err.message });
     }
 }
 

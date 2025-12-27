@@ -49,15 +49,9 @@ export async function listDMs(
         limit: 100
     };
 
-    const events: Event[] = [];
-    const unsubscribe = ctx.pool.subscribe(
-        [filter],
-        (e) => events.push(e),
-        () => { }
-    );
+    // 1. Fetch recent Gift Wraps
+    const events = await ctx.pool.queryAll([filter], 3000);
 
-    await new Promise(r => setTimeout(r, 1500));
-    unsubscribe();
 
     // 2. Unwrap and Aggregate
     const conversations = new Map<string, DMConversation>();
@@ -149,15 +143,9 @@ export async function getDMMessages(
         limit: params.limit || 50
     };
 
-    const events: Event[] = [];
-    const unsubscribe = ctx.pool.subscribe(
-        [filter],
-        (e) => events.push(e),
-        () => { }
-    );
+    // 1. Fetch Gift Wraps
+    const events = await ctx.pool.queryAll([filter], 3000);
 
-    await new Promise(r => setTimeout(r, 1500));
-    unsubscribe();
 
     const messages: DMMessage[] = [];
     const seenIds = new Set<string>();

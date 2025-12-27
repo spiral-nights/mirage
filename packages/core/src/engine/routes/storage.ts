@@ -49,19 +49,10 @@ export async function internalGetStorage<T = unknown>(
         limit: 1,
     };
 
-    const events: Event[] = [];
-    const unsubscribe = ctx.pool.subscribe(
-        [filter],
-        (event) => events.push(event),
-        () => { }
-    );
+    const event = await ctx.pool.query([filter], 3000);
 
-    // Wait for response
-    await new Promise((resolve) => setTimeout(resolve, 3000));
-    unsubscribe();
-
-    if (events.length === 0) return null;
-    const content = events[0].content;
+    if (!event) return null;
+    const content = event.content;
 
     // 1. Try to parse as JSON (Public Data)
     try {
