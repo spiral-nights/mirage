@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useMirage } from '../hooks/useMirage';
 import { motion } from 'framer-motion';
-import { Home, Share, Play, Hammer, XCircle } from 'lucide-react';
+import { Home, Share, LayoutGrid, Hammer, XCircle } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 export const RunPage = () => {
@@ -87,7 +87,10 @@ export const RunPage = () => {
     };
   }, [naddr, host]); // Only depend on naddr and host, not fetchApp
 
-  const handleShare = () => {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const handleShare = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
     // Current base URL
     const url = new URL(window.location.href);
 
@@ -139,22 +142,47 @@ export const RunPage = () => {
         </div>
       )}
 
-      {/* Immersive Pill Dock */}
-      <motion.div
-        initial={{ y: 100 }}
-        animate={{ y: 0 }}
-        className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20"
-      >
-        <div className="bg-[#0F0F13]/90 border border-white/10 backdrop-blur-xl rounded-full px-3 py-2 flex items-center gap-2 shadow-2xl">
-          <DockItem icon={Play} active tooltip="Running" />
-          <div className="w-px h-5 bg-white/10 mx-1" />
-          <Link to="/">
-            <DockItem icon={Home} tooltip="Home" />
-          </Link>
-          <DockItem icon={Share} tooltip="Share" onClick={handleShare} />
-          <DockItem icon={Hammer} tooltip="Edit Source" />
-        </div>
-      </motion.div>
+      {/* Immersive Pill Dock (Top Right, Expandable) */}
+      <div className="absolute top-6 right-6 z-20 flex justify-end">
+        <motion.div
+          layout
+          onMouseEnter={() => setIsExpanded(true)}
+          onMouseLeave={() => setIsExpanded(false)}
+          onClick={() => setIsExpanded(!isExpanded)}
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          className={cn(
+            "bg-[#0F0F13]/90 border border-white/10 backdrop-blur-xl rounded-full p-1 shadow-2xl flex items-center overflow-hidden cursor-pointer transition-all duration-300",
+            isExpanded ? "max-w-[300px]" : "max-w-[44px]"
+          )}
+        >
+          <div className="flex items-center shrink-0">
+            <div className="relative">
+              {/* Pulse effect for running status */}
+              <div className="absolute inset-0 bg-white rounded-full animate-ping opacity-20 scale-150" />
+              <DockItem icon={LayoutGrid} active tooltip="Mirage Menu" />
+            </div>
+          </div>
+
+          <motion.div
+            initial={false}
+            animate={{
+              width: isExpanded ? 'auto' : 0,
+              opacity: isExpanded ? 1 : 0,
+            }}
+            className="flex items-center"
+          >
+            <div className="w-px h-4 bg-white/10 mx-1 shrink-0" />
+            <div className="flex items-center gap-1 pr-1">
+              <Link to="/" onClick={(e) => e.stopPropagation()}>
+                <DockItem icon={Home} tooltip="Home" />
+              </Link>
+              <DockItem icon={Share} tooltip="Share" onClick={handleShare} />
+              <DockItem icon={Hammer} tooltip="Edit Source" />
+            </div>
+          </motion.div>
+        </motion.div>
+      </div>
     </div>
   );
 };
@@ -170,7 +198,7 @@ const DockItem = ({ icon: Icon, active, tooltip, onClick }: { icon: any, active?
     <Icon size={18} fill={active ? "currentColor" : "none"} />
 
     {/* Tooltip */}
-    <div className="absolute -top-10 left-1/2 -translate-x-1/2 px-2 py-1 bg-black text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+    <div className="absolute top-12 left-1/2 -translate-x-1/2 px-2 py-1 bg-black text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-xl border border-white/10">
       {tooltip}
     </div>
   </button>
