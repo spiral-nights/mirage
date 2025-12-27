@@ -15,6 +15,7 @@ export type MessageType =
     | 'SIGNATURE_RESULT'
     | 'RELAY_CONFIG'
     | 'SET_PUBKEY'
+    | 'SET_APP_ORIGIN'
     | 'STREAM_OPEN'
     | 'STREAM_CHUNK'
     | 'STREAM_CLOSE'
@@ -103,6 +104,12 @@ export interface SetPubkeyMessage extends BaseMessage {
     pubkey: string;
 }
 
+/** Set app origin/identifier message */
+export interface SetAppOriginMessage extends BaseMessage {
+    type: 'SET_APP_ORIGIN';
+    origin: string;  // The app's naddr or unique identifier
+}
+
 export type MirageMessage =
     | ApiRequestMessage
     | ApiResponseMessage
@@ -110,6 +117,7 @@ export type MirageMessage =
     | SignatureResultMessage
     | RelayConfigMessage
     | SetPubkeyMessage
+    | SetAppOriginMessage
     | StreamOpenMessage
     | StreamChunkMessage
     | StreamCloseMessage
@@ -237,6 +245,7 @@ export interface Space {
     name: string;
     createdAt: number;
     memberCount: number;
+    appOrigin?: string;  // The naddr or identifier of the app that created this space
 }
 
 /**

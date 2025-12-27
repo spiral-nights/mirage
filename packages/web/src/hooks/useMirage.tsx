@@ -104,7 +104,7 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
             console.log('[useMirage] Loading initial data...');
             const [library, spacesData] = await Promise.all([
               mirageHost.request('GET', '/mirage/v1/library/apps'),
-              mirageHost.request('GET', '/mirage/v1/spaces')
+              mirageHost.request('GET', '/mirage/v1/spaces/all')  // Get all spaces across all apps
             ]);
 
             console.log('[useMirage] Loaded apps:', library);
@@ -196,7 +196,7 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
 
     try {
       console.log('[useMirage] Refreshing spaces from engine...');
-      const spacesData = await currentHost.request('GET', '/mirage/v1/spaces');
+      const spacesData = await currentHost.request('GET', '/mirage/v1/spaces/all');
       console.log('[useMirage] Loaded spaces:', spacesData);
       if (Array.isArray(spacesData)) {
         setSpaces(spacesData);

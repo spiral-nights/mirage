@@ -11,6 +11,7 @@ import { getCurrentUser, getUserByPubkey, type UserRouteContext } from './routes
 import { getStorage, putStorage, deleteStorage, type StorageRouteContext } from './routes/storage';
 import {
     listSpaces,
+    listAllSpaces,
     createSpace,
     deleteSpace,
     getSpaceMessages,
@@ -177,6 +178,11 @@ self.onmessage = async (event: MessageEvent<MirageMessage>) => {
             // Initialize keys promise and start preloading
             initKeysPreload();
             preloadSpaceKeys().catch((err: unknown) => console.warn('[Engine] Failed to preload keys:', err));
+            break;
+
+        case 'SET_APP_ORIGIN':
+            appOrigin = (message as any).origin;
+            console.log('[Engine] App origin set:', appOrigin?.slice(0, 20) + '...');
             break;
 
         case 'ENCRYPT_RESULT':
@@ -467,6 +473,16 @@ async function matchRoute(method: string, fullPath: string): Promise<RouteMatch 
 
         return {
             handler: async () => listSpaces(spaceCtx),
+            params: {},
+        };
+    }
+
+    // GET /mirage/v1/spaces/all - List ALL spaces across all apps (for library UI)
+    if (method === 'GET' && path === '/mirage/v1/spaces/all') {
+        await syncInvites(spaceCtx);
+
+        return {
+            handler: async () => listAllSpaces(spaceCtx),
             params: {},
         };
     }

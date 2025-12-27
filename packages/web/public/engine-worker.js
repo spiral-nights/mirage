@@ -8267,18 +8267,42 @@
     const spaces = [];
     const appPrefix = `${ctx.appOrigin}:`;
     for (const [scopedId, keyInfo] of keys.entries()) {
-      console.log("[Spaces] Key:", scopedId, "matches prefix?", scopedId.startsWith(appPrefix), "name=", keyInfo.name);
       if (scopedId.startsWith(appPrefix)) {
         const id = scopedId.slice(appPrefix.length);
         spaces.push({
           id,
           name: keyInfo.name || `Space ${id.slice(0, 8)}`,
           createdAt: keyInfo.createdAt || 0,
-          memberCount: 0
+          memberCount: 0,
+          appOrigin: ctx.appOrigin
         });
       }
     }
-    console.log("[Spaces] Returning", spaces.length, "spaces");
+    console.log("[Spaces] Returning", spaces.length, "spaces for app");
+    return { status: 200, body: spaces };
+  }
+  async function listAllSpaces(ctx) {
+    if (!ctx.currentPubkey)
+      return { status: 401, body: { error: "Not authenticated" } };
+    console.log("[Spaces] listAllSpaces called");
+    const keys = await getKeys(ctx);
+    console.log("[Spaces] Loaded all keys, count=", keys.size);
+    const spaces = [];
+    for (const [scopedId, keyInfo] of keys.entries()) {
+      const colonIndex = scopedId.lastIndexOf(":");
+      if (colonIndex === -1)
+        continue;
+      const appOrigin = scopedId.slice(0, colonIndex);
+      const id = scopedId.slice(colonIndex + 1);
+      spaces.push({
+        id,
+        name: keyInfo.name || `Space ${id.slice(0, 8)}`,
+        createdAt: keyInfo.createdAt || 0,
+        memberCount: 0,
+        appOrigin
+      });
+    }
+    console.log("[Spaces] Returning all", spaces.length, "spaces");
     return { status: 200, body: spaces };
   }
   async function createSpace(ctx, body) {
@@ -9256,6 +9280,10 @@
         initKeysPreload();
         preloadSpaceKeys().catch((err) => console.warn("[Engine] Failed to preload keys:", err));
         break;
+      case "SET_APP_ORIGIN":
+        appOrigin = message.origin;
+        console.log("[Engine] App origin set:", appOrigin?.slice(0, 20) + "...");
+        break;
       case "ENCRYPT_RESULT":
         handleEncryptResult(message);
         break;
@@ -9475,6 +9503,13 @@
       await syncInvites(spaceCtx);
       return {
         handler: async () => listSpaces(spaceCtx),
+        params: {}
+      };
+    }
+    if (method === "GET" && path === "/mirage/v1/spaces/all") {
+      await syncInvites(spaceCtx);
+      return {
+        handler: async () => listAllSpaces(spaceCtx),
         params: {}
       };
     }

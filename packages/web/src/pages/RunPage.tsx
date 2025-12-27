@@ -67,8 +67,8 @@ export const RunPage = () => {
           throw new Error('App not found on relays');
         }
 
-        // 3. Mount the app
-        await host.mount(html, containerRef.current!);
+        // 3. Mount the app with its naddr for space scoping
+        await host.mount(html, containerRef.current!, naddr);
 
         if (!mounted) return;
 

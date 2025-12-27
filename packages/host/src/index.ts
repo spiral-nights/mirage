@@ -127,7 +127,7 @@ export class MirageHost {
     /**
      * Mount an app into a container element
      */
-    async mount(appHtml: string, container: HTMLElement): Promise<void> {
+    async mount(appHtml: string, container: HTMLElement, appId?: string): Promise<void> {
         // Parse permissions from app HTML
         this.appPermissions = parsePermissions(appHtml);
         console.log('[Host] App permissions:', this.appPermissions.permissions);
@@ -157,6 +157,16 @@ export class MirageHost {
                 if (event.source === this.iframe?.contentWindow && event.data?.type === 'BRIDGE_READY') {
                     window.removeEventListener('message', handleReady);
                     console.log('[Host] Bridge ready');
+
+                    // Set app origin for space scoping
+                    if (appId) {
+                        console.log('[Host] Setting app origin:', appId.slice(0, 20) + '...');
+                        this.engineWorker.postMessage({
+                            type: 'SET_APP_ORIGIN',
+                            id: crypto.randomUUID(),
+                            origin: appId,
+                        });
+                    }
 
                     // Send user pubkey if signer is available
                     if (this.signer.isAvailable()) {

@@ -45,7 +45,7 @@ async function getKeys(ctx: SpaceRouteContext): Promise<Map<string, SpaceKey>> {
 
 /**
  * GET /mirage/v1/spaces
- * List spaces this app has keys for
+ * List spaces this app has keys for (filtered by current appOrigin)
  */
 export async function listSpaces(
     ctx: SpaceRouteContext
@@ -61,21 +61,56 @@ export async function listSpaces(
     const appPrefix = `${ctx.appOrigin}:`;
 
     for (const [scopedId, keyInfo] of keys.entries()) {
-        console.log('[Spaces] Key:', scopedId, 'matches prefix?', scopedId.startsWith(appPrefix), 'name=', keyInfo.name);
         if (scopedId.startsWith(appPrefix)) {
             const id = scopedId.slice(appPrefix.length);
-            // In a real app, we'd fetch metadata (Kind 40/41).
-            // For MVP, we return basic info.
             spaces.push({
                 id,
-                name: keyInfo.name || `Space ${id.slice(0, 8)}`, // Use stored name or placeholder
+                name: keyInfo.name || `Space ${id.slice(0, 8)}`,
                 createdAt: keyInfo.createdAt || 0,
                 memberCount: 0,
+                appOrigin: ctx.appOrigin,
             });
         }
     }
 
-    console.log('[Spaces] Returning', spaces.length, 'spaces');
+    console.log('[Spaces] Returning', spaces.length, 'spaces for app');
+    return { status: 200, body: spaces };
+}
+
+/**
+ * GET /mirage/v1/spaces/all
+ * List ALL spaces across all apps (for library/management UI)
+ */
+export async function listAllSpaces(
+    ctx: SpaceRouteContext
+): Promise<{ status: number; body: unknown }> {
+    if (!ctx.currentPubkey) return { status: 401, body: { error: 'Not authenticated' } };
+
+    console.log('[Spaces] listAllSpaces called');
+
+    const keys = await getKeys(ctx);
+    console.log('[Spaces] Loaded all keys, count=', keys.size);
+
+    const spaces: Space[] = [];
+
+    for (const [scopedId, keyInfo] of keys.entries()) {
+        // Parse scopedId format: "appOrigin:spaceId"
+        const colonIndex = scopedId.lastIndexOf(':');
+        if (colonIndex === -1) continue;
+
+        const appOrigin = scopedId.slice(0, colonIndex);
+        const id = scopedId.slice(colonIndex + 1);
+
+        spaces.push({
+            id,
+            name: keyInfo.name || `Space ${id.slice(0, 8)}`,
+            createdAt: keyInfo.createdAt || 0,
+            memberCount: 0,
+            appOrigin,
+        });
+    }
+
+    console.log('[Spaces] Returning all', spaces.length, 'spaces');
     return { status: 200, body: spaces };
 }
 
