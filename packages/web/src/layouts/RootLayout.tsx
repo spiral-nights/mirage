@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Sidebar } from '../components/Sidebar';
 import { Outlet } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
-import { cn } from '../lib/utils';
 
 export const RootLayout = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -14,7 +13,7 @@ export const RootLayout = () => {
       <div className="blob w-[250px] md:w-[500px] h-[250px] md:h-[500px] bg-vivid-cyan -bottom-20 md:-bottom-40 -right-20 md:-right-40 opacity-10" />
 
       {/* Mobile Header */}
-      <div className="md:hidden flex items-center justify-between p-4 bg-card/60 border-b border-white/5 backdrop-blur-xl z-30">
+      <div className="md:hidden fixed top-0 left-0 right-0 flex items-center justify-between p-4 bg-card/60 border-b border-white/5 backdrop-blur-xl z-[200]">
         <span className="text-xl font-black vivid-text tracking-tighter">Mirage</span>
         <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -25,10 +24,10 @@ export const RootLayout = () => {
       </div>
 
       {/* Sidebar - Persistent on desktop, Slide-over on mobile */}
-      <div className={cn(
-        "fixed inset-0 z-40 md:relative md:block transform transition-transform duration-300 ease-in-out",
-        mobileMenuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
-      )}>
+      <div
+        className={`fixed top-16 md:top-0 left-0 right-0 bottom-0 md:inset-0 md:relative md:block transform transition-transform duration-300 ease-in-out z-[150] ${mobileMenuOpen ? 'translate-x-0 pointer-events-auto' : '-translate-x-full pointer-events-none md:translate-x-0 md:pointer-events-auto'
+          }`}
+      >
         {/* Mobile Backdrop */}
         {mobileMenuOpen && (
           <div
@@ -36,12 +35,12 @@ export const RootLayout = () => {
             onClick={() => setMobileMenuOpen(false)}
           />
         )}
-        <div className="relative h-full w-64 md:w-64" onClick={(e) => mobileMenuOpen && e.stopPropagation()}>
+        <div className="relative h-full w-64 md:w-64">
           <Sidebar onNavItemClick={() => setMobileMenuOpen(false)} />
         </div>
       </div>
 
-      <main className="flex-1 overflow-y-auto relative z-10 p-6 md:p-12">
+      <main className="flex-1 overflow-y-auto relative z-10 p-6 md:p-12 pt-20 md:pt-12">
         <Outlet />
       </main>
     </div>

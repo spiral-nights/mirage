@@ -1,0 +1,52 @@
+import { createContext, useContext, useState, type ReactNode } from 'react';
+import { type AppDefinition } from '@mirage/core';
+
+interface AppActionsContextType {
+    app: AppDefinition | null;
+    isAuthor: boolean;
+    onViewEditSource: (() => void) | null;
+    onShare: (() => void) | null;
+    onExit: (() => void) | null;
+    setAppActions: (actions: Omit<AppActionsContextType, 'setAppActions'>) => void;
+}
+
+const AppActionsContext = createContext<AppActionsContextType | undefined>(undefined);
+
+export const AppActionsProvider = ({ children }: { children: ReactNode }) => {
+    const [app, setApp] = useState<AppDefinition | null>(null);
+    const [isAuthor, setIsAuthor] = useState(false);
+    const [onViewEditSource, setOnViewEditSource] = useState<(() => void) | null>(null);
+    const [onShare, setOnShare] = useState<(() => void) | null>(null);
+    const [onExit, setOnExit] = useState<(() => void) | null>(null);
+
+    const setAppActions = (actions: Omit<AppActionsContextType, 'setAppActions'>) => {
+        setApp(actions.app);
+        setIsAuthor(actions.isAuthor);
+        setOnViewEditSource(() => actions.onViewEditSource);
+        setOnShare(() => actions.onShare);
+        setOnExit(() => actions.onExit);
+    };
+
+    return (
+        <AppActionsContext.Provider
+            value={{
+                app,
+                isAuthor,
+                onViewEditSource,
+                onShare,
+                onExit,
+                setAppActions,
+            }}
+        >
+            {children}
+        </AppActionsContext.Provider>
+    );
+};
+
+export const useAppActions = () => {
+    const context = useContext(AppActionsContext);
+    if (context === undefined) {
+        throw new Error('useAppActions must be used within AppActionsProvider');
+    }
+    return context;
+};

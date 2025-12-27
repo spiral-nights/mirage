@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, useMemo } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useMirage } from '../hooks/useMirage';
+import { useAppActions } from '../contexts/AppActionsContext';
 import { motion } from 'framer-motion';
 import { Home, Share, LayoutGrid, Hammer, XCircle, Code2, Edit3 } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -9,7 +10,9 @@ import { nip19 } from 'nostr-tools';
 
 export const RunPage = () => {
   const { naddr } = useParams<{ naddr: string }>();
+  const navigate = useNavigate();
   const { fetchApp, host, pubkey, apps } = useMirage();
+  const { setAppActions } = useAppActions();
   const containerRef = useRef<HTMLDivElement>(null);
 
   const [status, setStatus] = useState<'loading' | 'running' | 'error'>('loading');
@@ -39,10 +42,12 @@ export const RunPage = () => {
     }
   }, [naddr, pubkey]);
 
-  // Find app name from library if available
-  const appName = useMemo(() => {
-    return apps.find(a => a.naddr === naddr)?.name || 'Mirage App';
+  // Find app from library
+  const currentApp = useMemo(() => {
+    return apps.find(a => a.naddr === naddr) || null;
   }, [apps, naddr]);
+
+  const appName = currentApp?.name || 'Mirage App';
 
   useEffect(() => {
     // Skip if no naddr or host
@@ -116,7 +121,7 @@ export const RunPage = () => {
 
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const handleShare = (e?: React.MouseEvent) => {
+  const handleShare = useCallback((e?: React.MouseEvent) => {
     e?.stopPropagation();
     // Current base URL
     const url = new URL(window.location.href);
@@ -125,9 +130,9 @@ export const RunPage = () => {
     // For now, if we have a space in the hash, we keep it
     navigator.clipboard.writeText(url.toString());
     alert('Share link copied to clipboard!');
-  };
+  }, []);
 
-  const handleOpenSource = async (e?: React.MouseEvent) => {
+  const handleOpenSource = useCallback(async (e?: React.MouseEvent) => {
     e?.stopPropagation();
     if (!naddr) return;
 
@@ -148,7 +153,35 @@ export const RunPage = () => {
       console.error("Failed to open source:", e);
       alert("Failed to load application source from relays.");
     }
-  };
+  }, [naddr, fetchApp, isAuthor, appName]);
+
+  const handleExit = useCallback(() => {
+    navigate('/');
+  }, [navigate]);
+
+  // Update context whenever app data changes
+  useEffect(() => {
+    if (currentApp) {
+      setAppActions({
+        app: currentApp,
+        isAuthor,
+        onViewEditSource: handleOpenSource,
+        onShare: handleShare,
+        onExit: handleExit,
+      });
+    }
+
+    // Clear context when leaving
+    return () => {
+      setAppActions({
+        app: null,
+        isAuthor: false,
+        onViewEditSource: null,
+        onShare: null,
+        onExit: null,
+      });
+    };
+  }, [currentApp, isAuthor, handleOpenSource, handleShare, handleExit, setAppActions]);
 
   if (status === 'error') {
     return (
@@ -162,7 +195,7 @@ export const RunPage = () => {
   }
 
   return (
-    <div className="fixed inset-0 bg-background overflow-hidden flex flex-col">
+    <div className="fixed top-16 md:top-0 left-0 right-0 bottom-0 bg-background overflow-hidden flex flex-col">
       {/* App Container */}
       <div ref={containerRef} className="flex-1 w-full h-full relative z-0" />
 
@@ -191,8 +224,8 @@ export const RunPage = () => {
         </div>
       )}
 
-      {/* Immersive Pill Dock (Top Right, Expandable) */}
-      <div className="absolute top-8 right-8 z-20 flex justify-end">
+      {/* Immersive Pill Dock (Top Right, Expandable) - Hidden on mobile */}
+      <div className="hidden md:flex absolute top-8 right-8 z-20 justify-end">
         <motion.div
           layout
           onMouseEnter={() => setIsExpanded(true)}
