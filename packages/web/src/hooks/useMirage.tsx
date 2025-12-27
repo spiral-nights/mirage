@@ -9,7 +9,7 @@ interface MirageContextType {
   pubkey: string | null;
   apps: AppDefinition[];
   spaces: any[];
-  publishApp: (html: string, name?: string) => Promise<string>;
+  publishApp: (html: string, name?: string, existingDTag?: string) => Promise<string>;
   fetchApp: (naddr: string) => Promise<string | null>;
   refreshApps: () => Promise<void>;
   refreshSpaces: () => Promise<void>;
@@ -184,13 +184,18 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const publishApp = async (html: string, name: string = 'Untitled App'): Promise<string> => {
+  /**
+   * Publish an app to Nostr. 
+   * If existingDTag is provided, it updates that event (overwrite/update).
+   * Otherwise, it creates a new one.
+   */
+  const publishApp = async (html: string, name: string = 'Untitled App', existingDTag?: string): Promise<string> => {
     const currentHost = host || globalHost;
     if (!currentHost || !pubkey) throw new Error('Mirage not initialized or no signer found');
 
-    const dTag = `mirage:app:${crypto.randomUUID()}`;
+    const dTag = existingDTag || `mirage:app:${crypto.randomUUID()}`;
 
-    console.log('[useMirage] Publishing app:', { name, dTag });
+    console.log('[useMirage] Publishing app:', { name, dTag, update: !!existingDTag });
 
     // 1. Publish to Nostr via Engine API
     const result = await currentHost.request('POST', '/mirage/v1/events', {
@@ -217,17 +222,20 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
       relays: currentHost.getRelays()
     });
 
-    const newApp: AppDefinition = { naddr, name, createdAt: Date.now() };
+    const appDef: AppDefinition = { naddr, name, createdAt: Date.now() };
 
-    console.log('[useMirage] Saving to library:', newApp);
+    console.log('[useMirage] Saving to library:', appDef);
 
-    // 3. Save to Library
-    await currentHost.request('POST', '/mirage/v1/library/apps', newApp);
+    // 3. Save to Library (The engine handles upsert by naddr)
+    await currentHost.request('POST', '/mirage/v1/library/apps', appDef);
 
     console.log('[useMirage] App saved to library successfully');
 
-    // Update local state immediately
-    setApps(prevApps => [newApp, ...prevApps]);
+    // Update local state
+    setApps(prevApps => {
+      const filtered = prevApps.filter(a => a.naddr !== naddr);
+      return [appDef, ...filtered];
+    });
 
     return naddr;
   };

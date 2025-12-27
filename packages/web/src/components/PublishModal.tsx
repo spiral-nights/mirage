@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, UploadCloud, CheckCircle2 } from 'lucide-react';
+import { X, UploadCloud, CheckCircle2, Save, Copy, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '../lib/utils';
 import { useMirage } from '../hooks/useMirage';
@@ -8,29 +8,54 @@ import { useMirage } from '../hooks/useMirage';
 interface PublishModalProps {
   isOpen: boolean;
   onClose: () => void;
+  mode?: 'create' | 'edit' | 'view';
+  initialName?: string;
+  initialCode?: string;
+  existingDTag?: string;
 }
 
-export const PublishModal = ({ isOpen, onClose }: PublishModalProps) => {
-  const [code, setCode] = useState('');
+export const PublishModal = ({
+  isOpen,
+  onClose,
+  mode = 'create',
+  initialName = '',
+  initialCode = '',
+  existingDTag
+}: PublishModalProps) => {
+  const [name, setName] = useState(initialName);
+  const [code, setCode] = useState(initialCode);
   const [isPublishing, setIsPublishing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [copied, setCopied] = useState(false);
+
   const { publishApp } = useMirage();
   const navigate = useNavigate();
 
+  // Reset fields when opening/mode changes
+  useEffect(() => {
+    if (isOpen) {
+      setName(initialName);
+      setCode(initialCode);
+      setIsSuccess(false);
+    }
+  }, [isOpen, initialName, initialCode]);
+
   const handlePublish = async () => {
-    if (!code.trim()) return;
+    if (!code.trim() || !name.trim()) return;
 
     setIsPublishing(true);
     try {
-      const naddr = await publishApp(code, 'New Mirage App');
+      const naddr = await publishApp(code, name, existingDTag);
       console.log('Published app:', naddr);
 
       setIsSuccess(true);
       setTimeout(() => {
         onClose();
         setIsSuccess(false);
-        setCode('');
-        navigate(`/run/${naddr}`);
+        // Only navigate if it was a new app or if we explicitly want to refresh the run page
+        if (mode === 'create') {
+          navigate(`/run/${naddr}`);
+        }
       }, 1500);
     } catch (error) {
       console.error('Publishing failed:', error);
@@ -39,6 +64,15 @@ export const PublishModal = ({ isOpen, onClose }: PublishModalProps) => {
       setIsPublishing(false);
     }
   };
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const isView = mode === 'view';
+  const isEdit = mode === 'edit';
 
   return (
     <AnimatePresence>
@@ -62,9 +96,19 @@ export const PublishModal = ({ isOpen, onClose }: PublishModalProps) => {
             <div className="p-12 pb-4 flex justify-between items-start">
               <div>
                 <h2 className="text-4xl font-black mb-2 tracking-tight">
-                  Sign & <span className="serif-italic px-1">Publish</span>
+                  {isView ? (
+                    <>Source <span className="serif-italic px-1">Inspector</span></>
+                  ) : isEdit ? (
+                    <>Apply <span className="serif-italic px-1">Changes</span></>
+                  ) : (
+                    <>Sign & <span className="serif-italic px-1">Publish</span></>
+                  )}
                 </h2>
-                <p className="text-gray-500 text-lg font-light italic">Paste the application cluster source.</p>
+                <p className="text-gray-500 text-lg font-light italic">
+                  {isView
+                    ? "Viewing raw application protocol."
+                    : "Configure and deploy your application cluster."}
+                </p>
               </div>
               <button
                 onClick={onClose}
@@ -76,64 +120,103 @@ export const PublishModal = ({ isOpen, onClose }: PublishModalProps) => {
 
             {/* Content */}
             <div className="p-12 pt-6">
+              {!isView && (
+                <div className="mb-8">
+                  <label className="block text-xs font-black uppercase tracking-[0.3em] text-gray-600 mb-3">
+                    Application Name
+                  </label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="e.g. My Awesome App"
+                    className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-4 text-white focus:border-vivid-magenta/30 focus:ring-4 focus:ring-vivid-magenta/5 outline-none transition-all font-medium"
+                  />
+                </div>
+              )}
+
               <div className="relative group">
+                <div className="absolute top-4 right-4 z-10">
+                  <button
+                    onClick={handleCopy}
+                    className="p-2 bg-white/5 hover:bg-white/10 rounded-xl transition-all text-gray-500 hover:text-white backdrop-blur-md border border-white/5"
+                  >
+                    {copied ? <Check size={16} className="text-vivid-teal" /> : <Copy size={16} />}
+                  </button>
+                </div>
+                <label className="block text-xs font-black uppercase tracking-[0.3em] text-gray-600 mb-3 ml-1">
+                  Cluster Payload (HTML/JS)
+                </label>
                 <textarea
                   value={code}
+                  readOnly={isView}
                   onChange={(e) => setCode(e.target.value)}
                   placeholder="<html>&#10;  <head>...</head>&#10;  <body>...</body>&#10;</html>"
                   className={cn(
                     "w-full h-80 bg-black/40 border border-white/5 rounded-[32px] p-8",
-                    "font-mono text-sm text-gray-400 outline-none transition-all focus:border-vivid-cyan/30 focus:ring-4 focus:ring-vivid-cyan/5",
+                    "font-mono text-xs text-gray-400 outline-none transition-all",
+                    isView
+                      ? "cursor-default"
+                      : "focus:border-vivid-cyan/30 focus:ring-4 focus:ring-vivid-cyan/5",
                     "resize-none placeholder:text-gray-800"
                   )}
                 />
-                {!code && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none opacity-20 group-hover:opacity-30 transition-opacity">
+                {!code && !isView && (
+                  <div className="absolute inset-0 top-6 flex flex-col items-center justify-center pointer-events-none opacity-20 group-hover:opacity-30 transition-opacity">
                     <UploadCloud size={64} className="mb-6 text-vivid-cyan" />
-                    <span className="text-sm font-black uppercase tracking-[0.2em]">Deployment Payload</span>
+                    <span className="text-sm font-black uppercase tracking-[0.2em]">Source Code Required</span>
                   </div>
                 )}
               </div>
 
               <div className="mt-10 flex items-center gap-6">
-                <button
-                  onClick={handlePublish}
-                  disabled={!code.trim() || isPublishing || isSuccess}
-                  className={cn(
-                    "flex-1 py-5 rounded-[24px] font-black transition-all relative overflow-hidden text-sm uppercase tracking-widest",
-                    !code.trim()
-                      ? "bg-white/5 text-gray-600 cursor-not-allowed"
-                      : "bg-vivid-magenta text-white shadow-vivid-glow hover:scale-[1.02] active:scale-[0.98]"
-                  )}
-                >
-                  <span className={cn("transition-opacity flex items-center justify-center gap-3", (isPublishing || isSuccess) ? "opacity-0" : "opacity-100")}>
-                    <UploadCloud size={18} />
-                    Finalize Deployment
-                  </span>
+                {!isView ? (
+                  <button
+                    onClick={handlePublish}
+                    disabled={!code.trim() || !name.trim() || isPublishing || isSuccess}
+                    className={cn(
+                      "flex-1 py-5 rounded-[24px] font-black transition-all relative overflow-hidden text-sm uppercase tracking-widest",
+                      (!code.trim() || !name.trim())
+                        ? "bg-white/5 text-gray-600 cursor-not-allowed"
+                        : "bg-vivid-magenta text-white shadow-vivid-glow hover:scale-[1.02] active:scale-[0.98]"
+                    )}
+                  >
+                    <span className={cn("transition-opacity flex items-center justify-center gap-3", (isPublishing || isSuccess) ? "opacity-0" : "opacity-100")}>
+                      {isEdit ? <Save size={18} /> : <UploadCloud size={18} />}
+                      {isEdit ? "Commit Updates" : "Finalize Deployment"}
+                    </span>
 
-                  {(isPublishing || isSuccess) && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      {isPublishing ? (
-                        <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      ) : (
-                        <motion.div
-                          initial={{ scale: 0.5, opacity: 0 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          className="flex items-center gap-3"
-                        >
-                          <CheckCircle2 size={24} className="text-vivid-teal" />
-                          DEPLOYED
-                        </motion.div>
-                      )}
-                    </div>
-                  )}
-                </button>
+                    {(isPublishing || isSuccess) && (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        {isPublishing ? (
+                          <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : (
+                          <motion.div
+                            initial={{ scale: 0.5, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            className="flex items-center gap-3"
+                          >
+                            <CheckCircle2 size={24} className="text-vivid-teal" />
+                            {isEdit ? "UPDATED" : "DEPLOYED"}
+                          </motion.div>
+                        )}
+                      </div>
+                    )}
+                  </button>
+                ) : (
+                  <button
+                    onClick={onClose}
+                    className="flex-1 py-5 bg-vivid-cyan/10 text-vivid-cyan border border-vivid-cyan/20 rounded-[24px] font-black text-sm uppercase tracking-widest hover:bg-vivid-cyan/20 transition-all"
+                  >
+                    Exit Inspector
+                  </button>
+                )}
 
                 <button
                   onClick={onClose}
                   className="px-10 py-5 bg-transparent border border-white/5 rounded-[24px] font-black text-sm uppercase tracking-widest hover:bg-white/5 transition-all"
                 >
-                  Cancel
+                  {isView ? "Close" : "Cancel"}
                 </button>
               </div>
             </div>
@@ -141,10 +224,13 @@ export const PublishModal = ({ isOpen, onClose }: PublishModalProps) => {
             {/* Footer Status */}
             <div className="px-12 py-5 bg-black/60 border-t border-white/5 flex justify-between items-center text-[10px] font-black text-gray-600 uppercase tracking-[0.3em]">
               <div className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-vivid-teal animate-pulse" />
-                <span>Protocol Version 1.0</span>
+                <div className={cn("w-1.5 h-1.5 rounded-full", isView ? "bg-gray-600" : "bg-vivid-teal animate-pulse")} />
+                <span>{isView ? "Read Only Access" : "Protocol Version 1.0"}</span>
               </div>
-              <span>Secured via NIP-07 Signature</span>
+              <div className="flex items-center gap-4">
+                {isEdit && <span>ID: {existingDTag?.slice(-8)}</span>}
+                <span>Secured via NIP-07 Signature</span>
+              </div>
             </div>
           </motion.div>
         </div>

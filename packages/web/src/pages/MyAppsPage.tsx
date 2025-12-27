@@ -12,9 +12,13 @@ import {
   Sparkles,
   ChevronDown,
   ChevronRight,
-  Package
+  Package,
+  Code2,
+  Edit3
 } from 'lucide-react';
 import { type AppDefinition } from '@mirage/core';
+import { PublishModal } from '../components/PublishModal';
+import { nip19 } from 'nostr-tools';
 
 interface SpaceWithApp {
   id: string;
@@ -25,78 +29,90 @@ interface SpaceWithApp {
 }
 
 export const MyAppsPage = () => {
-  const { apps, spaces, isReady, deleteApp, deleteSpace } = useMirage();
+  const { apps, spaces, isReady, deleteApp, deleteSpace, fetchApp, pubkey } = useMirage();
+
+  // Modal State
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalProps, setModalProps] = useState<{
+    mode: 'edit' | 'view';
+    initialName: string;
+    initialCode: string;
+    existingDTag?: string;
+  }>({ mode: 'view', initialName: '', initialCode: '' });
 
   // Group spaces by their parent app
-  const { appSpaces, orphanSpaces } = useMemo(() => {
-    const appSpaceMap = new Map<string, SpaceWithApp[]>();
-    const orphans: SpaceWithApp[] = [];
-
-    for (const space of spaces as SpaceWithApp[]) {
-      if (!space.appOrigin || space.appOrigin === 'mirage-app' || space.appOrigin === 'mirage-studio') {
-        orphans.push(space);
-      } else {
-        const existing = appSpaceMap.get(space.appOrigin) || [];
-        existing.push(space);
-        appSpaceMap.set(space.appOrigin, existing);
+  const appSpaces = useMemo(() => {
+    const map = new Map<string, SpaceWithApp[]>();
+    spaces.forEach(space => {
+      if (space.appOrigin) {
+        if (!map.has(space.appOrigin)) map.set(space.appOrigin, []);
+        map.get(space.appOrigin)!.push(space);
       }
-    }
+    });
+    return map;
+  }, [spaces]);
 
-    return { appSpaces: appSpaceMap, orphanSpaces: orphans };
-  }, [spaces, apps]);
+  const orphanSpaces = useMemo(() => {
+    return spaces.filter(s => !s.appOrigin);
+  }, [spaces]);
 
   // Loading state
   if (!isReady) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] p-12">
-        <div className="w-full max-w-4xl animate-pulse">
-          <div className="h-16 bg-white/5 rounded-2xl mb-8 w-1/3" />
-          <div className="h-4 bg-white/5 rounded w-2/3 mb-16" />
-
-          <div className="grid grid-cols-1 gap-6 mb-16">
-            <div className="h-32 bg-white/5 rounded-3xl" />
-            <div className="h-32 bg-white/5 rounded-3xl" />
-          </div>
-        </div>
-
-        <div className="mt-12 flex flex-col items-center">
-          <div className="w-10 h-10 border border-vivid-magenta/30 border-t-vivid-magenta rounded-full animate-spin mb-4" />
-          <p className="text-gray-600 text-[10px] tracking-[0.3em] uppercase font-bold">Synchronizing...</p>
-        </div>
+      <div className="flex flex-col items-center justify-center h-[50vh] space-y-8">
+        <div className="w-12 h-12 border-2 border-vivid-magenta/30 border-t-vivid-magenta rounded-full animate-spin" />
+        <p className="text-gray-500 text-[10px] tracking-[0.3em] uppercase font-black animate-pulse">Synchronizing...</p>
       </div>
     );
   }
 
+  const handleOpenSource = async (app: AppDefinition, mode: 'edit' | 'view') => {
+    try {
+      // 1. Fetch the source code
+      const code = await fetchApp(app.naddr);
+      if (!code) throw new Error("Could not fetch app source");
+
+      // 2. Extract dTag from naddr
+      const { data } = nip19.decode(app.naddr) as { data: { identifier: string } };
+
+      // 3. Open modal
+      setModalProps({
+        mode,
+        initialName: app.name,
+        initialCode: code,
+        existingDTag: data.identifier
+      });
+      setModalOpen(true);
+    } catch (e) {
+      console.error("Failed to open source:", e);
+      alert("Failed to load application source from relays.");
+    }
+  };
+
   return (
     <div className="max-w-5xl">
-      <header className="mb-20">
-        <h1 className="text-6xl font-black mb-6 tracking-tight">
-          Your <span className="serif-italic px-2">Library</span>
+      <header className="mb-16">
+        <h1 className="text-6xl font-black mb-6 tracking-tighter">
+          Your <span className="serif-italic px-3">Library</span>
         </h1>
-        <p className="text-gray-400 text-xl font-light max-w-2xl leading-relaxed">
-          Manage your decentralized applications and their secure data spaces in one place.
+        <p className="text-gray-400 text-xl font-light italic max-w-2xl leading-relaxed">
+          Manage your decentralized application clusters and their associated encrypted data spaces.
         </p>
       </header>
 
-      {/* Apps with their spaces */}
+      {/* Main Apps Section */}
       <section className="mb-20">
-        <div className="flex items-center justify-between mb-8">
-          <h2 className="text-sm font-bold flex items-center gap-3 text-gray-500 uppercase tracking-[0.2em]">
-            <LayoutGrid size={16} className="text-vivid-magenta" />
-            Active Applications
-            <span className="text-xs text-vivid-magenta/50 ml-2">{apps.length}</span>
-          </h2>
+        <div className="flex items-center gap-4 mb-10">
+          <div className="w-10 h-10 rounded-2xl bg-vivid-magenta/10 flex items-center justify-center text-vivid-magenta">
+            <LayoutGrid size={20} />
+          </div>
+          <h2 className="text-sm font-black text-gray-400 uppercase tracking-[0.3em]">Active Applications</h2>
+          <div className="h-px flex-1 bg-white/5" />
         </div>
 
-        {apps.length === 0 ? (
-          <div className="text-center py-20 bg-card/40 border border-white/5 rounded-[40px] backdrop-blur-sm">
-            <Sparkles size={40} className="text-gray-700 mx-auto mb-6" />
-            <p className="text-gray-400 font-medium mb-1">No applications connected</p>
-            <p className="text-gray-600 text-sm">Explore and connect apps to start building your library.</p>
-          </div>
-        ) : (
-          <div className="space-y-6">
-            {apps.map((app, i) => (
+        <div className="grid grid-cols-1 gap-8">
+          {apps.length > 0 ? (
+            apps.map((app, i) => (
               <AppWithSpaces
                 key={app.naddr}
                 app={app}
@@ -104,27 +120,30 @@ export const MyAppsPage = () => {
                 spaces={appSpaces.get(app.naddr) || []}
                 onDeleteApp={deleteApp}
                 onDeleteSpace={deleteSpace}
+                onOpenSource={handleOpenSource}
+                pubkey={pubkey}
               />
-            ))}
-          </div>
-        )}
+            ))
+          ) : (
+            <div className="p-20 text-center bg-card/40 border border-white/5 rounded-[48px] backdrop-blur-sm">
+              <p className="text-xl text-gray-600 font-light italic">No apps in your library. Start by creating one from the home screen.</p>
+            </div>
+          )}
+        </div>
       </section>
 
-      {/* Orphan spaces (no associated app or generic mirage-app) */}
+      {/* Legacy/Orphan Spaces Section */}
       {orphanSpaces.length > 0 && (
-        <section className="mb-20">
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-sm font-bold flex items-center gap-3 text-gray-500 uppercase tracking-[0.2em]">
-              <Package size={16} className="text-gray-600" />
-              Legacy Data Spaces
-              <span className="text-xs text-gray-600 ml-2">{orphanSpaces.length}</span>
-            </h2>
+        <section>
+          <div className="flex items-center gap-4 mb-10">
+            <div className="w-10 h-10 rounded-2xl bg-vivid-cyan/10 flex items-center justify-center text-vivid-cyan">
+              <Database size={20} />
+            </div>
+            <h2 className="text-sm font-black text-gray-400 uppercase tracking-[0.3em]">Legacy Data Spaces</h2>
+            <div className="h-px flex-1 bg-white/5" />
           </div>
 
-          <div className="bg-card/40 border border-white/5 rounded-[32px] p-8 backdrop-blur-sm">
-            <p className="text-gray-500 text-sm mb-6 leading-relaxed">
-              These spaces were created before app-specific storage was enabled. They are not associated with any specific app.
-            </p>
+          <div className="bg-card/40 border border-white/5 rounded-[40px] p-6 backdrop-blur-sm">
             <div className="space-y-3">
               {orphanSpaces.map((space, i) => (
                 <OrphanSpaceRow key={space.id} space={space} index={i} onDelete={deleteSpace} />
@@ -133,6 +152,13 @@ export const MyAppsPage = () => {
           </div>
         </section>
       )}
+
+      {/* Modal for Edit/View Source */}
+      <PublishModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        {...modalProps}
+      />
     </div>
   );
 };
@@ -142,13 +168,17 @@ const AppWithSpaces = ({
   index,
   spaces,
   onDeleteApp,
-  onDeleteSpace
+  onDeleteSpace,
+  onOpenSource,
+  pubkey
 }: {
   app: AppDefinition;
   index: number;
   spaces: SpaceWithApp[];
   onDeleteApp: (naddr: string) => Promise<boolean>;
   onDeleteSpace: (spaceId: string) => Promise<boolean>;
+  onOpenSource: (app: AppDefinition, mode: 'edit' | 'view') => void;
+  pubkey: string | null;
 }) => {
   const [isExpanded, setIsExpanded] = useState(spaces.length > 0);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -160,6 +190,15 @@ const AppWithSpaces = ({
     setIsDeleting(false);
     setShowConfirm(false);
   };
+
+  const isAuthor = useMemo(() => {
+    try {
+      const decoded = nip19.decode(app.naddr) as { data: { pubkey: string } };
+      return decoded.data.pubkey === pubkey;
+    } catch (e) {
+      return false;
+    }
+  }, [app.naddr, pubkey]);
 
   return (
     <motion.div
@@ -238,12 +277,22 @@ const AppWithSpaces = ({
 
           {/* Actions */}
           <div className="flex items-center gap-4">
-            <button
-              onClick={() => setShowConfirm(true)}
-              className="w-11 h-11 rounded-2xl bg-white/5 flex items-center justify-center text-gray-600 hover:text-vivid-magenta transition-all opacity-0 group-hover/card:opacity-100"
-            >
-              <Trash2 size={18} />
-            </button>
+            <div className="flex items-center bg-white/5 rounded-2xl p-1 opacity-0 group-hover/card:opacity-100 transition-opacity duration-300">
+              <button
+                onClick={() => onOpenSource(app, isAuthor ? 'edit' : 'view')}
+                title={isAuthor ? "Edit Source" : "View Source"}
+                className="w-10 h-10 rounded-xl flex items-center justify-center text-gray-500 hover:text-white hover:bg-white/5 transition-all"
+              >
+                {isAuthor ? <Edit3 size={18} /> : <Code2 size={18} />}
+              </button>
+              <button
+                onClick={() => setShowConfirm(true)}
+                title="Remove App"
+                className="w-10 h-10 rounded-xl flex items-center justify-center text-gray-500 hover:text-vivid-magenta hover:bg-vivid-magenta/5 transition-all"
+              >
+                <Trash2 size={18} />
+              </button>
+            </div>
 
             <Link
               to={`/run/${app.naddr}`}

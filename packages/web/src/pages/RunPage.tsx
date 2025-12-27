@@ -1,21 +1,48 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useMirage } from '../hooks/useMirage';
 import { motion } from 'framer-motion';
-import { Home, Share, LayoutGrid, Hammer, XCircle } from 'lucide-react';
+import { Home, Share, LayoutGrid, Hammer, XCircle, Code2, Edit3 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { PublishModal } from '../components/PublishModal';
+import { nip19 } from 'nostr-tools';
 
 export const RunPage = () => {
   const { naddr } = useParams<{ naddr: string }>();
-  const { fetchApp, host } = useMirage();
+  const { fetchApp, host, pubkey, apps } = useMirage();
   const containerRef = useRef<HTMLDivElement>(null);
 
   const [status, setStatus] = useState<'loading' | 'running' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
 
+  // Modal State
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalProps, setModalProps] = useState<{
+    mode: 'edit' | 'view';
+    initialName: string;
+    initialCode: string;
+    existingDTag?: string;
+  }>({ mode: 'view', initialName: '', initialCode: '' });
+
   // Track if we've already loaded this app to prevent re-mounting
   const loadedNaddrRef = useRef<string | null>(null);
   const isLoadingRef = useRef(false);
+
+  // Check if current user is the author
+  const isAuthor = useMemo(() => {
+    if (!naddr || !pubkey) return false;
+    try {
+      const decoded = nip19.decode(naddr) as { data: { pubkey: string } };
+      return decoded.data.pubkey === pubkey;
+    } catch (e) {
+      return false;
+    }
+  }, [naddr, pubkey]);
+
+  // Find app name from library if available
+  const appName = useMemo(() => {
+    return apps.find(a => a.naddr === naddr)?.name || 'Mirage App';
+  }, [apps, naddr]);
 
   useEffect(() => {
     // Skip if no naddr or host
@@ -100,6 +127,29 @@ export const RunPage = () => {
     alert('Share link copied to clipboard!');
   };
 
+  const handleOpenSource = async (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (!naddr) return;
+
+    try {
+      const code = await fetchApp(naddr);
+      if (!code) throw new Error("Could not fetch app source");
+
+      const { data } = nip19.decode(naddr) as { data: { identifier: string } };
+
+      setModalProps({
+        mode: isAuthor ? 'edit' : 'view',
+        initialName: appName,
+        initialCode: code,
+        existingDTag: data.identifier
+      });
+      setModalOpen(true);
+    } catch (e) {
+      console.error("Failed to open source:", e);
+      alert("Failed to load application source from relays.");
+    }
+  };
+
   if (status === 'error') {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-background text-center p-8">
@@ -152,7 +202,7 @@ export const RunPage = () => {
           animate={{ opacity: 1, y: 0 }}
           className={cn(
             "bg-[#050505]/80 border border-white/5 backdrop-blur-3xl rounded-3xl p-1.5 shadow-2xl flex items-center overflow-hidden cursor-pointer transition-all duration-500",
-            isExpanded ? "max-w-[340px] px-3 border-vivid-magenta/20 shadow-vivid-glow" : "max-w-[48px]"
+            isExpanded ? "max-w-[440px] px-3 border-vivid-magenta/20 shadow-vivid-glow" : "max-w-[48px]"
           )}
         >
           <div className="flex items-center shrink-0">
@@ -178,8 +228,16 @@ export const RunPage = () => {
               <Link to="/" onClick={(e) => e.stopPropagation()}>
                 <DockItem icon={Home} tooltip="Library" />
               </Link>
+              <div className="w-px h-5 bg-white/5 mx-1.5 shrink-0" />
+
+              <DockItem
+                icon={isAuthor ? Edit3 : Code2}
+                tooltip={isAuthor ? "Edit Source" : "View Source"}
+                onClick={handleOpenSource}
+              />
               <DockItem icon={Share} tooltip="Share Entry" onClick={handleShare} />
               <DockItem icon={Hammer} tooltip="Debugger" />
+
               <div className="w-px h-5 bg-white/5 mx-1.5 shrink-0" />
               <Link to="/" onClick={(e) => e.stopPropagation()}>
                 <DockItem icon={XCircle} tooltip="Exit App" />
@@ -188,6 +246,13 @@ export const RunPage = () => {
           </motion.div>
         </motion.div>
       </div>
+
+      {/* Modal for Edit/View Source */}
+      <PublishModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        {...modalProps}
+      />
     </div>
   );
 };
