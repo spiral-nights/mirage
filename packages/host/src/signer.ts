@@ -9,6 +9,7 @@ import type { UnsignedNostrEvent, NostrEvent, Nip07Signer } from '@mirage/core';
 export class Signer {
     private signer: Nip07Signer | null = null;
     private pubkey: string | null = null;
+    private pendingPubKeyRequest: Promise<string> | null = null;
 
     constructor(signer?: Nip07Signer) {
         this.signer = signer ?? (window as Window & { nostr?: Nip07Signer }).nostr ?? null;
@@ -29,11 +30,23 @@ export class Signer {
             throw new Error('No signer available');
         }
 
-        if (!this.pubkey) {
-            this.pubkey = await this.signer.getPublicKey();
+        if (this.pubkey) return this.pubkey;
+
+        // If a request is already in flight, wait for it
+        if (this.pendingPubKeyRequest) {
+            return this.pendingPubKeyRequest;
         }
 
-        return this.pubkey!;
+        this.pendingPubKeyRequest = (async () => {
+            try {
+                this.pubkey = await this.signer!.getPublicKey();
+                return this.pubkey;
+            } finally {
+                this.pendingPubKeyRequest = null;
+            }
+        })();
+
+        return this.pendingPubKeyRequest;
     }
 
     /**

@@ -82,46 +82,72 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
         try {
           console.log('[useMirage] Creating new MirageHost instance');
           const origin = window.location.origin;
+          // 1. Wait for window.nostr to appear (some extensions are async)
+          const waitForNostr = async (limit: number) => {
+            for (let i = 0; i < limit / 100; i++) {
+              if ((window as any).nostr) return true;
+              await new Promise(r => setTimeout(r, 100));
+            }
+            return !!(window as any).nostr;
+          };
+
+          await waitForNostr(2000);
+
+          const signer = (window as any).nostr;
           const mirageHost = new MirageHost({
             relays: ['wss://relay.damus.io', 'wss://nos.lol'],
             engineUrl: `${origin}/engine-worker.js`,
             bridgeUrl: `${origin}/bridge.js`,
-            signer: (window as any).nostr
+            signer
           });
 
           globalHost = mirageHost;
           setHost(mirageHost);
 
-          // Attempt to get pubkey
+          // 2. Attempt to get pubkey with retries
           try {
-            if ((window as any).nostr) {
-              console.log('[useMirage] Requesting pubkey from signer...');
-              // Timeout after 5 seconds to avoid indefinite hang
-              const pk = await Promise.race([
-                (window as any).nostr.getPublicKey(),
-                new Promise<string>((_, reject) => setTimeout(() => reject(new Error('Signer timed out')), 5000))
-              ]);
-              console.log('[useMirage] Received pubkey:', pk.slice(0, 8) + '...');
-              setPubkey(pk);
+            if (signer) {
+              let pk = '';
+              let attempts = 0;
+              while (attempts < 3) {
+                try {
+                  console.log(`[useMirage] Requesting pubkey (attempt ${attempts + 1})...`);
+                  pk = await Promise.race([
+                    signer.getPublicKey(),
+                    new Promise<string>((_, reject) => setTimeout(() => reject(new Error('Signer timed out')), 10000))
+                  ]);
+                  if (pk) break;
+                } catch (e) {
+                  console.warn(`[useMirage] Pubkey attempt ${attempts + 1} failed:`, e);
+                  attempts++;
+                  if (attempts < 3) await new Promise(r => setTimeout(r, 500));
+                }
+              }
 
-              // Inform the Engine about the pubkey for authenticated API requests
-              mirageHost.setPubkey(pk);
+              if (pk) {
+                console.log('[useMirage] Received pubkey:', pk.slice(0, 8) + '...');
+                setPubkey(pk);
+                mirageHost.setPubkey(pk);
 
-              // Load apps and spaces from Engine (Nostr)
-              console.log('[useMirage] Loading initial data...');
-              const [library, spacesData] = await Promise.all([
-                mirageHost.request('GET', '/mirage/v1/library/apps'),
-                mirageHost.request('GET', '/mirage/v1/spaces/all')  // Get all spaces across all apps
-              ]);
+                // Load initial data
+                console.log('[useMirage] Loading initial data...');
+                try {
+                  const [library, spacesData] = await Promise.all([
+                    mirageHost.request('GET', '/mirage/v1/library/apps'),
+                    mirageHost.request('GET', '/mirage/v1/spaces/all')
+                  ]);
 
-              console.log('[useMirage] Loaded apps:', library);
-              console.log('[useMirage] Loaded spaces:', spacesData);
-
-              if (Array.isArray(library)) setApps(library);
-              if (Array.isArray(spacesData)) setSpaces(spacesData);
+                  if (Array.isArray(library)) setApps(library);
+                  if (Array.isArray(spacesData)) setSpaces(spacesData);
+                } catch (dataErr) {
+                  console.warn('[useMirage] Initial data fetch failed:', dataErr);
+                }
+              } else {
+                console.warn('[useMirage] Failed to get pubkey after 3 attempts');
+              }
             }
           } catch (e) {
-            console.warn('[useMirage] Data loading failed:', e);
+            console.warn('[useMirage] Signer access failed:', e);
           }
         } catch (e) {
           console.error('[useMirage] Host initialization failed:', e);
@@ -266,7 +292,16 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <MirageContext.Provider value={{ host, isReady, pubkey, apps, spaces, publishApp, fetchApp, refreshApps, refreshSpaces, deleteApp, deleteSpace }}>
-      {children}
+      {!isReady ? (
+        <div className="fixed inset-0 bg-[#0A0A0B] flex flex-col items-center justify-center p-12 z-[9999]">
+          <div className="w-16 h-16 border-2 border-white/5 border-t-white rounded-full animate-spin mb-6" />
+          <div className="text-white/40 text-[10px] tracking-[0.2em] uppercase font-bold animate-pulse">
+            Initializing Mirage Platform
+          </div>
+        </div>
+      ) : (
+        children
+      )}
     </MirageContext.Provider>
   );
 };
