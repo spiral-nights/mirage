@@ -27,12 +27,6 @@ export const RunPage = () => {
       return;
     }
 
-    // Skip if already loading
-    if (isLoadingRef.current) {
-      console.log('[RunPage] Already loading, skipping');
-      return;
-    }
-
     let mounted = true;
     isLoadingRef.current = true;
 

@@ -168,21 +168,6 @@ export class MirageHost {
                         });
                     }
 
-                    // Send user pubkey if signer is available
-                    if (this.signer.isAvailable()) {
-                        try {
-                            const pubkey = await this.signer.getPublicKey();
-                            console.log('[Host] Sending pubkey to engine:', pubkey.slice(0, 8) + '...');
-                            this.engineWorker.postMessage({
-                                type: 'SET_PUBKEY',
-                                id: crypto.randomUUID(),
-                                pubkey,
-                            });
-                        } catch (err) {
-                            console.warn('[Host] Could not get pubkey from signer:', err);
-                        }
-                    }
-
                     resolve();
                 }
             };
@@ -230,7 +215,23 @@ export class MirageHost {
      */
     async sendToEngine(message: any): Promise<any> {
         return new Promise((resolve, reject) => {
-            this.pendingInternalRequests.set(message.id, { resolve, reject });
+            const timeout = setTimeout(() => {
+                if (this.pendingInternalRequests.has(message.id)) {
+                    this.pendingInternalRequests.delete(message.id);
+                    reject(new Error(`Engine request timed out after 15s: ${message.type}`));
+                }
+            }, 15000);
+
+            this.pendingInternalRequests.set(message.id, {
+                resolve: (val) => {
+                    clearTimeout(timeout);
+                    resolve(val);
+                },
+                reject: (err) => {
+                    clearTimeout(timeout);
+                    reject(err);
+                }
+            });
             this.engineWorker.postMessage(message);
         });
     }

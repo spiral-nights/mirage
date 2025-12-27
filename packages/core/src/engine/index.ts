@@ -82,27 +82,36 @@ function initKeysPreload(): void {
     });
 }
 
+let isLoggingWaiting = false;
+
 /**
  * Wait for keys to be loaded. Used by spaces API to block until ready.
  * If SET_PUBKEY hasn't been received yet, waits briefly then checks again.
+ * Returns true if keys are ready, false if they timed out.
  */
-export async function waitForKeysReady(): Promise<void> {
-    console.log('[Engine] waitForKeysReady called, keysReady=', keysReady !== null);
-
+export async function waitForKeysReady(): Promise<boolean> {
     // If keysReady is null, SET_PUBKEY hasn't been received yet
-    // Wait a bit for it to arrive
+    // Wait for it to arrive
     let attempts = 0;
-    while (!keysReady && attempts < 50) { // Wait up to 5 seconds
+    while (!keysReady && attempts < 100) { // Wait up to 10 seconds total
+        if (attempts === 0) console.log('[Engine] waitForKeysReady: Waiting for SET_PUBKEY...');
         await new Promise(r => setTimeout(r, 100));
         attempts++;
     }
 
     if (keysReady) {
-        console.log('[Engine] Waiting for keys to load...');
+        if (!isLoggingWaiting) {
+            isLoggingWaiting = true;
+            console.log('[Engine] Waiting for keys to load from relays...');
+            keysReady.finally(() => {
+                isLoggingWaiting = false;
+            });
+        }
         await keysReady;
-        console.log('[Engine] Keys ready!');
+        return true;
     } else {
-        console.warn('[Engine] Keys never initialized - SET_PUBKEY not received');
+        console.warn('[Engine] Keys never initialized - SET_PUBKEY not received after 10s');
+        return false;
     }
 }
 
@@ -173,11 +182,10 @@ self.onmessage = async (event: MessageEvent<MirageMessage>) => {
             break;
 
         case 'SET_PUBKEY':
-            currentPubkey = message.pubkey;
-            console.log('[Engine] Pubkey set:', currentPubkey?.slice(0, 8) + '...');
-            // Initialize keys promise and start preloading
-            initKeysPreload();
-            preloadSpaceKeys().catch((err: unknown) => console.warn('[Engine] Failed to preload keys:', err));
+            console.log('[Engine] SET_PUBKEY received:', (message as any).pubkey.slice(0, 8) + '...');
+            setCurrentPubkey((message as any).pubkey);
+            initKeysPreload(); // Initialize promise if not already done
+            preloadSpaceKeys(); // Trigger the actual load
             break;
 
         case 'SET_APP_ORIGIN':
@@ -237,6 +245,17 @@ async function handleApiRequest(message: ApiRequestMessage): Promise<void> {
     }
 
     const { method, path, body } = message;
+
+    // Wait for keys to be loaded before handling any spaces or library requests
+    if (path.startsWith('/mirage/v1/spaces') || path.startsWith('/mirage/v1/library')) {
+        const ready = await waitForKeysReady();
+        if (!ready) {
+            sendResponse(message.id, 503, {
+                error: 'Engine initialization failed: pubkey not received'
+            });
+            return;
+        }
+    }
 
     try {
         const route = await matchRoute(method, path);
@@ -452,10 +471,7 @@ async function matchRoute(method: string, fullPath: string): Promise<RouteMatch 
     // Space routes
     // =========================================================================
 
-    // Wait for keys to be loaded before handling any spaces requests
-    if (path.startsWith('/mirage/v1/spaces')) {
-        await waitForKeysReady();
-    }
+
 
     const spaceCtx: SpaceRouteContext = {
         pool: pool!,

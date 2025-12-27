@@ -11,6 +11,7 @@ import type { StorageRouteContext } from './routes/storage';
 import { internalGetStorage, internalPutStorage } from './routes/storage';
 
 const KEY_STORAGE_ID = 'mirage:space_keys';
+const KEYCHAIN_ORIGIN = 'mirage-studio';
 
 interface KeyMap {
     [spaceId: string]: SpaceKey;
@@ -22,7 +23,9 @@ interface KeyMap {
  */
 export async function loadSpaceKeys(ctx: StorageRouteContext): Promise<Map<string, SpaceKey>> {
     try {
-        const rawMap = await internalGetStorage<KeyMap>(ctx, KEY_STORAGE_ID);
+        // Use a fixed origin for the keychain itself, so it's shared across all apps
+        const studioCtx = { ...ctx, appOrigin: KEYCHAIN_ORIGIN };
+        const rawMap = await internalGetStorage<KeyMap>(studioCtx, KEY_STORAGE_ID);
 
         if (!rawMap) {
             return new Map();
@@ -52,8 +55,10 @@ export async function saveSpaceKeys(
             rawMap[id] = keyInfo;
         }
 
-        await internalPutStorage(ctx, KEY_STORAGE_ID, rawMap);
-        console.log('[Keys] Saved keys to NIP-78');
+        // Use a fixed origin for the keychain itself
+        const studioCtx = { ...ctx, appOrigin: KEYCHAIN_ORIGIN };
+        await internalPutStorage(studioCtx, KEY_STORAGE_ID, rawMap);
+        console.log('[Keys] Saved keys to NIP-78 (global keychain)');
     } catch (error) {
         console.error('[Keys] Failed to save keys:', error);
         throw error;

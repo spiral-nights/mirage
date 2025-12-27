@@ -125,13 +125,15 @@ export async function createSpace(
     if (!ctx.currentPubkey) return { status: 401, body: { error: 'Not authenticated' } };
     if (!body?.name) return { status: 400, body: { error: 'Space name required' } };
 
-    console.log('[Spaces] createSpace called with name:', body.name);
+    console.log('[Spaces] createSpace called with name:', body.name, 'appOrigin:', ctx.appOrigin);
 
     // 1. Generate ID and Key
     const spaceId = generateRandomId();
     const key = generateSymmetricKey(); // Base64
     const scopedId = `${ctx.appOrigin}:${spaceId}`;
     const createdAt = Math.floor(Date.now() / 1000);
+
+    console.log('[Spaces] Creating space with scopedId:', scopedId);
 
     // 2. Save to NIP-78 (Owner's Keychain) - including name for persistence
     const keys = await getKeys(ctx);
@@ -165,15 +167,27 @@ export async function deleteSpace(
 ): Promise<{ status: number; body: unknown }> {
     if (!ctx.currentPubkey) return { status: 401, body: { error: 'Not authenticated' } };
 
-    const scopedId = `${ctx.appOrigin}:${spaceId}`;
     const keys = await getKeys(ctx);
 
-    if (!keys.has(scopedId)) {
-        return { status: 404, body: { error: 'Space not found' } };
+    // 1. Try directly with current appOrigin (fast path)
+    let targetScopedId = `${ctx.appOrigin}:${spaceId}`;
+
+    // 2. Fallback: Search for any scopedId ending with :spaceId
+    // This allows the Home/Library UI (mirage-app) to delete spaces created by other apps
+    if (!keys.has(targetScopedId)) {
+        console.log('[Spaces] Space not found with current origin, searching keychain...');
+        const found = Array.from(keys.keys()).find(k => k.endsWith(`:${spaceId}`));
+        if (found) {
+            targetScopedId = found;
+            console.log('[Spaces] Found space in keychain with origin:', targetScopedId.split(':')[0]);
+        } else {
+            console.warn('[Spaces] Space not found in keychain:', spaceId);
+            return { status: 404, body: { error: 'Space not found' } };
+        }
     }
 
-    console.log('[Spaces] Deleting space:', spaceId);
-    keys.delete(scopedId);
+    console.log('[Spaces] Deleting space with key:', targetScopedId);
+    keys.delete(targetScopedId);
     await saveSpaceKeys(ctx, keys);
 
     return { status: 200, body: { deleted: spaceId } };

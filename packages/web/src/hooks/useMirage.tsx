@@ -52,23 +52,16 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
   }, [host]);
 
   useEffect(() => {
-    // Prevent double initialization (React Strict Mode)
-    if (initRef.current) {
-      console.log('[useMirage] Already initialized, skipping');
-      return;
-    }
-    initRef.current = true;
-
     const init = async () => {
-      // Use existing host if available (singleton pattern)
-      if (globalHost) {
+      // If initialization has already completed, just set the local state
+      if (globalHost && !initPromise) {
         console.log('[useMirage] Using existing host instance');
         setHost(globalHost);
         setIsReady(true);
         return;
       }
 
-      // If another init is in progress, wait for it
+      // If another init is in progress, wait for it to finish completely
       if (initPromise) {
         console.log('[useMirage] Waiting for existing init...');
         await initPromise;
@@ -77,50 +70,69 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
 
+      // Prevent double initialization within same render cycle (React Strict Mode)
+      if (initRef.current) {
+        console.log('[useMirage] Init already started, skipping');
+        return;
+      }
+      initRef.current = true;
+
       // Create new init promise
       initPromise = (async () => {
-        console.log('[useMirage] Creating new MirageHost instance');
-        const origin = window.location.origin;
-        const mirageHost = new MirageHost({
-          relays: ['wss://relay.damus.io', 'wss://nos.lol'],
-          engineUrl: `${origin}/engine-worker.js`,
-          bridgeUrl: `${origin}/bridge.js`,
-          signer: (window as any).nostr
-        });
-
-        globalHost = mirageHost;
-        setHost(mirageHost);
-
-        // Attempt to get pubkey
         try {
-          if ((window as any).nostr) {
-            const pk = await (window as any).nostr.getPublicKey();
-            setPubkey(pk);
+          console.log('[useMirage] Creating new MirageHost instance');
+          const origin = window.location.origin;
+          const mirageHost = new MirageHost({
+            relays: ['wss://relay.damus.io', 'wss://nos.lol'],
+            engineUrl: `${origin}/engine-worker.js`,
+            bridgeUrl: `${origin}/bridge.js`,
+            signer: (window as any).nostr
+          });
 
-            // Inform the Engine about the pubkey for authenticated API requests
-            mirageHost.setPubkey(pk);
+          globalHost = mirageHost;
+          setHost(mirageHost);
 
-            // Load apps and spaces from Engine (Nostr)
-            console.log('[useMirage] Loading initial data...');
-            const [library, spacesData] = await Promise.all([
-              mirageHost.request('GET', '/mirage/v1/library/apps'),
-              mirageHost.request('GET', '/mirage/v1/spaces/all')  // Get all spaces across all apps
-            ]);
+          // Attempt to get pubkey
+          try {
+            if ((window as any).nostr) {
+              console.log('[useMirage] Requesting pubkey from signer...');
+              // Timeout after 5 seconds to avoid indefinite hang
+              const pk = await Promise.race([
+                (window as any).nostr.getPublicKey(),
+                new Promise<string>((_, reject) => setTimeout(() => reject(new Error('Signer timed out')), 5000))
+              ]);
+              console.log('[useMirage] Received pubkey:', pk.slice(0, 8) + '...');
+              setPubkey(pk);
 
-            console.log('[useMirage] Loaded apps:', library);
-            console.log('[useMirage] Loaded spaces:', spacesData);
+              // Inform the Engine about the pubkey for authenticated API requests
+              mirageHost.setPubkey(pk);
 
-            if (Array.isArray(library)) setApps(library);
-            if (Array.isArray(spacesData)) setSpaces(spacesData);
+              // Load apps and spaces from Engine (Nostr)
+              console.log('[useMirage] Loading initial data...');
+              const [library, spacesData] = await Promise.all([
+                mirageHost.request('GET', '/mirage/v1/library/apps'),
+                mirageHost.request('GET', '/mirage/v1/spaces/all')  // Get all spaces across all apps
+              ]);
+
+              console.log('[useMirage] Loaded apps:', library);
+              console.log('[useMirage] Loaded spaces:', spacesData);
+
+              if (Array.isArray(library)) setApps(library);
+              if (Array.isArray(spacesData)) setSpaces(spacesData);
+            }
+          } catch (e) {
+            console.warn('[useMirage] Data loading failed:', e);
           }
         } catch (e) {
-          console.warn('Could not fetch pubkey or data:', e);
+          console.error('[useMirage] Host initialization failed:', e);
+        } finally {
+          setIsReady(true);
+          initPromise = null;
         }
-
-        setIsReady(true);
       })();
 
       await initPromise;
+      setIsReady(true);
     };
 
     init();

@@ -11,8 +11,8 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<RootLayout />}>
-            <Route index element={<HomePage />} />
-            <Route path="apps" element={<MyAppsPage />} />
+            <Route index element={<MyAppsPage />} />
+            <Route path="create" element={<HomePage />} />
             <Route path="favorites" element={<div>Favorites (Coming Soon)</div>} />
             <Route path="settings" element={<div>Settings (Coming Soon)</div>} />
           </Route>

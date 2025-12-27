@@ -94,6 +94,7 @@ export function handleEngineMessage(event: MessageEvent<MirageMessage>): void {
     if (message.type === 'API_RESPONSE') {
         const pending = pendingRequests.get(message.id);
         if (pending) {
+            console.log(`[Bridge] API Response: id=${message.id} status=${message.status}`, message.body);
             pendingRequests.delete(message.id);
             const response = new Response(JSON.stringify(message.body), {
                 status: message.status,

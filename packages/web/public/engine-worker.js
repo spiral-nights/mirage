@@ -8181,9 +8181,11 @@
 
   // src/engine/keys.ts
   var KEY_STORAGE_ID = "mirage:space_keys";
+  var KEYCHAIN_ORIGIN = "mirage-studio";
   async function loadSpaceKeys(ctx) {
     try {
-      const rawMap = await internalGetStorage(ctx, KEY_STORAGE_ID);
+      const studioCtx = { ...ctx, appOrigin: KEYCHAIN_ORIGIN };
+      const rawMap = await internalGetStorage(studioCtx, KEY_STORAGE_ID);
       if (!rawMap) {
         return new Map;
       }
@@ -8203,8 +8205,9 @@
       for (const [id, keyInfo] of keys.entries()) {
         rawMap[id] = keyInfo;
       }
-      await internalPutStorage(ctx, KEY_STORAGE_ID, rawMap);
-      console.log("[Keys] Saved keys to NIP-78");
+      const studioCtx = { ...ctx, appOrigin: KEYCHAIN_ORIGIN };
+      await internalPutStorage(studioCtx, KEY_STORAGE_ID, rawMap);
+      console.log("[Keys] Saved keys to NIP-78 (global keychain)");
     } catch (error) {
       console.error("[Keys] Failed to save keys:", error);
       throw error;
@@ -8310,11 +8313,12 @@
       return { status: 401, body: { error: "Not authenticated" } };
     if (!body?.name)
       return { status: 400, body: { error: "Space name required" } };
-    console.log("[Spaces] createSpace called with name:", body.name);
+    console.log("[Spaces] createSpace called with name:", body.name, "appOrigin:", ctx.appOrigin);
     const spaceId = generateRandomId();
     const key = generateSymmetricKey();
     const scopedId = `${ctx.appOrigin}:${spaceId}`;
     const createdAt = Math.floor(Date.now() / 1000);
+    console.log("[Spaces] Creating space with scopedId:", scopedId);
     const keys = await getKeys(ctx);
     keys.set(scopedId, {
       key,
@@ -8335,13 +8339,21 @@
   async function deleteSpace(ctx, spaceId) {
     if (!ctx.currentPubkey)
       return { status: 401, body: { error: "Not authenticated" } };
-    const scopedId = `${ctx.appOrigin}:${spaceId}`;
     const keys = await getKeys(ctx);
-    if (!keys.has(scopedId)) {
-      return { status: 404, body: { error: "Space not found" } };
+    let targetScopedId = `${ctx.appOrigin}:${spaceId}`;
+    if (!keys.has(targetScopedId)) {
+      console.log("[Spaces] Space not found with current origin, searching keychain...");
+      const found = Array.from(keys.keys()).find((k) => k.endsWith(`:${spaceId}`));
+      if (found) {
+        targetScopedId = found;
+        console.log("[Spaces] Found space in keychain with origin:", targetScopedId.split(":")[0]);
+      } else {
+        console.warn("[Spaces] Space not found in keychain:", spaceId);
+        return { status: 404, body: { error: "Space not found" } };
+      }
     }
-    console.log("[Spaces] Deleting space:", spaceId);
-    keys.delete(scopedId);
+    console.log("[Spaces] Deleting space with key:", targetScopedId);
+    keys.delete(targetScopedId);
     await saveSpaceKeys(ctx, keys);
     return { status: 200, body: { deleted: spaceId } };
   }
@@ -9211,19 +9223,28 @@
       keysReadyResolve = resolve;
     });
   }
+  var isLoggingWaiting = false;
   async function waitForKeysReady() {
-    console.log("[Engine] waitForKeysReady called, keysReady=", keysReady !== null);
     let attempts = 0;
-    while (!keysReady && attempts < 50) {
+    while (!keysReady && attempts < 100) {
+      if (attempts === 0)
+        console.log("[Engine] waitForKeysReady: Waiting for SET_PUBKEY...");
       await new Promise((r) => setTimeout(r, 100));
       attempts++;
     }
     if (keysReady) {
-      console.log("[Engine] Waiting for keys to load...");
+      if (!isLoggingWaiting) {
+        isLoggingWaiting = true;
+        console.log("[Engine] Waiting for keys to load from relays...");
+        keysReady.finally(() => {
+          isLoggingWaiting = false;
+        });
+      }
       await keysReady;
-      console.log("[Engine] Keys ready!");
+      return true;
     } else {
-      console.warn("[Engine] Keys never initialized - SET_PUBKEY not received");
+      console.warn("[Engine] Keys never initialized - SET_PUBKEY not received after 10s");
+      return false;
     }
   }
   async function preloadSpaceKeys() {
@@ -9275,10 +9296,10 @@
         handleSignatureResult(message, setCurrentPubkey, currentPubkey);
         break;
       case "SET_PUBKEY":
-        currentPubkey = message.pubkey;
-        console.log("[Engine] Pubkey set:", currentPubkey?.slice(0, 8) + "...");
+        console.log("[Engine] SET_PUBKEY received:", message.pubkey.slice(0, 8) + "...");
+        setCurrentPubkey(message.pubkey);
         initKeysPreload();
-        preloadSpaceKeys().catch((err) => console.warn("[Engine] Failed to preload keys:", err));
+        preloadSpaceKeys();
         break;
       case "SET_APP_ORIGIN":
         appOrigin = message.origin;
@@ -9320,6 +9341,15 @@
       return;
     }
     const { method, path, body } = message;
+    if (path.startsWith("/mirage/v1/spaces") || path.startsWith("/mirage/v1/library")) {
+      const ready = await waitForKeysReady();
+      if (!ready) {
+        sendResponse(message.id, 503, {
+          error: "Engine initialization failed: pubkey not received"
+        });
+        return;
+      }
+    }
     try {
       const route = await matchRoute(method, path);
       if (!route) {
@@ -9487,9 +9517,6 @@
           params: { key }
         };
       }
-    }
-    if (path.startsWith("/mirage/v1/spaces")) {
-      await waitForKeysReady();
     }
     const spaceCtx = {
       pool,

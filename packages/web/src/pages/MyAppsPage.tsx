@@ -33,7 +33,7 @@ export const MyAppsPage = () => {
     const orphans: SpaceWithApp[] = [];
 
     for (const space of spaces as SpaceWithApp[]) {
-      if (!space.appOrigin || space.appOrigin === 'mirage-app') {
+      if (!space.appOrigin || space.appOrigin === 'mirage-app' || space.appOrigin === 'mirage-studio') {
         orphans.push(space);
       } else {
         const existing = appSpaceMap.get(space.appOrigin) || [];
@@ -43,7 +43,7 @@ export const MyAppsPage = () => {
     }
 
     return { appSpaces: appSpaceMap, orphanSpaces: orphans };
-  }, [spaces]);
+  }, [spaces, apps]);
 
   // Loading state
   if (!isReady) {

@@ -1,4 +1,4 @@
-import { Home, LayoutGrid, Heart, Settings } from 'lucide-react';
+import { Home, Heart, Settings, PlusCircle } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Link, useLocation } from 'react-router-dom';
 
@@ -7,8 +7,8 @@ const NavItem = ({ to, icon: Icon, label, active }: { to: string, icon: any, lab
     to={to}
     className={cn(
       "flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium text-sm",
-      active 
-        ? "bg-white text-black shadow-lg" 
+      active
+        ? "bg-white text-black shadow-lg"
         : "text-gray-400 hover:bg-white/5 hover:text-white"
     )}
   >
@@ -32,32 +32,32 @@ export const Sidebar = () => {
         <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-4 px-2">
           Library
         </div>
-        <NavItem 
-          to="/" 
-          icon={Home} 
-          label="Home" 
-          active={location.pathname === '/'} 
+        <NavItem
+          to="/"
+          icon={Home}
+          label="My Apps"
+          active={location.pathname === '/'}
         />
-        <NavItem 
-          to="/apps" 
-          icon={LayoutGrid} 
-          label="My Apps" 
-          active={location.pathname === '/apps'} 
+        <NavItem
+          to="/create"
+          icon={PlusCircle}
+          label="Create App"
+          active={location.pathname === '/create'}
         />
-        <NavItem 
-          to="/favorites" 
-          icon={Heart} 
-          label="Favorites" 
-          active={location.pathname === '/favorites'} 
+        <NavItem
+          to="/favorites"
+          icon={Heart}
+          label="Favorites"
+          active={location.pathname === '/favorites'}
         />
       </nav>
 
       <nav className="mt-auto pt-6 border-t border-[#2E2E36]">
-        <NavItem 
-          to="/settings" 
-          icon={Settings} 
-          label="Settings" 
-          active={location.pathname === '/settings'} 
+        <NavItem
+          to="/settings"
+          icon={Settings}
+          label="Settings"
+          active={location.pathname === '/settings'}
         />
       </nav>
     </aside>
