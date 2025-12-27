@@ -18,83 +18,88 @@ export const HomePage = () => {
   };
 
   return (
-    <div className="max-w-4xl">
-      <header className="mb-12">
-        <motion.h1 
-          initial={{ opacity: 0, y: 20 }}
+    <div className="max-w-5xl">
+      <header className="mb-20">
+        <motion.h1
+          initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-4xl font-bold mb-4"
+          className="text-7xl font-black mb-8 tracking-tighter"
         >
-          Build something magic.
+          Build something <span className="serif-italic px-3">magic.</span>
         </motion.h1>
-        <motion.p 
+        <motion.p
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="text-gray-400 text-lg"
+          className="text-gray-400 text-2xl font-light max-w-3xl leading-relaxed"
         >
-          Create apps with plain English, powered by Nostr.
+          Create state-of-the-art applications using natural language, powered by the Nostr protocol.
         </motion.p>
       </header>
 
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 0.2 }}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.98, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ delay: 0.2, duration: 0.8, ease: "easeOut" }}
         className="relative group"
       >
-        <div className="absolute -inset-0.5 bg-accent-gradient rounded-3xl blur opacity-30 group-hover:opacity-50 transition duration-1000"></div>
-        <div className="relative bg-[#1A1A22] border border-[#2E2E36] rounded-3xl p-8 overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-1 bg-accent-gradient" />
-          
-          <h2 className="text-xl font-bold mb-6">Start a new project</h2>
-          
-          <div className="mb-6">
-            <label className="block text-sm font-bold text-gray-400 mb-2 uppercase tracking-wide">
-              What do you want to build?
+        <div className="absolute -inset-1 bg-vivid-rainbow rounded-[44px] blur-2xl opacity-10 group-hover:opacity-20 transition duration-1000"></div>
+        <div className="relative bg-card/40 border border-white/5 rounded-[40px] p-12 overflow-hidden backdrop-blur-xl group-hover:border-white/10 transition-all duration-500">
+          <div className="absolute top-0 left-0 w-full h-1 bg-vivid-rainbow opacity-30" />
+
+          <div className="flex items-center gap-3 mb-8">
+            <h2 className="text-sm font-black text-gray-400 uppercase tracking-[0.3em]">Ignition Sequence</h2>
+            <div className="h-px flex-1 bg-white/5" />
+          </div>
+
+          <div className="mb-10">
+            <label className="block text-xl font-medium text-white mb-6">
+              What do you want to bring to life?
             </label>
             <textarea
               value={promptInput}
               onChange={(e) => setPromptInput(e.target.value)}
-              placeholder="e.g. A shared grocery list for my family..."
-              className="w-full bg-[#0F0F13] border border-[#2E2E36] rounded-xl p-4 text-white placeholder:text-gray-600 focus:border-accent-primary focus:ring-1 focus:ring-accent-primary outline-none transition-all resize-none h-32"
+              placeholder="e.g. A decentralized chess board for global tournaments..."
+              className="w-full bg-background/50 border border-white/5 rounded-3xl p-6 text-xl text-white placeholder:text-gray-700 focus:border-vivid-cyan/30 focus:ring-4 focus:ring-vivid-cyan/5 outline-none transition-all resize-none h-40 font-light"
             />
           </div>
-          
-          <div className="flex items-center gap-4">
-            <button 
+
+          <div className="flex items-center gap-6">
+            <button
               onClick={copyPrompt}
               className={cn(
-                "flex items-center gap-2 px-8 py-4 rounded-2xl font-bold transition-all transform active:scale-95",
-                copied 
-                  ? "bg-green-500 text-white shadow-lg"
-                  : "bg-accent-gradient text-white shadow-accent-glow hover:shadow-accent-glow-hover hover:-translate-y-1"
+                "flex items-center gap-3 px-10 py-5 rounded-[24px] font-black transition-all transform active:scale-95 shadow-2xl",
+                copied
+                  ? "bg-vivid-teal text-black"
+                  : "bg-vivid-magenta text-white shadow-vivid-glow hover:shadow-vivid-glow-magenta hover:-translate-y-1"
               )}
             >
-              {copied ? <Check size={20} /> : <Copy size={20} />}
-              {copied ? "Copied!" : "Copy System Prompt"}
+              {copied ? <Check size={22} /> : <Copy size={22} />}
+              {copied ? "COPIED" : "GENERATE PROTOCOL"}
             </button>
-            
-            <p className="text-sm text-gray-500 max-w-xs leading-relaxed">
-              Paste this into ChatGPT or Claude to generate your app code.
+
+            <p className="text-gray-500 max-w-xs leading-relaxed italic text-sm font-light">
+              Paste this blueprint into your favorite AI model to generate the application source.
             </p>
           </div>
         </div>
       </motion.div>
 
       <div className="fixed bottom-12 right-12">
-        <button 
+        <button
           onClick={() => setIsPublishOpen(true)}
-          className="flex items-center gap-2 bg-white text-black px-6 py-4 rounded-2xl font-bold shadow-2xl hover:bg-gray-100 transition-all active:scale-95"
+          className="group flex items-center gap-3 bg-white text-black px-8 py-5 rounded-[28px] font-black shadow-2xl hover:scale-105 active:scale-95 transition-all duration-500"
         >
-          <Plus size={20} strokeWidth={3} />
-          Publish App
+          <div className="w-8 h-8 rounded-xl bg-black text-white flex items-center justify-center group-hover:rotate-90 transition-transform duration-500">
+            <Plus size={20} strokeWidth={3} />
+          </div>
+          PUBLISH TO NOSTR
         </button>
       </div>
 
-      <PublishModal 
-        isOpen={isPublishOpen} 
-        onClose={() => setIsPublishOpen(false)} 
+      <PublishModal
+        isOpen={isPublishOpen}
+        onClose={() => setIsPublishOpen(false)}
       />
     </div>
   );

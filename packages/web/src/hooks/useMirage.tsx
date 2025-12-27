@@ -301,10 +301,24 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
   return (
     <MirageContext.Provider value={{ host, isReady, pubkey, apps, spaces, publishApp, fetchApp, refreshApps, refreshSpaces, deleteApp, deleteSpace }}>
       {!isReady ? (
-        <div className="fixed inset-0 bg-[#0A0A0B] flex flex-col items-center justify-center p-12 z-[9999]">
-          <div className="w-16 h-16 border-2 border-white/5 border-t-white rounded-full animate-spin mb-6" />
-          <div className="text-white/40 text-[10px] tracking-[0.2em] uppercase font-bold animate-pulse">
-            Initializing Mirage Platform
+        <div className="fixed inset-0 bg-[#050505] flex flex-col items-center justify-center p-12 z-[9999]">
+          <div className="relative mb-20 scale-125">
+            <div className="absolute -inset-10 bg-vivid-magenta rounded-full blur-[80px] opacity-10 animate-pulse" />
+            <span className="text-6xl font-black vivid-text tracking-tighter relative z-10">
+              Mirage
+            </span>
+          </div>
+
+          <div className="flex flex-col items-center gap-8">
+            <div className="w-10 h-10 border border-white/5 border-t-vivid-cyan rounded-full animate-spin" />
+            <div className="flex flex-col items-center text-center">
+              <p className="text-gray-500 text-[10px] tracking-[0.5em] uppercase font-black mb-3">
+                Synchronizing Platform
+              </p>
+              <p className="text-gray-700 text-xs italic font-light">
+                Establishing secure Nostr relay connections...
+              </p>
+            </div>
           </div>
         </div>
       ) : (

@@ -103,64 +103,65 @@ export const RunPage = () => {
   if (status === 'error') {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-background text-center p-8">
-        <XCircle size={64} className="text-red-500 mb-4" />
-        <h1 className="text-2xl font-bold mb-2">Failed to load app</h1>
-        <p className="text-gray-400 mb-8">{error}</p>
-        <Link to="/" className="text-accent-primary hover:underline">Go Home</Link>
+        <XCircle size={64} className="text-vivid-magenta mb-6" />
+        <h1 className="text-3xl font-black mb-3 tracking-tight">App failure.</h1>
+        <p className="text-gray-500 font-light italic mb-10 max-w-sm">{error}</p>
+        <Link to="/" className="px-8 py-3 rounded-2xl bg-white/5 hover:bg-white/10 text-white font-bold transition-all transition-all">Go Home</Link>
       </div>
     );
   }
 
   return (
-    <div className="fixed inset-0 bg-white overflow-hidden flex flex-col">
+    <div className="fixed inset-0 bg-background overflow-hidden flex flex-col">
       {/* App Container */}
       <div ref={containerRef} className="flex-1 w-full h-full relative z-0" />
 
       {/* Loading Overlay / Skeleton */}
       {status === 'loading' && (
-        <div className="absolute inset-0 bg-background z-10 flex flex-col items-center justify-center p-12">
+        <div className="absolute inset-0 bg-[#050505] z-10 flex flex-col items-center justify-center p-12">
           {/* Shimmering Skeleton */}
-          <div className="w-full max-w-2xl animate-pulse">
-            <div className="h-12 bg-white/5 rounded-2xl mb-8 w-1/3" />
-            <div className="space-y-4">
-              <div className="h-32 bg-white/5 rounded-3xl" />
+          <div className="w-full max-w-3xl animate-pulse">
+            <div className="h-20 bg-white/5 rounded-3xl mb-12 w-1/4" />
+            <div className="space-y-6">
+              <div className="h-48 bg-white/5 rounded-[40px]" />
               <div className="h-4 bg-white/5 rounded w-full" />
-              <div className="h-4 bg-white/5 rounded w-5/6" />
-              <div className="h-4 bg-white/5 rounded w-4/6" />
+              <div className="h-4 bg-white/5 rounded w-5/6 opacity-50" />
             </div>
-            <div className="mt-12 grid grid-cols-3 gap-4">
-              <div className="h-24 bg-white/5 rounded-2xl" />
-              <div className="h-24 bg-white/5 rounded-2xl" />
-              <div className="h-24 bg-white/5 rounded-2xl" />
+            <div className="mt-16 grid grid-cols-3 gap-6">
+              <div className="h-32 bg-white/5 rounded-3xl" />
+              <div className="h-32 bg-white/5 rounded-3xl" />
+              <div className="h-32 bg-white/5 rounded-3xl" />
             </div>
           </div>
 
-          <div className="mt-12 flex flex-col items-center">
-            <div className="w-12 h-12 border-2 border-accent-primary/30 border-t-accent-primary rounded-full animate-spin mb-4" />
-            <p className="text-gray-500 text-[10px] tracking-widest uppercase font-bold">Synchronizing with Nostr...</p>
+          <div className="mt-20 flex flex-col items-center">
+            <div className="w-12 h-12 border border-vivid-cyan/30 border-t-vivid-cyan rounded-full animate-spin mb-6" />
+            <p className="text-gray-600 text-[10px] tracking-[0.4em] uppercase font-black">Connecting Cluster...</p>
           </div>
         </div>
       )}
 
       {/* Immersive Pill Dock (Top Right, Expandable) */}
-      <div className="absolute top-6 right-6 z-20 flex justify-end">
+      <div className="absolute top-8 right-8 z-20 flex justify-end">
         <motion.div
           layout
           onMouseEnter={() => setIsExpanded(true)}
           onMouseLeave={() => setIsExpanded(false)}
           onClick={() => setIsExpanded(!isExpanded)}
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
           className={cn(
-            "bg-[#0F0F13]/90 border border-white/10 backdrop-blur-xl rounded-full p-1 shadow-2xl flex items-center overflow-hidden cursor-pointer transition-all duration-300",
-            isExpanded ? "max-w-[300px]" : "max-w-[44px]"
+            "bg-[#050505]/80 border border-white/5 backdrop-blur-3xl rounded-3xl p-1.5 shadow-2xl flex items-center overflow-hidden cursor-pointer transition-all duration-500",
+            isExpanded ? "max-w-[340px] px-3 border-vivid-magenta/20 shadow-vivid-glow" : "max-w-[48px]"
           )}
         >
           <div className="flex items-center shrink-0">
             <div className="relative">
               {/* Pulse effect for running status */}
-              <div className="absolute inset-0 bg-white rounded-full animate-ping opacity-20 scale-150" />
-              <DockItem icon={LayoutGrid} active tooltip="Mirage Menu" />
+              <div className="absolute inset-0 bg-vivid-magenta rounded-full animate-ping opacity-20 scale-150" />
+              <div className="w-9 h-9 rounded-2xl bg-vivid-magenta flex items-center justify-center text-white shadow-vivid-glow z-10 relative">
+                <LayoutGrid size={18} />
+              </div>
             </div>
           </div>
 
@@ -172,13 +173,17 @@ export const RunPage = () => {
             }}
             className="flex items-center"
           >
-            <div className="w-px h-4 bg-white/10 mx-1 shrink-0" />
-            <div className="flex items-center gap-1 pr-1">
+            <div className="w-px h-5 bg-white/5 mx-3 shrink-0" />
+            <div className="flex items-center gap-1.5 pr-2">
               <Link to="/" onClick={(e) => e.stopPropagation()}>
-                <DockItem icon={Home} tooltip="Home" />
+                <DockItem icon={Home} tooltip="Library" />
               </Link>
-              <DockItem icon={Share} tooltip="Share" onClick={handleShare} />
-              <DockItem icon={Hammer} tooltip="Edit Source" />
+              <DockItem icon={Share} tooltip="Share Entry" onClick={handleShare} />
+              <DockItem icon={Hammer} tooltip="Debugger" />
+              <div className="w-px h-5 bg-white/5 mx-1.5 shrink-0" />
+              <Link to="/" onClick={(e) => e.stopPropagation()}>
+                <DockItem icon={XCircle} tooltip="Exit App" />
+              </Link>
             </div>
           </motion.div>
         </motion.div>
@@ -191,14 +196,16 @@ const DockItem = ({ icon: Icon, active, tooltip, onClick }: { icon: any, active?
   <button
     onClick={onClick}
     className={cn(
-      "w-10 h-10 rounded-full flex items-center justify-center transition-all group relative",
-      active ? "bg-white text-black" : "text-gray-400 hover:bg-white/10 hover:text-white"
+      "w-9 h-9 rounded-2xl flex items-center justify-center transition-all group relative border border-transparent",
+      active
+        ? "bg-vivid-magenta/20 text-vivid-magenta border-vivid-magenta/20"
+        : "text-gray-500 hover:bg-white/5 hover:text-white"
     )}
   >
-    <Icon size={18} fill={active ? "currentColor" : "none"} />
+    <Icon size={16} />
 
     {/* Tooltip */}
-    <div className="absolute top-12 left-1/2 -translate-x-1/2 px-2 py-1 bg-black text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-xl border border-white/10">
+    <div className="absolute top-14 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-card/90 backdrop-blur-xl text-white text-[10px] font-black uppercase tracking-widest rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none whitespace-nowrap z-50 shadow-2xl border border-white/5 scale-90 group-hover:scale-100">
       {tooltip}
     </div>
   </button>

@@ -6,13 +6,13 @@ const NavItem = ({ to, icon: Icon, label, active }: { to: string, icon: any, lab
   <Link
     to={to}
     className={cn(
-      "flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium text-sm",
+      "flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium text-sm border border-transparent",
       active
-        ? "bg-white text-black shadow-lg"
-        : "text-gray-400 hover:bg-white/5 hover:text-white"
+        ? "bg-vivid-magenta/10 text-vivid-magenta border-vivid-magenta/20 shadow-vivid-glow"
+        : "text-gray-500 hover:bg-white/5 hover:text-white"
     )}
   >
-    <Icon size={18} />
+    <Icon size={18} className={active ? "text-vivid-magenta" : ""} />
     {label}
   </Link>
 );
@@ -21,27 +21,27 @@ export const Sidebar = () => {
   const location = useLocation();
 
   return (
-    <aside className="w-64 bg-[#1A1A22]/60 border-r border-[#2E2E36] backdrop-blur-2xl p-6 flex flex-col z-20">
-      <div className="mb-10 px-2">
-        <span className="text-xl font-extrabold bg-accent-gradient bg-clip-text text-transparent">
+    <aside className="w-64 bg-card/60 border-r border-border backdrop-blur-2xl p-6 flex flex-col z-20">
+      <div className="mb-12 px-2">
+        <span className="text-2xl font-black vivid-text tracking-tighter">
           Mirage
         </span>
       </div>
 
-      <nav className="space-y-1">
-        <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-4 px-2">
-          Library
+      <nav className="space-y-2">
+        <div className="text-[10px] font-bold text-gray-600 uppercase tracking-[0.2em] mb-4 px-2">
+          Apps & Spaces
         </div>
         <NavItem
           to="/"
           icon={Home}
-          label="My Apps"
+          label="Library"
           active={location.pathname === '/'}
         />
         <NavItem
           to="/create"
           icon={PlusCircle}
-          label="Create App"
+          label="Connect App"
           active={location.pathname === '/create'}
         />
         <NavItem
@@ -52,7 +52,7 @@ export const Sidebar = () => {
         />
       </nav>
 
-      <nav className="mt-auto pt-6 border-t border-[#2E2E36]">
+      <nav className="mt-auto pt-6 border-t border-border">
         <NavItem
           to="/settings"
           icon={Settings}
