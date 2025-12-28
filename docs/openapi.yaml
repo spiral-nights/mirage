@@ -167,6 +167,45 @@ paths:
               schema:
                 $ref: '#/components/schemas/NostrEvent'
 
+  /user/me:
+    get:
+      tags: [Users]
+      summary: Get current user profile
+      description: Returns the profile of the currently authenticated user.
+      operationId: getCurrentUser
+      security:
+        - nip07: []
+      responses:
+        '200':
+          description: Your profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileContent'
+        '401':
+          description: Not authenticated
+
+  /users/{pubkey}:
+    get:
+      tags: [Users]
+      summary: Get user profile (Alias)
+      description: Alias for /profiles/{pubkey}
+      operationId: getUser
+      parameters:
+        - name: pubkey
+          in: path
+          required: true
+          description: Hex public key or npub
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User profile found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileContent'
+
   /profiles/{pubkey}:
     get:
       tags: [Users]
@@ -191,6 +230,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProfileContent'
               example:
+                pubkey: "39fe47..."
                 name: "Alice"
                 about: "Crypto enthusiast"
                 picture: "https://example.com/alice.jpg"
@@ -245,7 +285,7 @@ paths:
               schema:
                 type: object
                 properties:
-                  success: 
+                  success:
                     type: boolean
 
   /contacts/{pubkey}:
@@ -278,16 +318,6 @@ paths:
       description: |
         Retrieves a previously stored value by key. Data is automatically
         synced across all devices.
-        
-        **Common Use Cases:**
-        - App settings and preferences
-        - Draft content (e.g., unsaved posts)
-        - User-specific configuration
-        
-        **Security Notes:**
-        - Requires `storage_read` permission
-        - Data is stored on a public network (encrypt sensitive data client-side)
-        - Scoped per user (only your data is accessible)
       operationId: getStorage
       security:
         - nip07: []
@@ -307,23 +337,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/StorageValue'
         '401':
-          description: Not authenticated (no signer available)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+          description: Not authenticated
         '404':
           description: Key not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
         '503':
           description: Relay pool not initialized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
 
     put:
       tags: [Storage]
@@ -331,16 +349,6 @@ paths:
       description: |
         Stores or updates a value by key. Changes are signed by you and
         propagated to the network.
-        
-        **Common Use Cases:**
-        - Save app settings: `{"theme": "dark", "fontSize": 16}`
-        - Store drafts: `{"content": "Work in progress..."}`
-        - Sync preferences across devices
-        
-        **Security Notes:**
-        - Requires `storage_write` permission
-        - You sign the data (it cannot be forged)
-        - Replaces previous value with same key
       operationId: putStorage
       security:
         - nip07: []
@@ -368,24 +376,12 @@ paths:
                 $ref: '#/components/schemas/StorageValue'
         '401':
           description: Not authenticated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
         '503':
           description: Relay pool not initialized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
 
     delete:
       tags: [Storage]
       summary: Delete a stored value
-      description: |
-        Deletes a stored value.
-        Note: Data is removed from your view, but due to the decentralized
-        nature of the network, some replicas might persist briefly.
       operationId: deleteStorage
       security:
         - nip07: []
@@ -413,16 +409,8 @@ paths:
                     example: "obsolete-setting"
         '401':
           description: Not authenticated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
         '503':
           description: Relay pool not initialized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
 
   # ===========================================================================
   # Spaces
@@ -495,6 +483,30 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Space'
+    
+    delete:
+      tags: [Spaces]
+      summary: Delete or leave a space
+      description: Deletes the space if you are the owner, or removes you from it.
+      operationId: deleteSpace
+      security:
+        - nip07: []
+      parameters:
+        - name: spaceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Space deleted/left
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: boolean
 
   /spaces/{spaceId}/store:
     get:
@@ -502,16 +514,6 @@ paths:
       summary: Get shared data (Shared KV)
       description: |
         Get the current state of the shared database.
-        Returns a JSON object where each key is the latest value.
-        
-        **Streaming (recommended):**
-        ```javascript
-        const es = new EventSource('/mirage/v1/spaces/{id}/store');
-        es.onmessage = (event) => {
-          const { key, value } = JSON.parse(event.data);
-          // Update state[key] = value
-        };
-        ```
       operationId: getSpaceStore
       security:
         - nip07: []
@@ -631,6 +633,54 @@ paths:
               schema:
                 $ref: '#/components/schemas/SpaceMessage'
 
+  /spaces/{spaceId}/invite:
+    post:
+      tags: [Spaces]
+      summary: Invite someone to the space
+      description: |
+        Add a person to your space. They'll receive an invitation.
+      operationId: inviteToSpace
+      security:
+        - nip07: []
+      parameters:
+        - name: spaceId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pubkey]
+              properties:
+                pubkey:
+                  type: string
+                  description: The user's ID (their public key)
+      responses:
+        '200':
+          description: Invitation sent
+
+  /spaces/all:
+    get:
+      tags: [Spaces]
+      summary: List all spaces
+      description: Returns all spaces across all applications, including invitations.
+      operationId: listAllSpaces
+      security:
+        - nip07: []
+      responses:
+        '200':
+          description: All spaces
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Space'
+
   /library/apps:
     get:
       tags: [System]
@@ -702,80 +752,11 @@ paths:
                   deleted:
                     type: string
 
-  /spaces/all:
-    get:
-      tags: [Spaces]
-      summary: List all spaces
-      description: Returns all spaces across all applications, including invitations.
-      operationId: listAllSpaces
-      security:
-        - nip07: []
-      responses:
-        '200':
-          description: All spaces
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Space'
-
-  /spaces/{spaceId}:
-    get:
-      tags: [Spaces]
-      summary: Get space details
-      operationId: getSpace
-      security:
-        - nip07: []
-      parameters:
-        - name: spaceId
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Space details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Space'
-
-  /spaces/{spaceId}/invite:
-    post:
-      tags: [Spaces]
-      summary: Invite someone to the space
-      description: |
-        Add a person to your space. They'll receive an invitation.
-      operationId: inviteToSpace
-      security:
-        - nip07: []
-      parameters:
-        - name: spaceId
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [pubkey]
-              properties:
-                pubkey:
-                  type: string
-                  description: The user's ID (their public key)
-      responses:
-        '200':
-          description: Invitation sent
-
   # ===========================================================================
   # Direct Messages (NIP-17)
   # ===========================================================================
 
-  /dm:
+  /dms:
     get:
       tags: [DirectMessages]
       summary: List your conversations
@@ -793,7 +774,7 @@ paths:
                 items:
                   $ref: '#/components/schemas/Conversation'
 
-  /dm/{pubkey}:
+  /dms/{pubkey}:
     get:
       tags: [DirectMessages]
       summary: Get messages with someone
@@ -802,7 +783,7 @@ paths:
         
         **Streaming (recommended):**
         ```javascript
-        const es = new EventSource('/mirage/v1/dm/{pubkey}');
+        const es = new EventSource('/mirage/v1/dms/{pubkey}');
         es.onmessage = (event) => console.log(JSON.parse(event.data));
         ```
       operationId: getDirectMessages
@@ -917,10 +898,13 @@ components:
       type: object
       description: Parsed content of a Kind 0 Metadata event
       properties:
+        pubkey:
+          type: string
+          description: User's public key
         name:
           type: string
           description: Short username
-        display_name:
+        displayName:
           type: string
           description: Full display name
         about:

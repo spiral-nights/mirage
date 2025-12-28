@@ -1,4 +1,4 @@
-import { Home, Heart, Settings, PlusCircle, Code2, Edit3, Share, XCircle } from 'lucide-react';
+import { Home, Heart, PlusCircle, Code2, Edit3, Share, XCircle } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Link, useLocation } from 'react-router-dom';
 import { useAppActions } from '../contexts/AppActionsContext';
