@@ -103,15 +103,6 @@ export const Sidebar = ({ onNavItemClick }: { onNavItemClick?: () => void }) => 
           </div>
         </div>
       )}
-
-      <div className="mt-auto" onClick={onNavItemClick}>
-        <NavItem
-          to="/settings"
-          icon={Settings}
-          label="Settings"
-          active={location.pathname === '/settings'}
-        />
-      </div>
     </aside>
   );
 };

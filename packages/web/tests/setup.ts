@@ -16,7 +16,22 @@ const window = new Window();
 class MockWorker {
   onmessage: ((ev: any) => any) | null = null;
   postMessage(message: any) {
-    // Simulate engine response if needed
+    if (this.onmessage) {
+        // Simulate async response to unblock requests
+        setTimeout(() => {
+            if (message.type === 'API_REQUEST') {
+                this.onmessage!({
+                    data: {
+                        type: 'API_RESPONSE',
+                        id: message.id,
+                        status: 200,
+                        body: [] // Return empty list for library/spaces
+                    }
+                } as any);
+            }
+            // Add other message types if needed
+        }, 10);
+    }
   }
   terminate() {}
 }

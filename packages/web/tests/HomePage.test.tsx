@@ -27,23 +27,24 @@ describe('HomePage', () => {
     cleanup();
   });
 
-  test('renders welcome message', () => {
+  test('renders welcome message', async () => {
     renderWithProviders(<HomePage />);
-    expect(screen.getByText(/Build something magic/i)).toBeTruthy();
+    // Match part of the text to avoid issues with splits across elements (<br />)
+    expect(await screen.findByText(/Build something/i)).toBeTruthy();
   });
 
-  test('contains "Copy System Prompt" button', () => {
+  test('contains "GENERATE PROTOCOL" button', async () => {
     renderWithProviders(<HomePage />);
-    // Use getAllByText if duplicates exist, or be more specific
-    const buttons = screen.getAllByText(/Copy System Prompt/i);
+    const buttons = await screen.findAllByText(/GENERATE PROTOCOL/i);
     expect(buttons.length).toBeGreaterThan(0);
   });
 
-  test('opens Publish Modal when clicking "Publish App"', () => {
+  test('opens Publish Modal when clicking "Publish App"', async () => {
     renderWithProviders(<HomePage />);
-    const publishButton = screen.getByRole('button', { name: /Publish App/i });
+    const publishButton = await screen.findByRole('button', { name: /Publish App/i });
     fireEvent.click(publishButton);
     
-    expect(screen.getByText(/Paste the HTML code/i)).toBeTruthy();
+    // Wait for modal to appear.
+    expect(await screen.findByText(/Cluster Payload/i)).toBeTruthy();
   });
 });

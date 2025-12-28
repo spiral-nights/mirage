@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Sidebar } from '../components/Sidebar';
+import { UserProfile } from '../components/UserProfile';
 import { Outlet } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
 
@@ -13,14 +14,26 @@ export const RootLayout = () => {
       <div className="blob w-[250px] md:w-[500px] h-[250px] md:h-[500px] bg-vivid-cyan -bottom-20 md:-bottom-40 -right-20 md:-right-40 opacity-10" />
 
       {/* Mobile Header */}
-      <div className="md:hidden fixed top-0 left-0 right-0 flex items-center justify-between p-4 bg-card/60 border-b border-white/5 backdrop-blur-xl z-[200]">
-        <span className="text-xl font-black vivid-text tracking-tighter">Mirage</span>
-        <button
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="p-2 bg-white/5 rounded-xl text-gray-400 hover:text-white transition-colors"
-        >
-          {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
-        </button>
+      <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-card/60 border-b border-white/5 backdrop-blur-xl z-[200] px-4 grid grid-cols-3 items-center">
+        {/* Left: Hamburger */}
+        <div className="flex justify-start">
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="p-2 bg-white/5 rounded-xl text-gray-400 hover:text-white transition-colors"
+          >
+            {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
+        </div>
+
+        {/* Center: Logo */}
+        <div className="flex justify-center">
+           <span className="text-xl font-black vivid-text tracking-tighter">Mirage</span>
+        </div>
+
+        {/* Right: Profile */}
+        <div className="flex justify-end">
+           <UserProfile />
+        </div>
       </div>
 
       {/* Sidebar - Persistent on desktop, Slide-over on mobile */}
@@ -41,6 +54,10 @@ export const RootLayout = () => {
       </div>
 
       <main className="flex-1 overflow-y-auto relative z-10 p-6 md:p-12 pt-20 md:pt-12">
+        {/* Desktop Profile: Absolute Top-Right */}
+        <div className="hidden md:block absolute top-6 right-8 z-50">
+           <UserProfile />
+        </div>
         <Outlet />
       </main>
     </div>
