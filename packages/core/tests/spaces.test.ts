@@ -15,6 +15,21 @@ const mockEncrypt = mock(async (pubkey: string, plaintext: string) => `encrypted
 const mockDecrypt = mock(async (pubkey: string, ciphertext: string) => ciphertext.replace('encrypted_', ''));
 const mockSign = mock(async (e: any) => ({ ...e, id: 'test_id', sig: 'test_sig', pubkey: 'test_pubkey' }));
 
+function matches(event: any, filter: any) {
+    if (filter.kinds && !filter.kinds.includes(event.kind)) return false;
+    if (filter.authors && !filter.authors.includes(event.pubkey)) return false;
+    if (filter['#d']) {
+        const d = event.tags.find((t:any) => t[0] === 'd')?.[1];
+        if (!d || !filter['#d'].includes(d)) return false;
+    }
+    if (filter['#t']) {
+        const tTags = event.tags.filter((t:any) => t[0] === 't').map((t:any) => t[1]);
+        if (!tTags.some((tag: string) => filter['#t'].includes(tag))) return false;
+    }
+    if (filter.since && event.created_at < filter.since) return false;
+    return true;
+}
+
 describe("Space Management (Phase 5)", () => {
     let ctx: SpaceRouteContext;
     let events: any[] = [];
@@ -32,29 +47,26 @@ describe("Space Management (Phase 5)", () => {
             subscribe: mock((filters: any[], onEvent: any, onEose: any) => {
                 const subId = `sub_${subscriptions.length}`;
                 subscriptions.push({ id: subId, filters, onEvent });
-
-                // Simulate immediate response for storage lookups
                 setTimeout(() => {
                     for (const ev of events) {
-                        // Storage lookup
-                        if (filters[0].kinds?.includes(30078) &&
-                            ev.kind === 30078 &&
-                            filters[0]['#d']?.includes(ev.tags.find((t: any) => t[0] === 'd')?.[1])) {
-                            onEvent(ev);
-                        }
-                        // Space lookup (Kind 42)
-                        if (filters[0].kinds?.includes(42) && ev.kind === 42) {
-                            // Check topic filter
-                            if (filters[0]['#t'] && !ev.tags.some((t:any) => t[0] === 't' && filters[0]['#t'].includes(t[1]))) {
-                                continue;
-                            }
-                            onEvent(ev);
-                        }
+                        if (matches(ev, filters[0])) onEvent(ev);
                     }
                     if (onEose) onEose();
                 }, 10);
-
                 return () => { };
+            }),
+            query: mock(async (filters: any[], timeout?: number) => {
+                for (const ev of events) {
+                    if (matches(ev, filters[0])) return ev;
+                }
+                return null;
+            }),
+            queryAll: mock(async (filters: any[], timeout?: number) => {
+                const res = [];
+                for (const ev of events) {
+                    if (matches(ev, filters[0])) res.push(ev);
+                }
+                return res;
             })
         } as unknown as RelayPool;
 
@@ -134,10 +146,17 @@ describe("Space Management (Phase 5)", () => {
 
         // 2. Add some updates
         await updateSpaceStore(ctx, spaceId, "milk", { qty: 1 });
-        await new Promise(r => setTimeout(r, 20)); // Ensure timestamp diff
+        // Mock created_at to be increasing (since mockSign sets it? No, postSpaceMessage sets it)
+        // Wait to ensure timestamp diff? Or mock created_at manually in events?
+        // updateSpaceStore calls postSpaceMessage -> events.push.
+        // We can manually tweak the last event's timestamp.
+        events[events.length - 1].created_at += 10;
+
         await updateSpaceStore(ctx, spaceId, "eggs", { qty: 12 });
-        await new Promise(r => setTimeout(r, 20));
+        events[events.length - 1].created_at += 20;
+
         await updateSpaceStore(ctx, spaceId, "milk", { qty: 2 }); // Overwrite milk
+        events[events.length - 1].created_at += 30;
 
         // 3. Get Store
         const res3 = await getSpaceStore(ctx, spaceId);

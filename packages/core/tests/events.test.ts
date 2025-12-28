@@ -14,11 +14,10 @@ import type { Event } from 'nostr-tools';
 
 function createMockContext(overrides?: Partial<EventsRouteContext>): EventsRouteContext {
     const mockPool = {
-        subscribe: mock((filters: any[], onEvent: (e: Event) => void, onEose?: () => void) => {
-            if (onEose) setTimeout(onEose, 0);
-            return () => { }; // unsubscribe
-        }),
+        subscribe: mock(),
         publish: mock(async (event: Event) => { }),
+        query: mock(),
+        queryAll: mock(async (filters: any[], timeout?: number) => []),
     };
 
     const mockSign = mock(async (event: any): Promise<Event> => ({
@@ -44,7 +43,7 @@ describe('getEvents', () => {
         const ctx = createMockContext();
         await getEvents(ctx, {});
 
-        const filters = (ctx.pool.subscribe as any).mock.calls[0][0];
+        const filters = (ctx.pool.queryAll as any).mock.calls[0][0];
         expect(filters[0]).toEqual({ limit: 20 });
     });
 
@@ -52,7 +51,7 @@ describe('getEvents', () => {
         const ctx = createMockContext();
         await getEvents(ctx, { kinds: '1,0,3' });
 
-        const filters = (ctx.pool.subscribe as any).mock.calls[0][0];
+        const filters = (ctx.pool.queryAll as any).mock.calls[0][0];
         expect(filters[0].kinds).toEqual([1, 0, 3]);
     });
 
@@ -60,7 +59,7 @@ describe('getEvents', () => {
         const ctx = createMockContext();
         await getEvents(ctx, { authors: 'pubkey1,pubkey2' });
 
-        const filters = (ctx.pool.subscribe as any).mock.calls[0][0];
+        const filters = (ctx.pool.queryAll as any).mock.calls[0][0];
         expect(filters[0].authors).toEqual(['pubkey1', 'pubkey2']);
     });
 
@@ -68,7 +67,7 @@ describe('getEvents', () => {
         const ctx = createMockContext();
         await getEvents(ctx, { tags: ['t:nostr', 'p:person1'] });
 
-        const filters = (ctx.pool.subscribe as any).mock.calls[0][0];
+        const filters = (ctx.pool.queryAll as any).mock.calls[0][0];
         expect(filters[0]['#t']).toEqual(['nostr']);
         expect(filters[0]['#p']).toEqual(['person1']);
     });
@@ -85,11 +84,7 @@ describe('getEvents', () => {
             sig: 'sig'
         };
 
-        ctx.pool.subscribe = mock((filters, onEvent, onEose) => {
-            onEvent(mockEvent);
-            if (onEose) setTimeout(onEose, 0);
-            return () => { };
-        });
+        ctx.pool.queryAll = mock(async () => [mockEvent]);
 
         const result = await getEvents(ctx, {});
         expect(result.status).toBe(200);

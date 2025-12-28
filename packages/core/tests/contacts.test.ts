@@ -1,4 +1,3 @@
-
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 import { listContacts, updateContacts, type ContactsRouteContext } from '../src/engine/routes/contacts';
 import type { Event, UnsignedEvent } from 'nostr-tools';
@@ -7,6 +6,8 @@ import type { Event, UnsignedEvent } from 'nostr-tools';
 const mockPool = {
     subscribe: mock(),
     publish: mock(),
+    query: mock(),
+    queryAll: mock(),
 };
 
 const mockSign = mock(async (e: UnsignedEvent) => {
@@ -27,6 +28,8 @@ describe('Contacts Routes (NIP-02)', () => {
     beforeEach(() => {
         mockPool.subscribe.mockReset();
         mockPool.publish.mockReset();
+        mockPool.query.mockReset();
+        mockPool.queryAll.mockReset();
         mockSign.mockClear();
     });
 
@@ -45,10 +48,7 @@ describe('Contacts Routes (NIP-02)', () => {
             sig: 'sig'
         };
 
-        mockPool.subscribe.mockImplementation((filters, onevent, oneose) => {
-            onevent(mockEvent);
-            return () => { };
-        });
+        mockPool.query.mockResolvedValue(mockEvent);
 
         const res = await listContacts(ctx) as { status: number, body: any };
 
@@ -61,7 +61,7 @@ describe('Contacts Routes (NIP-02)', () => {
         });
         expect(res.body[1]).toEqual({
             pubkey: 'other_pubkey',
-            relay: undefined, // empty string -> undefined in our logic? Check implementation
+            relay: undefined,
             petname: 'Bob'
         });
     });
@@ -81,7 +81,6 @@ describe('Contacts Routes (NIP-02)', () => {
         expect(signedEvent.kind).toBe(3);
         expect(signedEvent.tags).toHaveLength(2);
         expect(signedEvent.tags[0]).toEqual(['p', 'new_friend', 'wss://cool.relay', 'Charlie']);
-        // Note: Logic adds empty string for relay if petname is missing? No, only if petname exists.
         expect(signedEvent.tags[1]).toEqual(['p', 'simple_friend']);
 
         expect(mockPool.publish).toHaveBeenCalled();

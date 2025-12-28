@@ -97,4 +97,27 @@ describe('RelayPool', () => {
 
         expect(pool.getRelays()).toEqual([]);
     });
+
+    test('getStats returns correct statuses', async () => {
+        const pool = new RelayPool();
+        
+        // Before connecting (addRelay is async but starts connecting immediately)
+        const p = pool.addRelay('wss://status.relay');
+        
+        // Immediately it should be connecting
+        let stats = pool.getStats();
+        expect(stats).toContainEqual({ url: 'wss://status.relay', status: 'connecting' });
+        
+        // Wait for connection
+        await p;
+        
+        stats = pool.getStats();
+        expect(stats).toContainEqual({ url: 'wss://status.relay', status: 'connected' });
+        
+        pool.removeRelay('wss://status.relay');
+        stats = pool.getStats();
+        expect(stats).toEqual([]);
+        
+        pool.close();
+    });
 });

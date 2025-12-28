@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef, createContext, useContext, ty
 import { MirageHost } from '@mirage/host';
 import { type AppDefinition } from '@mirage/core';
 import { nip19 } from 'nostr-tools';
+import { INITIAL_ENABLED_RELAYS } from '../lib/relays';
 
 interface MirageContextType {
   host: MirageHost | null;
@@ -97,8 +98,20 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
           console.log(`[useMirage] Nostr wait took: ${(performance.now() - nostrWaitStart).toFixed(2)}ms`);
 
           const signer = (window as any).nostr;
+
+          // Load relays from localStorage
+          let initialRelays = INITIAL_ENABLED_RELAYS;
+          try {
+            const stored = localStorage.getItem('mirage_relays');
+            if (stored) {
+              initialRelays = JSON.parse(stored);
+            }
+          } catch (e) {
+            console.warn('[useMirage] Failed to load relays from localStorage', e);
+          }
+
           const mirageHost = new MirageHost({
-            relays: ['wss://relay.damus.io', 'wss://nos.lol'],
+            relays: initialRelays,
             engineUrl: `${origin}/engine-worker.js`,
             bridgeUrl: `${origin}/bridge.js`,
             signer

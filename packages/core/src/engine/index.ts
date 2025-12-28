@@ -168,6 +168,14 @@ self.onmessage = async (event: MessageEvent<MirageMessage>) => {
             await handleSetSessionKey(message as SetSessionKeyMessage);
             break;
 
+        case 'ACTION_GET_RELAY_STATUS':
+            self.postMessage({
+                type: 'RELAY_STATUS_RESULT',
+                id: message.id,
+                stats: pool ? pool.getStats() : []
+            });
+            break;
+
         case 'STREAM_OPEN':
             await poolReady;
             if (pool) {

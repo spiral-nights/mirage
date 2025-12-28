@@ -20,6 +20,7 @@
     },
     "scripts": {
         "build": "tsc --emitDeclarationOnly --outDir ./dist && bun build ./src/index.ts --outfile ./dist/index.js --target browser && bun build ./src/engine/index.ts --outfile ./dist/engine.js --target browser --format iife && bun build ./src/bridge/index.ts --outfile ./dist/bridge.js --target browser",
+        "test": "bun test",
         "typecheck": "tsc --noEmit"
     },
     "dependencies": {

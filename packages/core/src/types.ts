@@ -27,6 +27,8 @@ export type MessageType =
     | 'ACTION_FETCH_APP'
     | 'FETCH_APP_RESULT'
     | 'ACTION_SET_SESSION_KEY'
+    | 'ACTION_GET_RELAY_STATUS'
+    | 'RELAY_STATUS_RESULT'
     | 'ERROR';
 
 export interface BaseMessage {
@@ -52,6 +54,22 @@ export interface FetchAppResultMessage extends BaseMessage {
     type: 'FETCH_APP_RESULT';
     html?: string;
     error?: string;
+}
+
+/** Request relay stats from Engine */
+export interface GetRelayStatusMessage extends BaseMessage {
+    type: 'ACTION_GET_RELAY_STATUS';
+}
+
+export interface RelayStat {
+    url: string;
+    status: 'connected' | 'connecting' | 'disconnected' | 'error';
+}
+
+/** Relay stats result */
+export interface RelayStatusResultMessage extends BaseMessage {
+    type: 'RELAY_STATUS_RESULT';
+    stats: RelayStat[];
 }
 
 /** API request from Bridge to Engine */
@@ -129,6 +147,8 @@ export type MirageMessage =
     | FetchAppRequestMessage
     | FetchAppResultMessage
     | SetSessionKeyMessage
+    | GetRelayStatusMessage
+    | RelayStatusResultMessage
     | ErrorMessage;
 
 // ============================================================================

@@ -13,6 +13,7 @@
     "scripts": {
         "build": "tsc --emitDeclarationOnly --outDir ./dist && bun build ./src/index.ts --outfile ./dist/index.js --target browser",
         "dev": "bun run --hot ./dev-server.ts",
+        "test": "bun test --preload ./tests/setup.ts",
         "typecheck": "tsc --noEmit"
     },
     "dependencies": {

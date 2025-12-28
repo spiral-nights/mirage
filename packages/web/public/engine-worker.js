@@ -7094,6 +7094,7 @@
   class RelayPool {
     relays = new Map;
     connecting = new Map;
+    statuses = new Map;
     constructor(options) {
       if (options?.relays) {
         for (const url of options.relays) {
@@ -7102,24 +7103,34 @@
       }
     }
     async addRelay(url) {
-      if (this.relays.has(url) || this.connecting.has(url)) {
+      if (this.relays.has(url))
+        return;
+      if (this.connecting.has(url)) {
+        try {
+          await this.connecting.get(url);
+        } catch {}
         return;
       }
+      this.statuses.set(url, "connecting");
       const connectPromise = (async () => {
         try {
           const relay = await Relay.connect(url);
           this.relays.set(url, relay);
           this.connecting.delete(url);
+          this.statuses.set(url, "connected");
           console.log(`[RelayPool] Connected to ${url}`);
           return relay;
         } catch (error) {
           this.connecting.delete(url);
+          this.statuses.set(url, "error");
           console.error(`[RelayPool] Failed to connect to ${url}:`, error);
           throw error;
         }
       })();
       this.connecting.set(url, connectPromise);
-      await connectPromise;
+      try {
+        await connectPromise;
+      } catch {}
     }
     removeRelay(url) {
       const relay = this.relays.get(url);
@@ -7129,9 +7140,11 @@
         console.log(`[RelayPool] Disconnected from ${url}`);
       }
       this.connecting.delete(url);
+      this.statuses.delete(url);
     }
     async setRelays(urls) {
-      for (const url of this.relays.keys()) {
+      const currentUrls = new Set([...this.relays.keys(), ...this.connecting.keys(), ...this.statuses.keys()]);
+      for (const url of currentUrls) {
         if (!urls.includes(url)) {
           this.removeRelay(url);
         }
@@ -7140,6 +7153,12 @@
     }
     getRelays() {
       return Array.from(this.relays.keys());
+    }
+    getStats() {
+      return Array.from(this.statuses.entries()).map(([url, status]) => ({
+        url,
+        status
+      }));
     }
     async query(filters, timeout = 3000) {
       return new Promise((resolve) => {
@@ -7236,6 +7255,7 @@
       }
       this.relays.clear();
       this.connecting.clear();
+      this.statuses.clear();
     }
   }
 
@@ -9251,6 +9271,13 @@
         break;
       case "ACTION_SET_SESSION_KEY":
         await handleSetSessionKey(message);
+        break;
+      case "ACTION_GET_RELAY_STATUS":
+        self.postMessage({
+          type: "RELAY_STATUS_RESULT",
+          id: message.id,
+          stats: pool ? pool.getStats() : []
+        });
         break;
       case "STREAM_OPEN":
         await poolReady;

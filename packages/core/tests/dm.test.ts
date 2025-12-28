@@ -12,8 +12,6 @@ mock.module('../src/engine/nip17', () => ({
     }),
     unwrapEvent: async (wrap: any, decrypt: any) => {
         // Return the "Seal" (Kind 13)
-        // In this mock, we assume the seal content was just "encrypted_seal_content"
-        // We return a Mock Seal signed by Alice or Bob
         return {
             kind: 13,
             pubkey: wrap.tags.find((t: any) => t[0] === 'p')?.[1] === 'alice_hex' ? 'bob_hex' : 'alice_hex', // Inferred sender
@@ -36,17 +34,21 @@ describe("Direct Messages (NIP-17)", () => {
             pool: {
                 publish: async (e: any) => { publishedEvents.push(e); },
                 subscribe: (filters: any[], onevent: any, oneose: any) => {
+                    // Legacy support just in case, but queryAll handles it now
+                    return () => { };
+                },
+                query: mock(async () => null),
+                queryAll: async (filters: any[], timeout: number) => {
                     // Mock Inbox: Bob sent message to Alice
                     if (filters[0].kinds?.includes(1059)) {
-                        onevent({
+                        return [{
                             kind: 1059,
-                            tags: [['p', alicePub]], // Replaces 'p' filter
+                            tags: [['p', alicePub]], 
                             content: "encrypted_gift",
                             pubkey: "random_ephemeral"
-                        });
-                        setTimeout(oneose, 0); // Async oneose
+                        }];
                     }
-                    return () => { };
+                    return [];
                 }
             } as any,
             requestSign: async (e: any) => ({ ...e, id: "sig_mock", sig: "sig_mock" }),
@@ -95,10 +97,6 @@ describe("Direct Messages (NIP-17)", () => {
     });
 
     test("Receive DM -> Unwraps twice (Gift -> Seal -> Rumor)", async () => {
-        // We override the 'unwrapEvent' behavior via the mock above 
-        // and the ctx.requestDecrypt mock to simulate the double decryption.
-
-        // The mock subscribe returns 1 message from Bob
         const res = await getDMMessages(ctx, bobPub, {});
         const messages = res.body as any[];
 

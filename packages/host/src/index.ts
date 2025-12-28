@@ -98,6 +98,17 @@ export class MirageHost {
     }
 
     /**
+     * Get connection status for all active relays
+     */
+    async getRelayStats(): Promise<any[]> {
+        const result = await this.sendToEngine({
+            type: 'ACTION_GET_RELAY_STATUS',
+            id: crypto.randomUUID(),
+        });
+        return (result as any).stats;
+    }
+
+    /**
      * Set the current pubkey on the Engine for authenticated API requests.
      * This should be called after getting the pubkey from the signer.
      */

@@ -3,6 +3,7 @@ import { RootLayout } from './layouts/RootLayout';
 import { HomePage } from './pages/HomePage';
 import { RunPage } from './pages/RunPage';
 import { MyAppsPage } from './pages/MyAppsPage';
+import { SettingsPage } from './pages/SettingsPage';
 import { MirageProvider } from './hooks/useMirage';
 import { AppActionsProvider } from './contexts/AppActionsContext';
 
@@ -17,7 +18,7 @@ function App() {
               <Route path="create" element={<HomePage />} />
               <Route path="run/:naddr" element={<RunPage />} />
               <Route path="favorites" element={<div>Favorites (Coming Soon)</div>} />
-              <Route path="settings" element={<div>Settings (Coming Soon)</div>} />
+              <Route path="settings" element={<SettingsPage />} />
             </Route>
           </Routes>
         </BrowserRouter>

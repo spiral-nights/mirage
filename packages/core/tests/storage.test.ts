@@ -18,6 +18,8 @@ function createMockContext(overrides?: Partial<StorageRouteContext>): StorageRou
             return () => { }; // unsubscribe function
         }),
         publish: mock(async (event: Event) => { }),
+        query: mock(async (filters: any[], timeout?: number) => null),
+        queryAll: mock(async (filters: any[], timeout?: number) => []),
     };
 
     const mockSign = mock(async (event: any): Promise<Event> => ({
@@ -66,7 +68,7 @@ describe('getStorage', () => {
 
     test('returns 404 when key not found', async () => {
         const ctx = createMockContext();
-        // Pool returns no events
+        // Pool returns no events (default query returns null)
         const result = await getStorage(ctx, 'nonexistent-key', {});
 
         expect(result.status).toBe(404);
@@ -87,11 +89,8 @@ describe('getStorage', () => {
         };
 
         const ctx = createMockContext();
-        // Mock subscribe to return an event
-        ctx.pool.subscribe = mock((filters, onEvent, onEose) => {
-            onEvent(storedEvent);
-            return () => { };
-        });
+        // Mock query to return an event
+        ctx.pool.query = mock(async () => storedEvent);
 
         const result = await getStorage(ctx, 'my-key', {});
 
@@ -115,12 +114,12 @@ describe('getStorage', () => {
         };
 
         const ctx = createMockContext();
-        ctx.pool.subscribe = mock((filters, onEvent, onEose) => {
+        ctx.pool.query = mock(async (filters) => {
             // Check that we are querying the foreign pubkey
             if (filters[0].authors.includes(foreignPubkey)) {
-                onEvent(storedEvent);
+                return storedEvent;
             }
-            return () => { };
+            return null;
         });
 
         // Call getStorage with foreign pubkey

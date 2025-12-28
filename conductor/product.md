@@ -12,4 +12,4 @@ Mirage is a client-side "operating system" for decentralized, ephemeral applicat
 - **Virtual API:** Translates standard `fetch()` calls into Nostr events (Kind 30078, 42, 17, etc.).
 - **Sandboxed Execution:** Apps run in secure `null-origin` iframes.
 - **Shared Spaces:** Encrypted collaborative containers for data and state.
-- **Mirage Studio:** A web interface for prompting LLMs, publishing app code to Nostr, and managing personal app collections.
+- **Mirage Studio:** A web interface for prompting LLMs, publishing app code to Nostr, managing personal app collections, and configuring network relays.

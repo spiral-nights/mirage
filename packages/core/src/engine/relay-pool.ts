@@ -5,14 +5,18 @@
  */
 
 import { Relay, type Filter, type Event } from 'nostr-tools';
+import type { RelayStat } from '../types';
 
 export interface RelayPoolOptions {
     relays: string[];
 }
 
+type RelayStatus = 'connected' | 'connecting' | 'disconnected' | 'error';
+
 export class RelayPool {
     private relays: Map<string, Relay> = new Map();
     private connecting: Map<string, Promise<Relay>> = new Map();
+    private statuses: Map<string, RelayStatus> = new Map();
 
     constructor(options?: RelayPoolOptions) {
         if (options?.relays) {
@@ -26,26 +30,46 @@ export class RelayPool {
      * Add a relay to the pool
      */
     async addRelay(url: string): Promise<void> {
-        if (this.relays.has(url) || this.connecting.has(url)) {
+        if (this.relays.has(url)) return;
+
+        if (this.connecting.has(url)) {
+            try {
+                await this.connecting.get(url);
+            } catch {
+                // Ignore
+            }
             return;
         }
+
+        this.statuses.set(url, 'connecting');
 
         const connectPromise = (async () => {
             try {
                 const relay = await Relay.connect(url);
+                
+                // Add listeners for connection drops if supported by the library wrapper
+                // For now, we assume connected if connect() resolves.
+                
                 this.relays.set(url, relay);
                 this.connecting.delete(url);
+                this.statuses.set(url, 'connected');
                 console.log(`[RelayPool] Connected to ${url}`);
                 return relay;
             } catch (error) {
                 this.connecting.delete(url);
+                this.statuses.set(url, 'error');
                 console.error(`[RelayPool] Failed to connect to ${url}:`, error);
                 throw error;
             }
         })();
 
         this.connecting.set(url, connectPromise);
-        await connectPromise;
+        
+        try {
+            await connectPromise;
+        } catch {
+            // Already handled
+        }
     }
 
     /**
@@ -59,14 +83,17 @@ export class RelayPool {
             console.log(`[RelayPool] Disconnected from ${url}`);
         }
         this.connecting.delete(url);
+        this.statuses.delete(url);
     }
 
     /**
      * Set relays (replaces all current relays)
      */
     async setRelays(urls: string[]): Promise<void> {
+        const currentUrls = new Set([...this.relays.keys(), ...this.connecting.keys(), ...this.statuses.keys()]);
+        
         // Remove relays not in new list
-        for (const url of this.relays.keys()) {
+        for (const url of currentUrls) {
             if (!urls.includes(url)) {
                 this.removeRelay(url);
             }
@@ -81,6 +108,16 @@ export class RelayPool {
      */
     getRelays(): string[] {
         return Array.from(this.relays.keys());
+    }
+
+    /**
+     * Get stats for all tracked relays
+     */
+    getStats(): RelayStat[] {
+        return Array.from(this.statuses.entries()).map(([url, status]) => ({
+            url,
+            status
+        }));
     }
 
     /**
@@ -231,5 +268,6 @@ export class RelayPool {
         }
         this.relays.clear();
         this.connecting.clear();
+        this.statuses.clear();
     }
 }
