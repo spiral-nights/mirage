@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, UploadCloud, CheckCircle2, Save, Copy, Check } from 'lucide-react';
+import { X, UploadCloud, Copy, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '../lib/utils';
-import { useMirage } from '../hooks/useMirage';
 
 interface PublishModalProps {
   isOpen: boolean;
@@ -12,6 +11,7 @@ interface PublishModalProps {
   initialName?: string;
   initialCode?: string;
   existingDTag?: string;
+  returnTo?: string; // Where to return on preview cancel (e.g., /create or /run/naddr...)
 }
 
 export const PublishModal = ({
@@ -20,15 +20,13 @@ export const PublishModal = ({
   mode = 'create',
   initialName = '',
   initialCode = '',
-  existingDTag
+  existingDTag,
+  returnTo = '/create',
 }: PublishModalProps) => {
   const [name, setName] = useState(initialName);
   const [code, setCode] = useState(initialCode);
-  const [isPublishing, setIsPublishing] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const { publishApp } = useMirage();
   const navigate = useNavigate();
 
   // Reset fields when opening/mode changes
@@ -36,33 +34,35 @@ export const PublishModal = ({
     if (isOpen) {
       setName(initialName);
       setCode(initialCode);
-      setIsSuccess(false);
     }
   }, [isOpen, initialName, initialCode]);
 
-  const handlePublish = async () => {
-    if (!code.trim() || !name.trim()) return;
+  const handlePreview = () => {
+    if (!code.trim()) return;
 
-    setIsPublishing(true);
-    try {
-      const naddr = await publishApp(code, name, existingDTag);
-      console.log('Published app:', naddr);
-
-      setIsSuccess(true);
-      setTimeout(() => {
-        onClose();
-        setIsSuccess(false);
-        // Only navigate if it was a new app or if we explicitly want to refresh the run page
-        if (mode === 'create') {
-          navigate(`/run/${naddr}`);
-        }
-      }, 1500);
-    } catch (error) {
-      console.error('Publishing failed:', error);
-      alert('Publishing failed. Do you have a Nostr extension (NIP-07) installed?');
-    } finally {
-      setIsPublishing(false);
+    // Navigate to preview page with appropriate state, including where to return on cancel
+    if (mode === 'create') {
+      navigate('/preview', {
+        state: {
+          code,
+          mode: 'create',
+          returnTo,
+        },
+      });
+    } else if (mode === 'edit') {
+      navigate('/preview', {
+        state: {
+          code,
+          mode: 'edit',
+          appName: name,
+          existingDTag,
+          returnTo,
+        },
+      });
     }
+
+    // Close the modal
+    onClose();
   };
 
   const handleCopy = () => {
@@ -120,7 +120,7 @@ export const PublishModal = ({
 
             {/* Content */}
             <div className="p-12 pt-6">
-              {!isView && (
+              {!isView && mode === 'edit' && (
                 <div className="mb-8">
                   <label className="block text-xs font-black uppercase tracking-[0.3em] text-gray-600 mb-3">
                     Application Name
@@ -172,36 +172,19 @@ export const PublishModal = ({
               <div className="mt-10 flex items-center gap-6">
                 {!isView ? (
                   <button
-                    onClick={handlePublish}
-                    disabled={!code.trim() || !name.trim() || isPublishing || isSuccess}
+                    onClick={handlePreview}
+                    disabled={!code.trim()}
                     className={cn(
                       "flex-1 py-5 rounded-[24px] font-black transition-all relative overflow-hidden text-sm uppercase tracking-widest",
-                      (!code.trim() || !name.trim())
+                      !code.trim()
                         ? "bg-white/5 text-gray-600 cursor-not-allowed"
                         : "bg-vivid-magenta text-white shadow-vivid-glow hover:scale-[1.02] active:scale-[0.98]"
                     )}
                   >
-                    <span className={cn("transition-opacity flex items-center justify-center gap-3", (isPublishing || isSuccess) ? "opacity-0" : "opacity-100")}>
-                      {isEdit ? <Save size={18} /> : <UploadCloud size={18} />}
-                      {isEdit ? "Commit Updates" : "Finalize Deployment"}
+                    <span className="flex items-center justify-center gap-3">
+                      <UploadCloud size={18} />
+                      {mode === 'edit' ? 'Preview Changes' : 'Preview App'}
                     </span>
-
-                    {(isPublishing || isSuccess) && (
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        {isPublishing ? (
-                          <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        ) : (
-                          <motion.div
-                            initial={{ scale: 0.5, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            className="flex items-center gap-3"
-                          >
-                            <CheckCircle2 size={24} className="text-vivid-teal" />
-                            {isEdit ? "UPDATED" : "DEPLOYED"}
-                          </motion.div>
-                        )}
-                      </div>
-                    )}
                   </button>
                 ) : (
                   <button

@@ -15,13 +15,15 @@ Instead of connecting to a backend server, your app makes standard ${B}fetch()${
 The Engine intercepts these calls and translates them into decentralized Nostr protocol events (signing, encrypting, and syncing via relays) automatically.
 
 # KEY CONSTRAINTS
-1. **Single File:** Output ONLY a single HTML file containing all CSS (<style>) and JS (<script>).
+1. **Single File:** Output ONLY a single HTML file containing all CSS (\<style\>) and JS (\<script\>).
 2. **No External Scripts:** Do not import external .js files unless absolutely necessary (e.g., specific libraries via CDN). 
    - PREFERRED: Use vanilla JS or inline React/Vue via CDN if the app is complex.
-   - ALLOWED: Tailwind CSS via CDN is highly recommended for styling.
-3. **No Auth Logic:** Do NOT implement login screens. The Engine handles authentication. Assume the user is already logged in.
-4. **Permissions:** You MUST include a meta tag declaring required permissions.
-   - Example: ${B}<meta name="mirage-permissions" content="storage_read, storage_write, public_read">${B}
+3. **Inline CSS Required:** Use inline \<style\> tags for all CSS. Do NOT reference external stylesheets.
+   - EXCEPTION: Font Awesome icons from ${B}https://cdnjs.cloudflare.com/ajax/libs/font-awesome/${B} ARE allowed.
+   - Example: ${B}\<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"\>${B}
+4. **No Auth Logic:** Do NOT implement login screens. The Engine handles authentication. Assume the user is already logged in.
+5. **Permissions:** You MUST include a meta tag declaring required permissions.
+   - Example: ${B}\<meta name="mirage-permissions" content="storage_read, storage_write, public_read"\>${B}
 
 # THE VIRTUAL API (OpenAPI Spec)
 ${openApiSpec}
@@ -32,16 +34,25 @@ ${BBB}html
 <html>
 <head>
   <meta name="mirage-permissions" content="storage_read, storage_write">
-  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background: #111827; color: white; padding: 2rem; font-family: system-ui; }
+    .container { max-width: 28rem; margin: 0 auto; }
+    h1 { font-size: 1.5rem; font-weight: bold; margin-bottom: 1rem; }
+    .input-row { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+    input { flex: 1; background: #1f2937; padding: 0.5rem; border-radius: 0.25rem; border: none; color: white; }
+    button { background: #2563eb; padding: 0.5rem 1rem; border-radius: 0.25rem; border: none; color: white; cursor: pointer; }
+    ul { list-style: none; padding: 0; }
+    li { background: #1f2937; padding: 0.5rem; margin-bottom: 0.5rem; border-radius: 0.25rem; }
+  </style>
 </head>
-<body class="bg-gray-900 text-white p-8">
-  <div id="app" class="max-w-md mx-auto">
-    <h1 class="text-2xl font-bold mb-4">My Tasks</h1>
-    <div class="flex gap-2 mb-4">
-      <input id="input" type="text" class="flex-1 bg-gray-800 p-2 rounded" placeholder="New task...">
-      <button onclick="addTask()" class="bg-blue-600 px-4 py-2 rounded">Add</button>
+<body>
+  <div class="container">
+    <h1>My Tasks</h1>
+    <div class="input-row">
+      <input id="input" type="text" placeholder="New task...">
+      <button onclick="addTask()">Add</button>
     </div>
-    <ul id="list" class="space-y-2"></ul>
+    <ul id="list"></ul>
   </div>
 
   <script>

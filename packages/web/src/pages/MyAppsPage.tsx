@@ -157,6 +157,7 @@ export const MyAppsPage = () => {
       <PublishModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
+        returnTo="/"
         {...modalProps}
       />
     </div>

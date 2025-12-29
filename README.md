@@ -105,6 +105,17 @@ Mirage implements a strict **"Air Gap"** between the app logic and user secrets.
 | **44** | Encryption | NIP-44 v2 encryption for spaces |
 | **78** | App Data | Arbitrary JSON storage for apps |
 
+## 🎨 App Preview Mode
+
+Mirage includes a built-in **preview mode** for testing apps before publishing to relays:
+
+* **In-Memory Testing:** Preview apps run with a special `__preview__` identifier
+* **Mock Data Handling:** POST/GET requests work in-memory without NIP-07 signing
+* **Realistic Simulation:** 350ms delay on GET requests simulates network latency
+* **Iterative Development:** Edit code → Preview → Edit → Preview → Publish
+
+This allows developers and AI agents to rapidly iterate on apps without polluting the Nostr network with test data.
+
 ## 🚀 Getting Started
 
 ### Installation

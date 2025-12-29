@@ -10,8 +10,10 @@ import {
     originalFetch,
     pendingRequests,
     activeStreams,
-    postToEngine
+    postToEngine,
+    currentAppOrigin,
 } from './messaging';
+import { handlePreviewRequest } from './preview-mock';
 
 // ============================================================================
 // Fetch Interceptor
@@ -20,16 +22,36 @@ import {
 /**
  * Intercepted fetch that routes /mirage/ calls to the Engine
  */
-export async function interceptedFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-
+export async function interceptedFetch(rawInput: RequestInfo | URL, init?: RequestInit): Promise<Response> {
     // Only intercept /mirage/ routes
+    const url = typeof rawInput === 'string' ? rawInput : rawInput instanceof Request ? rawInput.url : rawInput.toString();
     if (!url.startsWith('/mirage/')) {
-        return originalFetch(input, init);
+        return originalFetch(rawInput, init);
     }
 
     // Wait for bridge to be initialized
     await engineReady;
+
+    // Debug: Log current app origin for all requests
+    console.log(`[Bridge] Intercepted ${init?.method || 'GET'} ${url}, currentAppOrigin=${currentAppOrigin}`);
+
+    // PREVIEW MODE: Handle requests in-memory without engine/signing
+    if (currentAppOrigin === '__preview__') {
+        const method = (init?.method?.toUpperCase() || 'GET') as 'GET' | 'POST' | 'PUT' | 'DELETE';
+        let body: unknown = undefined;
+        if (init?.body) {
+            try {
+                body = JSON.parse(init.body as string);
+            } catch {
+                body = init.body;
+            }
+        }
+
+        console.log(`[Bridge PREVIEW] Routing to mock handler: ${method} ${url}`);
+        const response = await handlePreviewRequest(method, url, body);
+        console.log(`[Bridge PREVIEW] Mock handler returned: status=${response.status}`);
+        return response;
+    }
 
     // Check for Streaming Request
     const headers = new Headers(init?.headers);

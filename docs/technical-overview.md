@@ -134,7 +134,41 @@ All endpoints use the `/mirage/v1/` prefix.
 
 ---
 
-## 5. Security Model
+## 6. App Preview Mode
+
+### Overview
+Mirage includes a dedicated preview environment for testing apps before publishing them to Nostr relays. This prevents test data from polluting the network and enables rapid iteration during development.
+
+### Architecture
+
+When an app is mounted with the special identifier `__preview__`, the bridge intercepts all `/mirage/` API requests and routes them to an in-memory mock handler instead of the engine:
+
+```javascript
+// In Bridge (fetch.ts)
+if (currentAppOrigin === '__preview__') {
+    return handlePreviewRequest(method, url, body);
+}
+```
+
+### Mock Data Handler
+
+The preview mock module (`preview-mock.ts`) provides:
+
+* **In-Memory Storage:** `Map<string, any[]>` for channel data
+* **Instant POST**: Data stored immediately without signing
+* **Simulated GET**: 350ms delay to mimic network latency  
+* **Session Isolation:** Data persists only during preview session
+
+### Use Cases
+
+1. **Rapid Prototyping:** Test UI/UX without relay round-trips
+2. **AI Development:** LLMs can iterate on code without real data
+3. **Feature Testing:** Verify app logic before committing to network
+4. **Education:** Learn Mirage API without affecting production data
+
+---
+
+## 7. Security Model
 
 ### Origin Isolation
 
@@ -174,7 +208,7 @@ sequenceDiagram
 
 ---
 
-## 6. Implementation Status
+## 8. Implementation Status
 
 | Phase | Status | Features |
 |-------|--------|----------|

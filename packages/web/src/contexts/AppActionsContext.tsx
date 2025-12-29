@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, type ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
 import { type AppDefinition } from '@mirage/core';
 
 interface AppActionsContextType {
@@ -19,13 +19,13 @@ export const AppActionsProvider = ({ children }: { children: ReactNode }) => {
     const [onShare, setOnShare] = useState<(() => void) | null>(null);
     const [onExit, setOnExit] = useState<(() => void) | null>(null);
 
-    const setAppActions = (actions: Omit<AppActionsContextType, 'setAppActions'>) => {
+    const setAppActions = useCallback((actions: Omit<AppActionsContextType, 'setAppActions'>) => {
         setApp(actions.app);
         setIsAuthor(actions.isAuthor);
         setOnViewEditSource(() => actions.onViewEditSource);
         setOnShare(() => actions.onShare);
         setOnExit(() => actions.onExit);
-    };
+    }, []);
 
     return (
         <AppActionsContext.Provider

@@ -36,6 +36,9 @@ let engineReadyResolve: () => void;
 let privateKeyBytes: Uint8Array | null = null;
 let publicKey: string | null = null;
 
+// Current app origin for preview mode detection
+export let currentAppOrigin: string | null = null;
+
 function hexToBytes(hex: string): Uint8Array {
     let bytes = new Uint8Array(hex.length / 2);
     for (let i = 0; i < hex.length; i += 2) {
@@ -140,6 +143,14 @@ export function handleEngineMessage(event: MessageEvent<MirageMessage>): void {
     // Route: Sign Request (Standalone Mode)
     else if (message.type === 'ACTION_SIGN_EVENT') {
         handleSignRequest(message as any);
+    }
+    // Route: SET_APP_ORIGIN (track current app for preview mode detection)
+    else if (message.type === 'SET_APP_ORIGIN') {
+        currentAppOrigin = (message as any).origin;
+        console.log('[Bridge] SET_APP_ORIGIN received, currentAppOrigin now:', currentAppOrigin);
+        if (currentAppOrigin === '__preview__') {
+            console.log('[Bridge] PREVIEW MODE ENABLED - API requests will be handled in-memory');
+        }
     }
 }
 

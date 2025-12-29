@@ -77,27 +77,29 @@ export const Sidebar = ({ onNavItemClick }: { onNavItemClick?: () => void }) => 
         </div>
       </nav>
 
-      {/* App Actions - Only show on mobile when in an app */}
+      {/* App Actions - Show when in an app (sidebar itself is hidden on mobile) */}
       {app && (
-        <div className="md:hidden mt-8">
+        <div className="mt-8">
           <div className="h-px bg-white/5 mb-6" />
           <div className="space-y-2">
             <div className="text-[10px] font-bold text-gray-600 uppercase tracking-[0.2em] mb-4 px-2">
-              App Actions
+              {app.naddr === '__preview__' ? 'Preview Actions' : 'App Actions'}
             </div>
             <ActionButton
               icon={isAuthor ? Edit3 : Code2}
-              label={isAuthor ? "Edit Source" : "View Source"}
+              label={app.naddr === '__preview__' ? "Edit Source" : (isAuthor ? "Edit Source" : "View Source")}
               onClick={() => handleAppAction(onViewEditSource)}
             />
-            <ActionButton
-              icon={Share}
-              label="Share"
-              onClick={() => handleAppAction(onShare)}
-            />
+            {onShare && (
+              <ActionButton
+                icon={Share}
+                label="Share"
+                onClick={() => handleAppAction(onShare)}
+              />
+            )}
             <ActionButton
               icon={XCircle}
-              label="Exit App"
+              label={app.naddr === '__preview__' ? "Cancel Preview" : "Exit App"}
               onClick={() => handleAppAction(onExit)}
             />
           </div>

@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Copied build artifacts (from copy-artifacts script)
+public/engine-worker.js
+public/bridge.js
+src/assets/openapi.yaml

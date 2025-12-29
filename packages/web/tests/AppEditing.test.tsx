@@ -53,7 +53,7 @@ describe('PublishModal - App Management', () => {
         cleanup();
     });
 
-    test('allows specifying a custom name during creation', async () => {
+    test('allows entering HTML code during creation', async () => {
         renderWithProviders(
             <PublishModal
                 isOpen={true}
@@ -62,10 +62,11 @@ describe('PublishModal - App Management', () => {
             />
         );
 
-        const nameInput = screen.getByPlaceholderText(/e.g. My Awesome App/i);
-        fireEvent.change(nameInput, { target: { value: 'My Custom App' } });
+        const codeInput = screen.getByPlaceholderText(/Paste your HTML/i);
+        fireEvent.change(codeInput, { target: { value: '<h1>Test App</h1>' } });
 
-        expect((nameInput as HTMLInputElement).value).toBe('My Custom App');
+        expect((codeInput as HTMLTextAreaElement).value).toBe('<h1>Test App</h1>');
+        expect(screen.getByText(/Preview App/i)).toBeTruthy();
     });
 
     test('pre-fills data in edit mode', () => {
@@ -88,8 +89,7 @@ describe('PublishModal - App Management', () => {
 
         expect(nameInput).toBeTruthy();
         expect(codeInput).toBeTruthy();
-        expect(screen.getByText(/Apply/i)).toBeTruthy();
-        expect(screen.getByText(/Commit Updates/i)).toBeTruthy();
+        expect(screen.getByText(/Preview Changes/i)).toBeTruthy();
     });
 
     test('renders in view mode correctly', () => {
@@ -116,7 +116,7 @@ describe('PublishModal - App Management', () => {
         expect(screen.getByDisplayValue(initialCode)).toBeTruthy();
     });
 
-    test('shows publishing state during update', async () => {
+    test('shows preview button for update', async () => {
         renderWithProviders(
             <PublishModal
                 isOpen={true}
@@ -128,10 +128,8 @@ describe('PublishModal - App Management', () => {
             />
         );
 
-        const publishButton = screen.getByText(/Commit Updates/i);
-        fireEvent.click(publishButton);
-
-        // In publishing state, the button should be disabled
-        expect(publishButton.closest('button')?.hasAttribute('disabled')).toBeTruthy();
+        const previewButton = screen.getByText(/Preview Changes/i);
+        expect(previewButton).toBeTruthy();
+        expect(previewButton.closest('button')?.hasAttribute('disabled')).toBeFalsy();
     });
 });

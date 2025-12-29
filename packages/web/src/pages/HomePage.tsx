@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Plus, Zap, Copy, Check } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { PublishModal } from '../components/PublishModal';
@@ -9,10 +9,40 @@ import { cn } from '../lib/utils';
 
 export const HomePage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   useMirage();
   const [isPublishOpen, setIsPublishOpen] = useState(false);
   const [promptInput, setPromptInput] = useState('');
   const [copied, setCopied] = useState(false);
+
+  // Modal props from preview navigation
+  const [modalProps, setModalProps] = useState<{
+    mode: 'create' | 'edit';
+    initialCode: string;
+    initialName?: string;
+    existingDTag?: string;
+    returnTo?: string;
+    returnState?: any;
+  }>({ mode: 'create', initialCode: '' });
+
+  // Handle return from preview with code to edit
+  useEffect(() => {
+    const state = location.state as any;
+    if (state?.openModal) {
+      setModalProps({
+        mode: state.mode || 'create',
+        initialCode: state.code || '',
+        initialName: state.appName || '',
+        existingDTag: state.existingDTag,
+        returnTo: state.returnTo,
+        returnState: state.returnState,
+      });
+      setIsPublishOpen(true);
+
+      // Clear the state to prevent reopening on refresh
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.state, location.pathname, navigate]);
 
   const copyPrompt = () => {
     const fullPrompt = generateSystemPrompt(promptInput || "A simple app");
@@ -119,7 +149,21 @@ export const HomePage = () => {
 
       <PublishModal
         isOpen={isPublishOpen}
-        onClose={() => setIsPublishOpen(false)}
+        onClose={() => {
+          const { returnTo, returnState } = modalProps;
+          setIsPublishOpen(false);
+          // Reset modal props when closing
+          setModalProps({ mode: 'create', initialCode: '' });
+
+          // If we came from preview, return to preview with the state
+          if (returnTo === '/preview' && returnState) {
+            navigate('/preview', { state: returnState });
+          }
+        }}
+        mode={modalProps.mode}
+        initialCode={modalProps.initialCode}
+        initialName={modalProps.initialName}
+        existingDTag={modalProps.existingDTag}
       />
     </div>
   );

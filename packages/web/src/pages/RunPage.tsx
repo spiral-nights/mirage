@@ -2,9 +2,7 @@ import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useMirage } from '../hooks/useMirage';
 import { useAppActions } from '../contexts/AppActionsContext';
-import { motion } from 'framer-motion';
-import { Home, Share, LayoutGrid, Hammer, XCircle, Code2, Edit3 } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { XCircle } from 'lucide-react';
 import { PublishModal } from '../components/PublishModal';
 import { nip19 } from 'nostr-tools';
 
@@ -119,8 +117,6 @@ export const RunPage = () => {
     };
   }, [naddr, host]); // Only depend on naddr and host, not fetchApp
 
-  const [isExpanded, setIsExpanded] = useState(false);
-
   const handleShare = useCallback((e?: React.MouseEvent) => {
     e?.stopPropagation();
     // Current base URL
@@ -195,7 +191,7 @@ export const RunPage = () => {
   }
 
   return (
-    <div className="fixed top-16 md:top-0 left-0 right-0 bottom-0 bg-background overflow-hidden flex flex-col">
+    <div className="fixed top-16 md:top-0 left-0 md:left-64 right-0 bottom-0 bg-background overflow-hidden flex flex-col">
       {/* App Container */}
       <div ref={containerRef} className="flex-1 w-full h-full relative z-0" />
 
@@ -224,87 +220,13 @@ export const RunPage = () => {
         </div>
       )}
 
-      {/* Immersive Pill Dock (Top Right, Expandable) - Hidden on mobile */}
-      <div className="hidden md:flex absolute top-8 right-8 z-20 justify-end">
-        <motion.div
-          layout
-          onMouseEnter={() => setIsExpanded(true)}
-          onMouseLeave={() => setIsExpanded(false)}
-          onClick={() => setIsExpanded(!isExpanded)}
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className={cn(
-            "bg-[#050505]/80 border border-white/5 backdrop-blur-3xl rounded-3xl p-1.5 shadow-2xl flex items-center overflow-hidden cursor-pointer transition-all duration-500",
-            isExpanded ? "max-w-[440px] px-3 border-vivid-magenta/20 shadow-vivid-glow" : "max-w-[48px]"
-          )}
-        >
-          <div className="flex items-center shrink-0">
-            <div className="relative">
-              {/* Pulse effect for running status */}
-              <div className="absolute inset-0 bg-vivid-magenta rounded-full animate-ping opacity-20 scale-150" />
-              <div className="w-9 h-9 rounded-2xl bg-vivid-magenta flex items-center justify-center text-white shadow-vivid-glow z-10 relative">
-                <LayoutGrid size={18} />
-              </div>
-            </div>
-          </div>
-
-          <motion.div
-            initial={false}
-            animate={{
-              width: isExpanded ? 'auto' : 0,
-              opacity: isExpanded ? 1 : 0,
-            }}
-            className="flex items-center"
-          >
-            <div className="w-px h-5 bg-white/5 mx-3 shrink-0" />
-            <div className="flex items-center gap-1.5 pr-2">
-              <Link to="/" onClick={(e) => e.stopPropagation()}>
-                <DockItem icon={Home} tooltip="Library" />
-              </Link>
-              <div className="w-px h-5 bg-white/5 mx-1.5 shrink-0" />
-
-              <DockItem
-                icon={isAuthor ? Edit3 : Code2}
-                tooltip={isAuthor ? "Edit Source" : "View Source"}
-                onClick={handleOpenSource}
-              />
-              <DockItem icon={Share} tooltip="Share Entry" onClick={handleShare} />
-              <DockItem icon={Hammer} tooltip="Debugger" />
-
-              <div className="w-px h-5 bg-white/5 mx-1.5 shrink-0" />
-              <Link to="/" onClick={(e) => e.stopPropagation()}>
-                <DockItem icon={XCircle} tooltip="Exit App" />
-              </Link>
-            </div>
-          </motion.div>
-        </motion.div>
-      </div>
-
       {/* Modal for Edit/View Source */}
       <PublishModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
+        returnTo={`/run/${naddr}`}
         {...modalProps}
       />
     </div>
   );
 };
-
-const DockItem = ({ icon: Icon, active, tooltip, onClick }: { icon: any, active?: boolean, tooltip: string, onClick?: () => void }) => (
-  <button
-    onClick={onClick}
-    className={cn(
-      "w-9 h-9 rounded-2xl flex items-center justify-center transition-all group relative border border-transparent",
-      active
-        ? "bg-vivid-magenta/20 text-vivid-magenta border-vivid-magenta/20"
-        : "text-gray-500 hover:bg-white/5 hover:text-white"
-    )}
-  >
-    <Icon size={16} />
-
-    {/* Tooltip */}
-    <div className="absolute top-14 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-card/90 backdrop-blur-xl text-white text-[10px] font-black uppercase tracking-widest rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none whitespace-nowrap z-50 shadow-2xl border border-white/5 scale-90 group-hover:scale-100">
-      {tooltip}
-    </div>
-  </button>
-);
