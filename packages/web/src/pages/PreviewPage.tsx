@@ -79,8 +79,15 @@ export const PreviewPage = () => {
 
         const { code, mode, existingDTag } = previewState;
 
-        // For create mode, show name dialog first
+        // For create mode, check if we already have a name
         if (mode === 'create') {
+            // If name was provided from PublishModal, use it directly
+            if (previewState.appName?.trim()) {
+                setAppName(previewState.appName);
+                setShowNameDialog(true);
+                return;
+            }
+            // Otherwise show empty name dialog
             setShowNameDialog(true);
             return;
         }

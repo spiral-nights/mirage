@@ -47,6 +47,7 @@ export const PublishModal = ({
         state: {
           code,
           mode: 'create',
+          appName: name,
           spaceRequirement,
           returnTo,
         },
