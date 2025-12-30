@@ -6,12 +6,13 @@ import { PublishModal } from '../components/PublishModal';
 import { XCircle, Edit3, Save } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '../lib/utils';
+// import { ModalWrapper } from '../components/ModalWrapper'; // Removed
 
 interface PreviewState {
     code: string;
     mode: 'create' | 'edit';
     appName?: string;
-    spaceRequirement?: 'required' | 'optional' | 'none';
+    spaceRequirement?: never; // Deprecated - spaces are always required
     existingDTag?: string;
     returnTo?: string; // Path to return to on cancel (default: /create)
 }
@@ -25,8 +26,6 @@ export const PreviewPage = () => {
 
     const [status, setStatus] = useState<'loading' | 'running' | 'error'>('loading');
     const [error, setError] = useState<string | null>(null);
-    const [showNameDialog, setShowNameDialog] = useState(false);
-    const [appName, setAppName] = useState('');
     const [isPublishing, setIsPublishing] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
@@ -77,26 +76,12 @@ export const PreviewPage = () => {
     const handlePublish = async () => {
         if (!previewState) return;
 
-        const { code, mode, existingDTag } = previewState;
+        const { code, existingDTag } = previewState;
+        const name = previewState.appName || 'Unnamed App';
 
-        // For create mode, check if we already have a name
-        if (mode === 'create') {
-            // If name was provided from PublishModal, use it directly
-            if (previewState.appName?.trim()) {
-                setAppName(previewState.appName);
-                setShowNameDialog(true);
-                return;
-            }
-            // Otherwise show empty name dialog
-            setShowNameDialog(true);
-            return;
-        }
-
-        // For edit mode, publish directly with existing name
         setIsPublishing(true);
         try {
-            const name = previewState.appName || 'Unnamed App';
-            const naddr = await publishApp(code, name, existingDTag, previewState.spaceRequirement);
+            const naddr = await publishApp(code, name, existingDTag);
             console.log('Updated app:', naddr);
 
             // Navigate to the updated app
@@ -109,24 +94,7 @@ export const PreviewPage = () => {
         }
     };
 
-    const handlePublishWithName = async () => {
-        if (!previewState || !appName.trim()) return;
 
-        setIsPublishing(true);
-        try {
-            const naddr = await publishApp(previewState.code, appName, undefined, previewState.spaceRequirement);
-            console.log('Published app:', naddr);
-
-            // Navigate to the newly published app
-            navigate(`/run/${naddr}`);
-        } catch (error) {
-            console.error('Publishing failed:', error);
-            alert('Publishing failed. Do you have a Nostr extension (NIP-07) installed?');
-        } finally {
-            setIsPublishing(false);
-            setShowNameDialog(false);
-        }
-    };
 
     const isEditMode = previewState?.mode === 'edit';
 
@@ -189,13 +157,13 @@ export const PreviewPage = () => {
     }
 
     return (
-        <div className="fixed top-16 md:top-0 left-0 right-0 bottom-0 bg-background overflow-hidden flex flex-col">
+        <div className="fixed top-16 md:top-0 left-0 md:left-64 right-0 bottom-0 bg-background overflow-hidden flex flex-col">
             {/* App Container */}
             <div ref={containerRef} className="flex-1 w-full h-full relative z-0" />
 
             {/* Loading Overlay */}
             {status === 'loading' && (
-                <div className="absolute inset-0 md:left-64 bg-[#050505] z-10 flex flex-col items-center justify-center p-12">
+                <div className="absolute inset-0 bg-[#050505] z-10 flex flex-col items-center justify-center p-12">
                     <div className="w-full max-w-3xl animate-pulse">
                         <div className="h-20 bg-white/5 rounded-3xl mb-12 w-1/4" />
                         <div className="space-y-6">
@@ -281,52 +249,7 @@ export const PreviewPage = () => {
                 </div>
             </div>
 
-            {/* Name Input Dialog */}
-            {showNameDialog && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center p-6 bg-[#050505]/80 backdrop-blur-xl">
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="bg-[#050505]/95 border border-white/5 rounded-[32px] p-8 max-w-md w-full"
-                    >
-                        <h2 className="text-2xl font-black mb-6 tracking-tight">Name Your App</h2>
-                        <input
-                            type="text"
-                            value={appName}
-                            onChange={(e) => setAppName(e.target.value)}
-                            placeholder="e.g. My Awesome App"
-                            autoFocus
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter' && appName.trim()) {
-                                    handlePublishWithName();
-                                }
-                            }}
-                            className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-4 text-white focus:border-vivid-magenta/30 focus:ring-4 focus:ring-vivid-magenta/5 outline-none transition-all font-medium mb-6"
-                        />
-                        <div className="flex gap-3">
-                            <button
-                                onClick={handlePublishWithName}
-                                disabled={!appName.trim() || isPublishing}
-                                className={cn(
-                                    "flex-1 py-3 rounded-2xl font-bold text-sm uppercase tracking-wider transition-all",
-                                    !appName.trim() || isPublishing
-                                        ? "bg-white/5 text-gray-600 cursor-not-allowed"
-                                        : "bg-vivid-magenta text-white shadow-vivid-glow hover:scale-[1.02]"
-                                )}
-                            >
-                                {isPublishing ? 'Publishing...' : 'Publish'}
-                            </button>
-                            <button
-                                onClick={() => setShowNameDialog(false)}
-                                disabled={isPublishing}
-                                className="px-6 py-3 bg-transparent border border-white/5 rounded-2xl font-bold text-sm uppercase tracking-wider hover:bg-white/5 transition-all"
-                            >
-                                Cancel
-                            </button>
-                        </div>
-                    </motion.div>
-                </div>
-            )}
+
 
             {/* Edit Source Modal (shown in-place, no navigation) */}
             <PublishModal

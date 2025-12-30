@@ -1,29 +1,39 @@
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useEffect } from 'react';
 import { X, Database, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useMirage } from '../hooks/useMirage';
 import { useSpaces } from '../hooks/useSpaces';
 import { cn } from '../lib/utils';
+import { ModalWrapper } from './ModalWrapper';
 
 interface CreateSpaceModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: (spaceId: string) => void;
+  initialAppId?: string; // Pre-select an app (e.g., when opened from SpacePickerModal)
 }
 
-export const CreateSpaceModal = ({ isOpen, onClose, onSuccess }: CreateSpaceModalProps) => {
+export const CreateSpaceModal = ({ isOpen, onClose, onSuccess, initialAppId }: CreateSpaceModalProps) => {
   const { apps } = useMirage();
   const { createSpace } = useSpaces();
   const [name, setName] = useState('');
-  const [selectedAppId, setSelectedAppId] = useState<string | null>(null);
+  const [selectedAppId, setSelectedAppId] = useState<string | null>(initialAppId || null);
   const [isCreating, setIsCreating] = useState(false);
-  
+
   const navigate = useNavigate();
+
+  // Sync selectedAppId when modal opens or initialAppId changes
+  useEffect(() => {
+    if (isOpen && initialAppId) {
+      setSelectedAppId(initialAppId);
+    }
+  }, [isOpen, initialAppId]);
+
+  const selectedApp = apps.find(a => a.naddr === selectedAppId);
 
   const handleCreate = async () => {
     if (!name.trim() || !selectedAppId) return;
-    
+
     setIsCreating(true);
     try {
       const space = await createSpace(name, selectedAppId);
@@ -40,130 +50,127 @@ export const CreateSpaceModal = ({ isOpen, onClose, onSuccess }: CreateSpaceModa
   };
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="absolute inset-0 bg-[#050505]/80 backdrop-blur-xl"
-          />
-
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 30 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 30 }}
-            className="relative w-full max-w-xl bg-[#050505]/95 border border-white/5 rounded-[48px] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.8)]"
-          >
-            {/* Header */}
-            <div className="p-10 pb-4 flex justify-between items-start">
-              <div>
-                <h2 className="text-3xl font-black mb-2 tracking-tight">
-                  New <span className="serif-italic px-1">Space</span>
-                </h2>
-                <p className="text-gray-500 text-sm font-light italic">
-                  Create a dedicated data instance for an application.
-                </p>
-              </div>
-              <button
-                onClick={onClose}
-                className="w-10 h-10 flex items-center justify-center bg-white/5 hover:bg-white/10 rounded-2xl transition-all text-gray-500 hover:text-white"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="p-10 pt-6 space-y-8">
-              {/* Space Name */}
-              <div>
-                <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-gray-600 mb-3">
-                  Space Name
-                </label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. My Personal Journal"
-                  className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-4 text-white focus:border-vivid-cyan/30 focus:ring-4 focus:ring-vivid-cyan/5 outline-none transition-all font-medium"
-                />
-              </div>
-
-              {/* App Selection */}
-              <div>
-                <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-gray-600 mb-3">
-                  Select Application
-                </label>
-                <div className="grid grid-cols-1 gap-2 max-h-[250px] overflow-y-auto pr-2 scrollbar-none">
-                  {apps.length > 0 ? (
-                    apps.map((app) => (
-                      <button
-                        key={app.naddr}
-                        onClick={() => setSelectedAppId(app.naddr)}
-                        className={cn(
-                          "flex items-center gap-4 p-4 rounded-2xl border transition-all text-left group",
-                          selectedAppId === app.naddr
-                            ? "bg-vivid-magenta/10 border-vivid-magenta/30 text-white"
-                            : "bg-white/5 border-transparent text-gray-500 hover:bg-white/10 hover:text-gray-300"
-                        )}
-                      >
-                        <div className={cn(
-                          "w-10 h-10 rounded-xl flex items-center justify-center text-lg font-bold shrink-0 transition-all",
-                          selectedAppId === app.naddr ? "bg-vivid-magenta/20 text-vivid-magenta" : "bg-black/40 text-gray-600 group-hover:text-gray-400"
-                        )}>
-                          {app.name.charAt(0)}
-                        </div>
-                        <div className="flex-1 truncate">
-                          <div className="font-bold text-sm truncate">{app.name}</div>
-                          <div className="text-[10px] opacity-50 truncate font-mono">#{app.naddr.slice(0, 12)}...</div>
-                        </div>
-                        {selectedAppId === app.naddr && (
-                          <div className="w-6 h-6 rounded-full bg-vivid-magenta flex items-center justify-center text-white shadow-vivid-glow">
-                            <Check size={14} strokeWidth={3} />
-                          </div>
-                        )}
-                      </button>
-                    ))
-                  ) : (
-                    <div className="p-10 border border-dashed border-white/5 rounded-2xl text-center text-xs text-gray-600 italic">
-                      No applications found in library.
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4 mt-4">
-                <button
-                  onClick={handleCreate}
-                  disabled={isCreating || !name.trim() || !selectedAppId}
-                  className={cn(
-                    "flex-1 py-4 rounded-2xl font-black transition-all relative overflow-hidden text-sm uppercase tracking-widest flex items-center justify-center gap-3",
-                    isCreating || !name.trim() || !selectedAppId
-                      ? "bg-white/5 text-gray-600 cursor-not-allowed"
-                      : "bg-vivid-cyan text-[#050505] shadow-[0_0_30px_rgba(0,242,255,0.2)] hover:scale-[1.02] active:scale-[0.98]"
-                  )}
-                >
-                  {isCreating ? (
-                    <div className="w-5 h-5 border-2 border-[#050505]/30 border-t-[#050505] rounded-full animate-spin" />
-                  ) : (
-                    <>
-                      <Database size={18} />
-                      Create & Launch
-                    </>
-                  )}
-                </button>
-                <button
-                  onClick={onClose}
-                  className="px-8 py-4 bg-white/5 border border-white/5 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-white/10 transition-all text-gray-400"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </motion.div>
+    <ModalWrapper isOpen={isOpen} onClose={onClose} className="max-w-xl">
+      {/* Header */}
+      {/* Header */}
+      <div className="p-10 pb-4 flex justify-between items-start">
+        <div>
+          <h2 className="text-3xl font-black mb-2 tracking-tight">
+            New <span className="serif-italic px-1">Space</span>
+          </h2>
+          <p className="text-gray-500 text-sm font-light italic">
+            Create a dedicated data instance for an application.
+          </p>
         </div>
-      )}
-    </AnimatePresence>
+        <button
+          onClick={onClose}
+          className="w-10 h-10 flex items-center justify-center bg-white/5 hover:bg-white/10 rounded-2xl transition-all text-gray-500 hover:text-white"
+        >
+          <X size={20} />
+        </button>
+      </div>
+
+      <div className="p-10 pt-6 space-y-8">
+        {/* Space Name */}
+        <div>
+          <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-gray-600 mb-3">
+            Space Name
+          </label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. My Personal Journal"
+            className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-4 text-white focus:border-vivid-cyan/30 focus:ring-4 focus:ring-vivid-cyan/5 outline-none transition-all font-medium"
+          />
+        </div>
+
+        {/* App Selection - Only show if no app pre-selected */}
+        {!initialAppId && (
+          <div>
+            <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-gray-600 mb-3">
+              Select Application
+            </label>
+            <div className="grid grid-cols-1 gap-2 max-h-[250px] overflow-y-auto pr-2 scrollbar-none">
+              {apps.length > 0 ? (
+                apps.map((app) => (
+                  <button
+                    key={app.naddr}
+                    onClick={() => setSelectedAppId(app.naddr)}
+                    className={cn(
+                      "flex items-center gap-4 p-4 rounded-2xl border transition-all text-left group",
+                      selectedAppId === app.naddr
+                        ? "bg-vivid-magenta/10 border-vivid-magenta/30 text-white"
+                        : "bg-white/5 border-transparent text-gray-500 hover:bg-white/10 hover:text-gray-300"
+                    )}
+                  >
+                    <div className={cn(
+                      "w-10 h-10 rounded-xl flex items-center justify-center text-lg font-bold shrink-0 transition-all",
+                      selectedAppId === app.naddr ? "bg-vivid-magenta/20 text-vivid-magenta" : "bg-black/40 text-gray-600 group-hover:text-gray-400"
+                    )}>
+                      {app.name.charAt(0)}
+                    </div>
+                    <div className="flex-1 truncate">
+                      <div className="font-bold text-sm truncate">{app.name}</div>
+                      <div className="text-[10px] opacity-50 truncate font-mono">#{app.naddr.slice(0, 12)}...</div>
+                    </div>
+                    {selectedAppId === app.naddr && (
+                      <div className="w-6 h-6 rounded-full bg-vivid-magenta flex items-center justify-center text-white shadow-vivid-glow">
+                        <Check size={14} strokeWidth={3} />
+                      </div>
+                    )}
+                  </button>
+                ))
+              ) : (
+                <div className="p-10 border border-dashed border-white/5 rounded-2xl text-center text-xs text-gray-600 italic">
+                  No applications found in library.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Show selected app info if pre-selected */}
+        {initialAppId && selectedApp && (
+          <div className="flex items-center gap-4 p-4 rounded-2xl bg-vivid-magenta/10 border border-vivid-magenta/20">
+            <div className="w-10 h-10 rounded-xl bg-vivid-magenta/20 flex items-center justify-center text-lg font-bold text-vivid-magenta">
+              {selectedApp.name.charAt(0)}
+            </div>
+            <div className="flex-1 truncate">
+              <div className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-0.5">For Application</div>
+              <div className="font-bold text-sm truncate text-white">{selectedApp.name}</div>
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-center gap-4 mt-4">
+          <button
+            onClick={handleCreate}
+            disabled={isCreating || !name.trim() || !selectedAppId}
+            className={cn(
+              "flex-1 py-4 rounded-2xl font-black transition-all relative overflow-hidden text-sm uppercase tracking-widest flex items-center justify-center gap-3",
+              isCreating || !name.trim() || !selectedAppId
+                ? "bg-white/5 text-gray-600 cursor-not-allowed"
+                : "bg-vivid-cyan text-[#050505] shadow-[0_0_30px_rgba(0,242,255,0.2)] hover:scale-[1.02] active:scale-[0.98]"
+            )}
+          >
+            {isCreating ? (
+              <div className="w-5 h-5 border-2 border-[#050505]/30 border-t-[#050505] rounded-full animate-spin" />
+            ) : (
+              <>
+                <Database size={18} />
+                Create & Launch
+              </>
+            )}
+          </button>
+          <button
+            onClick={onClose}
+            className="px-8 py-4 bg-white/5 border border-white/5 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-white/10 transition-all text-gray-400"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </ModalWrapper>
   );
 };

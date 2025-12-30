@@ -188,6 +188,7 @@ export const MyAppsPage = () => {
       <CreateSpaceModal
         isOpen={createSpaceOpen}
         onClose={() => setCreateSpaceOpen(false)}
+        initialAppId={selectedApp?.naddr}
       />
     </div>
   );

@@ -9,7 +9,7 @@ interface MirageContextType {
   isReady: boolean;
   pubkey: string | null;
   apps: AppDefinition[];
-  publishApp: (html: string, name?: string, existingDTag?: string, spaceRequirement?: 'required' | 'optional' | 'none') => Promise<string>;
+  publishApp: (html: string, name?: string, existingDTag?: string) => Promise<string>;
   fetchApp: (naddr: string) => Promise<string | null>;
   refreshApps: () => Promise<void>;
   deleteApp: (naddr: string) => Promise<boolean>;
@@ -197,15 +197,14 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
   const publishApp = async (
     html: string,
     name: string = 'Untitled App',
-    existingDTag?: string,
-    spaceRequirement: 'required' | 'optional' | 'none' = 'optional'
+    existingDTag?: string
   ): Promise<string> => {
     const currentHost = host || globalHost;
     if (!currentHost || !pubkey) throw new Error('Mirage not initialized or no signer found');
 
     const dTag = existingDTag || `mirage:app:${crypto.randomUUID()}`;
 
-    console.log('[useMirage] Publishing app:', { name, dTag, spaceRequirement, update: !!existingDTag });
+    console.log('[useMirage] Publishing app:', { name, dTag, update: !!existingDTag });
 
     // 1. Publish to Nostr via Engine API
     const result = await currentHost.request('POST', '/mirage/v1/events', {
@@ -214,7 +213,6 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
       tags: [
         ['d', dTag],
         ['name', name],
-        ['space', spaceRequirement],
         ['t', 'mirage_app']
       ]
     });
