@@ -34,7 +34,7 @@ const ActionButton = ({ icon: Icon, label, onClick }: { icon: any, label: string
 export const Sidebar = ({ onNavItemClick }: { onNavItemClick?: () => void }) => {
   const location = useLocation();
   const { app, space, isAuthor, onViewEditSource, onShare, onExit } = useAppActions();
-  const { spaces } = useSpaces();
+  const { spaces, deleteSpace } = useSpaces();
   const [createSpaceOpen, setCreateSpaceOpen] = useState(false);
 
   const handleAppAction = (action: (() => void) | null) => {
@@ -93,19 +93,31 @@ export const Sidebar = ({ onNavItemClick }: { onNavItemClick?: () => void }) => 
           <div className="space-y-1 max-h-[30vh] overflow-y-auto pr-2 scrollbar-none">
             {spaces.length > 0 ? (
               spaces.map(s => (
-                <div key={s.id} onClick={onNavItemClick}>
+                <div key={s.id} className="group/space relative" onClick={onNavItemClick}>
                   <Link
                     to={`/run/${s.appOrigin}?spaceId=${s.id}&spaceName=${encodeURIComponent(s.name)}`}
                     className={cn(
-                      "flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all font-medium text-sm border border-transparent group",
+                      "flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all font-medium text-sm border border-transparent",
                       location.search.includes(`spaceId=${s.id}`)
                         ? "bg-vivid-cyan/10 text-vivid-cyan border-vivid-cyan/20"
                         : "text-gray-500 hover:bg-white/5 hover:text-white"
                     )}
                   >
-                    <Folder size={16} className={location.search.includes(`spaceId=${s.id}`) ? "text-vivid-cyan" : "text-gray-600 group-hover:text-vivid-cyan transition-colors"} />
-                    <span className="truncate">{s.name}</span>
+                    <Folder size={16} className={location.search.includes(`spaceId=${s.id}`) ? "text-vivid-cyan" : "text-gray-600 group-hover/space:text-vivid-cyan transition-colors"} />
+                    <span className="truncate flex-1">{s.name}</span>
                   </Link>
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (confirm(`Delete space "${s.name}"?`)) {
+                        deleteSpace(s.id);
+                      }
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-lg bg-white/5 flex items-center justify-center text-gray-600 hover:text-red-400 hover:bg-red-400/10 transition-all opacity-0 group-hover/space:opacity-100"
+                  >
+                    <XCircle size={12} />
+                  </button>
                 </div>
               ))
             ) : (

@@ -1,7 +1,7 @@
 /**
  * Mirage Engine - User Routes
  *
- * Handles /api/v1/user endpoints for user profile data.
+ * Handles /mirage/v1/user endpoints for user profile data.
  */
 
 import type { Filter, Event } from 'nostr-tools';
@@ -14,7 +14,7 @@ export interface UserRouteContext {
 }
 
 /**
- * GET /api/v1/user/me - Get current user's profile
+ * GET /mirage/v1/user/me - Get current user's profile
  */
 export async function getCurrentUser(
     ctx: UserRouteContext
@@ -27,7 +27,7 @@ export async function getCurrentUser(
 }
 
 /**
- * GET /api/v1/users/:pubkey - Get a user's profile by pubkey
+ * GET /mirage/v1/profiles/:pubkey - Get a user's profile by pubkey
  */
 export async function getUserByPubkey(
     ctx: UserRouteContext,

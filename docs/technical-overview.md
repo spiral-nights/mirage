@@ -120,9 +120,9 @@ All endpoints use the `/mirage/v1/` prefix.
 
 | Method | Endpoint | Streaming | Description |
 |--------|----------|-----------|-------------|
-| `GET` | `/dm` | No | List conversations |
-| `GET` | `/dm/{pubkey}` | **Yes** | Get messages |
-| `POST` | `/dm/{pubkey}` | No | Send message |
+| `GET` | `/dms` | No | List conversations |
+| `GET` | `/dms/{pubkey}` | **Yes** | Get messages |
+| `POST` | `/dms/{pubkey}` | No | Send message |
 
 ### Contact Lists (NIP-02)
 

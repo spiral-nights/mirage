@@ -1,7 +1,7 @@
 /**
  * Mirage Engine - Event Routes
  *
- * Handles /api/v1/events endpoints for raw Nostr event access.
+ * Handles /mirage/v1/events endpoints for raw Nostr event access.
  */
 
 import type { Filter, Event } from 'nostr-tools';
@@ -14,7 +14,7 @@ export interface EventsRouteContext {
 }
 
 /**
- * GET /api/v1/events - Query events
+ * GET /mirage/v1/events - Query events
  */
 export async function getEvents(
     ctx: EventsRouteContext,
@@ -65,7 +65,7 @@ export async function getEvents(
 }
 
 /**
- * POST /api/v1/events - Publish a raw event
+ * POST /mirage/v1/events - Publish a raw event
  */
 export async function postEvents(
     ctx: EventsRouteContext,

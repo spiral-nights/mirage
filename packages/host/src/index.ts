@@ -266,35 +266,35 @@ export class MirageHost {
      * Create a new space
      */
     async createSpace(name: string, appId?: string): Promise<any> {
-        return this.request("POST", "/spaces", { name, appOrigin: appId });
+        return this.request("POST", "/mirage/v1/spaces", { name, appOrigin: appId });
     }
 
     /**
      * List user's spaces
      */
     async listSpaces(): Promise<any[]> {
-        return this.request("GET", "/spaces");
+        return this.request("GET", "/mirage/v1/spaces");
     }
 
     /**
      * Get details for a specific space
      */
     async getSpace(id: string): Promise<any> {
-        return this.request("GET", `/spaces/${id}`);
+        return this.request("GET", `/mirage/v1/spaces/${id}`);
     }
 
     /**
      * Delete a space
      */
     async deleteSpace(id: string): Promise<void> {
-        return this.request("DELETE", `/spaces/${id}`);
+        return this.request("DELETE", `/mirage/v1/spaces/${id}`);
     }
 
     /**
      * Invite a user to a space
      */
     async inviteToSpace(spaceId: string, pubkey: string): Promise<void> {
-        return this.request("POST", `/spaces/${spaceId}/invite`, { pubkey });
+        return this.request("POST", `/mirage/v1/spaces/${spaceId}/invite`, { pubkey });
     }
 
     /**

@@ -46,10 +46,10 @@ export class RelayPool {
         const connectPromise = (async () => {
             try {
                 const relay = await Relay.connect(url);
-                
+
                 // Add listeners for connection drops if supported by the library wrapper
                 // For now, we assume connected if connect() resolves.
-                
+
                 this.relays.set(url, relay);
                 this.connecting.delete(url);
                 this.statuses.set(url, 'connected');
@@ -64,7 +64,7 @@ export class RelayPool {
         })();
 
         this.connecting.set(url, connectPromise);
-        
+
         try {
             await connectPromise;
         } catch {
@@ -91,7 +91,7 @@ export class RelayPool {
      */
     async setRelays(urls: string[]): Promise<void> {
         const currentUrls = new Set([...this.relays.keys(), ...this.connecting.keys(), ...this.statuses.keys()]);
-        
+
         // Remove relays not in new list
         for (const url of currentUrls) {
             if (!urls.includes(url)) {
@@ -122,30 +122,20 @@ export class RelayPool {
 
     /**
      * Query for a single event matching filters.
-     * Resolves on the first event received.
+     * For replaceable events, returns the newest event by created_at across all relays.
      */
     async query(filters: Filter[], timeout = 3000): Promise<Event | null> {
-        return new Promise((resolve) => {
-            let resolved = false;
-            const unsub = this.subscribe(
-                filters,
-                (event) => {
-                    if (!resolved) {
-                        resolved = true;
-                        unsub();
-                        resolve(event);
-                    }
-                }
-            );
+        // Use queryAll to get events from all relays, then pick the newest
+        const events = await this.queryAll(filters, timeout);
 
-            setTimeout(() => {
-                if (!resolved) {
-                    resolved = true;
-                    unsub();
-                    resolve(null);
-                }
-            }, timeout);
-        });
+        if (events.length === 0) {
+            return null;
+        }
+
+        // Return the newest event by created_at (important for replaceable kinds)
+        return events.reduce((newest, current) =>
+            current.created_at > newest.created_at ? current : newest
+        );
     }
 
     /**
