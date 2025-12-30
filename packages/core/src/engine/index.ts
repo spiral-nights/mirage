@@ -21,6 +21,7 @@ import {
     getSpaceStore,
     updateSpaceStore,
     setSessionKey,
+    getSpaceContext,
     type SpaceRouteContext
 } from './routes/spaces';
 import {
@@ -62,6 +63,7 @@ const poolReady = new Promise<void>((resolve) => {
 });
 let currentPubkey: string | null = null;
 let appOrigin: string = 'mirage-app';
+let currentSpace: { id: string; name: string } | undefined;
 
 // Keys preloading state - resolves when keys are loaded from relays
 let keysReadyResolve: (() => void) | null = null;
@@ -199,6 +201,12 @@ self.onmessage = async (event: MessageEvent<MirageMessage>) => {
         case 'SET_APP_ORIGIN':
             appOrigin = (message as any).origin;
             console.log('[Engine] App origin set:', appOrigin?.slice(0, 20) + '...');
+            break;
+
+        case 'SET_SPACE_CONTEXT':
+            const ctxMsg = message as any;
+            currentSpace = { id: ctxMsg.spaceId, name: ctxMsg.spaceName };
+            console.log('[Engine] Space context set:', currentSpace);
             break;
 
         case 'ENCRYPT_RESULT':
@@ -493,7 +501,16 @@ async function matchRoute(method: string, fullPath: string): Promise<RouteMatch 
         requestDecrypt,
         currentPubkey,
         appOrigin,
+        currentSpace,
     };
+
+    // GET /mirage/v1/space
+    if (method === 'GET' && path === '/mirage/v1/space') {
+        return {
+            handler: async () => getSpaceContext(spaceCtx),
+            params: {},
+        };
+    }
 
     // GET /mirage/v1/spaces
     if (method === 'GET' && path === '/mirage/v1/spaces') {

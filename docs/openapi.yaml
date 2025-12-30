@@ -4,7 +4,7 @@ info:
   description: |
     Build social apps with just `fetch()`. Mirage handles authentication,
     encryption, and syncing across devices automatically.
-    
+
     **No backend required** - data syncs via decentralized relays.
   version: 1.0.0
   contact:
@@ -40,7 +40,6 @@ tags:
       Manage your social graph (following list). Add or remove friends
       and see who other users are following.
 
-
 paths:
   /ready:
     get:
@@ -49,7 +48,7 @@ paths:
       description: |
         Returns status information. Check this endpoint once at startup
         to ensure the system is online before making API calls.
-        
+
         **Usage:**
         ```javascript
         const status = await fetch('/mirage/v1/ready').then(r => r.json());
@@ -255,7 +254,7 @@ paths:
                   $ref: '#/components/schemas/Contact'
         '404':
           description: No contact list found
-    
+
     put:
       tags: [Contacts]
       summary: Update contact list
@@ -309,7 +308,6 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Contact'
-
 
   /storage/{key}:
     get:
@@ -416,6 +414,30 @@ paths:
   # Spaces
   # ===========================================================================
 
+  /space:
+    get:
+      tags: [Spaces]
+      summary: Get current space context
+      description: |
+        Returns the metadata of the space the app is currently running in.
+
+        If the app was launched inside a space, this returns the space details.
+        If the app is running standalone (or if no space context was provided),
+        it returns `{ "id": null, "standalone": true }`.
+
+        **Usage:**
+        Use this to check if your app has access to a space context.
+      operationId: getSpaceContext
+      responses:
+        '200':
+          description: Current space context
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/Space'
+                  - $ref: '#/components/schemas/SpaceContextStandalone'
+
   /spaces:
     get:
       tags: [Spaces]
@@ -483,7 +505,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Space'
-    
+
     delete:
       tags: [Spaces]
       summary: Delete or leave a space
@@ -514,6 +536,11 @@ paths:
       summary: Get shared data (Shared KV)
       description: |
         Get the current state of the shared database.
+
+        **Magic 'current' ID:**
+        If you use `current` as the `spaceId` (e.g., `/spaces/current/store`),
+        the API will automatically target the space the app is running in.
+        If the app is standalone, it targets the app's private default space.
       operationId: getSpaceStore
       security:
         - nip07: []
@@ -523,6 +550,7 @@ paths:
           required: true
           schema:
             type: string
+          description: Space ID or "current"
       responses:
         '200':
           description: Current state
@@ -574,6 +602,9 @@ paths:
       summary: Get raw messages
       description: |
         Get raw event log from the space. Useful for chat apps or custom logic.
+
+        **Magic 'current' ID:**
+        Supports using `current` as the `spaceId`.
       operationId: getSpaceMessages
       security:
         - nip07: []
@@ -583,6 +614,7 @@ paths:
           required: true
           schema:
             type: string
+          description: Space ID or "current"
         - name: since
           in: query
           description: Unix timestamp
@@ -780,7 +812,7 @@ paths:
       summary: Get messages with someone
       description: |
         Get your private conversation with a specific person. Supports real-time streaming.
-        
+
         **Streaming (recommended):**
         ```javascript
         const es = new EventSource('/mirage/v1/dms/{pubkey}');
@@ -995,6 +1027,24 @@ components:
         memberCount:
           type: integer
           description: Number of members
+        owner:
+          type: string
+          description: Owner's public key
+        members:
+          type: array
+          items:
+            type: string
+          description: List of member public keys
+
+    SpaceContextStandalone:
+      type: object
+      description: Context returned when an app is running without a space
+      properties:
+        id:
+          type: null
+        standalone:
+          type: boolean
+          example: true
 
     SpaceMessage:
       type: object

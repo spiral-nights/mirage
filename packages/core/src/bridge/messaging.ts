@@ -6,6 +6,7 @@
 
 import type { MirageMessage } from '../types';
 import { nip04, nip44, getPublicKey, finalizeEvent } from 'nostr-tools';
+import { setPreviewSpaceContext } from './preview-mock';
 
 // ============================================================================
 // Types
@@ -151,6 +152,12 @@ export function handleEngineMessage(event: MessageEvent<MirageMessage>): void {
         if (currentAppOrigin === '__preview__') {
             console.log('[Bridge] PREVIEW MODE ENABLED - API requests will be handled in-memory');
         }
+    }
+    // Route: SET_SPACE_CONTEXT (for preview mock)
+    else if (message.type === 'SET_SPACE_CONTEXT') {
+        const ctxMsg = message as any;
+        console.log('[Bridge] SET_SPACE_CONTEXT received:', ctxMsg.spaceName);
+        setPreviewSpaceContext(ctxMsg.spaceId, ctxMsg.spaceName);
     }
 }
 

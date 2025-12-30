@@ -16,6 +16,7 @@ export type MessageType =
     | 'RELAY_CONFIG'
     | 'SET_PUBKEY'
     | 'SET_APP_ORIGIN'
+    | 'SET_SPACE_CONTEXT'
     | 'STREAM_OPEN'
     | 'STREAM_CHUNK'
     | 'STREAM_CLOSE'
@@ -128,6 +129,13 @@ export interface SetAppOriginMessage extends BaseMessage {
     origin: string;  // The app's naddr or unique identifier
 }
 
+/** Set space context message */
+export interface SetSpaceContextMessage extends BaseMessage {
+    type: 'SET_SPACE_CONTEXT';
+    spaceId: string;
+    spaceName: string;
+}
+
 export type MirageMessage =
     | ApiRequestMessage
     | ApiResponseMessage
@@ -136,6 +144,7 @@ export type MirageMessage =
     | RelayConfigMessage
     | SetPubkeyMessage
     | SetAppOriginMessage
+    | SetSpaceContextMessage
     | StreamOpenMessage
     | StreamChunkMessage
     | StreamCloseMessage

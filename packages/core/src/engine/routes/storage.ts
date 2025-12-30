@@ -23,6 +23,7 @@ export interface StorageRouteContext {
     requestDecrypt: (pubkey: string, ciphertext: string) => Promise<string>;
     currentPubkey: string | null;
     appOrigin: string;
+    currentSpace?: { id: string; name: string; owner?: string; members?: string[] };
 }
 
 // ============================================================================

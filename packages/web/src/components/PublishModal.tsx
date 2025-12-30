@@ -25,6 +25,7 @@ export const PublishModal = ({
 }: PublishModalProps) => {
   const [name, setName] = useState(initialName);
   const [code, setCode] = useState(initialCode);
+  const [spaceRequirement, setSpaceRequirement] = useState<'required' | 'optional' | 'none'>('optional');
   const [copied, setCopied] = useState(false);
 
   const navigate = useNavigate();
@@ -46,6 +47,7 @@ export const PublishModal = ({
         state: {
           code,
           mode: 'create',
+          spaceRequirement,
           returnTo,
         },
       });
@@ -55,6 +57,7 @@ export const PublishModal = ({
           code,
           mode: 'edit',
           appName: name,
+          spaceRequirement,
           existingDTag,
           returnTo,
         },
@@ -120,18 +123,36 @@ export const PublishModal = ({
 
             {/* Content */}
             <div className="p-12 pt-6">
-              {!isView && mode === 'edit' && (
-                <div className="mb-8">
-                  <label className="block text-xs font-black uppercase tracking-[0.3em] text-gray-600 mb-3">
-                    Application Name
-                  </label>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. My Awesome App"
-                    className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-4 text-white focus:border-vivid-magenta/30 focus:ring-4 focus:ring-vivid-magenta/5 outline-none transition-all font-medium"
-                  />
+              {!isView && (
+                <div className="flex flex-col md:flex-row gap-6 mb-8">
+                  <div className="flex-1">
+                    <label className="block text-xs font-black uppercase tracking-[0.3em] text-gray-600 mb-3">
+                      Application Name
+                    </label>
+                    <input
+                      type="text"
+                      value={name}
+                      readOnly={isView}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="e.g. My Awesome App"
+                      className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-4 text-white focus:border-vivid-magenta/30 focus:ring-4 focus:ring-vivid-magenta/5 outline-none transition-all font-medium"
+                    />
+                  </div>
+                  <div className="w-full md:w-64">
+                    <label className="block text-xs font-black uppercase tracking-[0.3em] text-gray-600 mb-3">
+                      Space Context
+                    </label>
+                    <select
+                      value={spaceRequirement}
+                      disabled={isView}
+                      onChange={(e) => setSpaceRequirement(e.target.value as any)}
+                      className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-4 text-white focus:border-vivid-magenta/30 focus:ring-4 focus:ring-vivid-magenta/5 outline-none transition-all font-medium appearance-none"
+                    >
+                      <option value="optional">Optional</option>
+                      <option value="required">Required</option>
+                      <option value="none">Strictly Standalone</option>
+                    </select>
+                  </div>
                 </div>
               )}
 

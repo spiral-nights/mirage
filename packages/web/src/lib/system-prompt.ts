@@ -28,55 +28,99 @@ The Engine intercepts these calls and translates them into decentralized Nostr p
 # THE VIRTUAL API (OpenAPI Spec)
 ${openApiSpec}
 
-# EXAMPLE CODE (Todo App)
+# SPACE CONTEXT
+Your app runs inside a "Space" - a user-created container for data.
+
+1. **Get current space:** ${B}GET /mirage/v1/space${B} returns the space context (id, name, etc.).
+2. **Use the space:** Use ${B}current${B} as the space ID: ${B}/mirage/v1/spaces/current/store/:key${B} for shared data.
+3. **Standalone Check:** If ${B}/mirage/v1/space${B} returns ${B}{ standalone: true }${B}, warn the user or fallback to private storage.
+4. **DO NOT create spaces:** Users manage spaces in the Mirage UI. Your app ONLY consumes the provided space.
+
+# EXAMPLE CODE (Collaborative List)
 ${BBB}html
 <!DOCTYPE html>
 <html>
 <head>
-  <meta name="mirage-permissions" content="storage_read, storage_write">
+  <meta name="mirage-permissions" content="space_read, space_write">
   <style>
-    body { background: #111827; color: white; padding: 2rem; font-family: system-ui; }
+    body { background: #0a0a0c; color: #e4e4e7; padding: 2rem; font-family: system-ui; }
     .container { max-width: 28rem; margin: 0 auto; }
-    h1 { font-size: 1.5rem; font-weight: bold; margin-bottom: 1rem; }
+    .space-badge { font-size: 0.7rem; font-weight: bold; background: #27272a; padding: 0.2rem 0.6rem; border-radius: 1rem; color: #a1a1aa; }
+    h1 { font-size: 1.5rem; font-weight: 900; margin: 1rem 0; letter-spacing: -0.025em; }
     .input-row { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
-    input { flex: 1; background: #1f2937; padding: 0.5rem; border-radius: 0.25rem; border: none; color: white; }
-    button { background: #2563eb; padding: 0.5rem 1rem; border-radius: 0.25rem; border: none; color: white; cursor: pointer; }
+    input { flex: 1; background: #18181b; padding: 0.75rem; border-radius: 0.75rem; border: 1px solid #27272a; color: white; }
+    button { background: #3b82f6; padding: 0.75rem 1.25rem; border-radius: 0.75rem; border: none; color: white; cursor: pointer; font-weight: bold; }
     ul { list-style: none; padding: 0; }
-    li { background: #1f2937; padding: 0.5rem; margin-bottom: 0.5rem; border-radius: 0.25rem; }
+    li { background: #18181b; padding: 0.75rem; margin-bottom: 0.5rem; border-radius: 0.75rem; border: 1px solid #27272a; display: flex; justify-content: space-between; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>My Tasks</h1>
+  <div id="setup" style="display:none; text-align:center; padding-top: 4rem;">
+    <h2>No Space Selected</h2>
+    <p style="color:#71717a">Please launch this app from a Space in the Mirage menu.</p>
+  </div>
+
+  <div id="app" class="container">
+    <div id="space-info"></div>
+    <h1>Shared List</h1>
     <div class="input-row">
-      <input id="input" type="text" placeholder="New task...">
-      <button onclick="addTask()">Add</button>
+      <input id="input" type="text" placeholder="Add item...">
+      <button onclick="addItem()">Add</button>
     </div>
     <ul id="list"></ul>
   </div>
 
   <script>
-    // Load tasks on startup
+    let currentSpace = null;
+
+    async function init() {
+      // 1. Get current space context
+      const spaceRes = await fetch('/mirage/v1/space');
+      const space = await spaceRes.json();
+      
+      if (space.standalone) {
+        document.getElementById('app').style.display = 'none';
+        document.getElementById('setup').style.display = 'block';
+        return;
+      }
+
+      currentSpace = space;
+      document.getElementById('space-info').innerHTML = ${B}\<span class="space-badge"\>${B} + space.name + ${B}\</span\>${B};
+      
+      // 2. Load data from current space store
+      load();
+    }
+
     async function load() {
-      const res = await fetch('/mirage/v1/storage/todos');
+      const res = await fetch('/mirage/v1/spaces/current/store');
       if (res.ok) {
         const data = await res.json();
-        render(data.value || []);
+        render(data || {});
       }
     }
 
-    // Save tasks
-    async function save(todos) {
-      await fetch('/mirage/v1/storage/todos', {
+    async function addItem() {
+      const input = document.getElementById('input');
+      const val = input.value.trim();
+      if (!val) return;
+
+      // 3. Update current space store
+      await fetch('/mirage/v1/spaces/current/store/' + Date.now(), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(todos)
+        body: JSON.stringify({ text: val })
       });
+      
+      input.value = '';
+      load();
     }
 
-    // ... (render logic) ...
+    function render(items) {
+      const list = document.getElementById('list');
+      list.innerHTML = Object.values(items).map(item => ${B}\<li\>${B} + item.text + ${B}\</li\>${B}).join('');
+    }
     
-    load();
+    init();
   </script>
 </body>
 </html>

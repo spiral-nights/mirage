@@ -9,13 +9,10 @@ interface MirageContextType {
   isReady: boolean;
   pubkey: string | null;
   apps: AppDefinition[];
-  spaces: any[];
-  publishApp: (html: string, name?: string, existingDTag?: string) => Promise<string>;
+  publishApp: (html: string, name?: string, existingDTag?: string, spaceRequirement?: 'required' | 'optional' | 'none') => Promise<string>;
   fetchApp: (naddr: string) => Promise<string | null>;
   refreshApps: () => Promise<void>;
-  refreshSpaces: () => Promise<void>;
   deleteApp: (naddr: string) => Promise<boolean>;
-  deleteSpace: (spaceId: string) => Promise<boolean>;
 }
 
 const MirageContext = createContext<MirageContextType | undefined>(undefined);
@@ -29,7 +26,6 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
   const [pubkey, setPubkey] = useState<string | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [apps, setApps] = useState<AppDefinition[]>([]);
-  const [spaces, setSpaces] = useState<any[]>([]);
   const initRef = useRef(false);
 
   // Refresh apps from the engine
@@ -151,14 +147,10 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
                 console.log('[useMirage] Loading initial data...');
                 const dataLoadStart = performance.now();
                 try {
-                  const [library, spacesData] = await Promise.all([
-                    mirageHost.request('GET', '/mirage/v1/library/apps'),
-                    mirageHost.request('GET', '/mirage/v1/spaces/all')
-                  ]);
+                  const library = await mirageHost.request('GET', '/mirage/v1/library/apps');
                   console.log(`[useMirage] Initial data load took: ${(performance.now() - dataLoadStart).toFixed(2)}ms`);
 
                   if (Array.isArray(library)) setApps(library);
-                  if (Array.isArray(spacesData)) setSpaces(spacesData);
                 } catch (dataErr) {
                   console.warn('[useMirage] Initial data fetch failed:', dataErr);
                 }
@@ -202,13 +194,18 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
    * If existingDTag is provided, it updates that event (overwrite/update).
    * Otherwise, it creates a new one.
    */
-  const publishApp = async (html: string, name: string = 'Untitled App', existingDTag?: string): Promise<string> => {
+  const publishApp = async (
+    html: string,
+    name: string = 'Untitled App',
+    existingDTag?: string,
+    spaceRequirement: 'required' | 'optional' | 'none' = 'optional'
+  ): Promise<string> => {
     const currentHost = host || globalHost;
     if (!currentHost || !pubkey) throw new Error('Mirage not initialized or no signer found');
 
     const dTag = existingDTag || `mirage:app:${crypto.randomUUID()}`;
 
-    console.log('[useMirage] Publishing app:', { name, dTag, update: !!existingDTag });
+    console.log('[useMirage] Publishing app:', { name, dTag, spaceRequirement, update: !!existingDTag });
 
     // 1. Publish to Nostr via Engine API
     const result = await currentHost.request('POST', '/mirage/v1/events', {
@@ -217,6 +214,7 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
       tags: [
         ['d', dTag],
         ['name', name],
+        ['space', spaceRequirement],
         ['t', 'mirage_app']
       ]
     });
@@ -253,26 +251,6 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
     return naddr;
   };
 
-  // Refresh spaces from the engine
-  const refreshSpaces = useCallback(async () => {
-    const currentHost = host || globalHost;
-    if (!currentHost) {
-      console.warn('[useMirage] Cannot refresh spaces: host not ready');
-      return;
-    }
-
-    try {
-      console.log('[useMirage] Refreshing spaces from engine...');
-      const spacesData = await currentHost.request('GET', '/mirage/v1/spaces/all');
-      console.log('[useMirage] Loaded spaces:', spacesData);
-      if (Array.isArray(spacesData)) {
-        setSpaces(spacesData);
-      }
-    } catch (e) {
-      console.error('[useMirage] Failed to refresh spaces:', e);
-    }
-  }, [host]);
-
   // Delete an app from the library
   const deleteApp = async (naddr: string): Promise<boolean> => {
     const currentHost = host || globalHost;
@@ -296,31 +274,8 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Delete a space
-  const deleteSpace = async (spaceId: string): Promise<boolean> => {
-    const currentHost = host || globalHost;
-    if (!currentHost) {
-      console.warn('[useMirage] Cannot delete space: host not ready');
-      return false;
-    }
-
-    try {
-      console.log('[useMirage] Deleting space:', spaceId);
-      const result = await currentHost.request('DELETE', `/mirage/v1/spaces/${spaceId}`);
-      if (result.deleted) {
-        console.log('[useMirage] Space deleted successfully');
-        setSpaces(prevSpaces => prevSpaces.filter(s => s.id !== spaceId));
-        return true;
-      }
-      return false;
-    } catch (e) {
-      console.error('[useMirage] Failed to delete space:', e);
-      return false;
-    }
-  };
-
   return (
-    <MirageContext.Provider value={{ host, isReady, pubkey, apps, spaces, publishApp, fetchApp, refreshApps, refreshSpaces, deleteApp, deleteSpace }}>
+    <MirageContext.Provider value={{ host, isReady, pubkey, apps, publishApp, fetchApp, refreshApps, deleteApp }}>
       {!isReady ? (
         <div className="fixed inset-0 bg-[#050505] flex flex-col items-center justify-center p-12 z-[9999]">
           <div className="relative mb-20 scale-125">

@@ -159,8 +159,14 @@ export class MirageHost {
     async mount(
         appHtml: string,
         container: HTMLElement,
-        appId?: string,
+        options?: {
+            appId?: string;
+            spaceId?: string;
+            spaceName?: string;
+        }
     ): Promise<void> {
+        const appId = options?.appId;
+
         // Parse permissions from app HTML
         this.appPermissions = parsePermissions(appHtml);
         console.log("[Host] App permissions:", this.appPermissions.permissions);
@@ -218,6 +224,22 @@ export class MirageHost {
                         );
                     }
 
+                    // Set space context if provided
+                    if (options?.spaceId) {
+                        console.log(
+                            "[Host] Setting space context:",
+                            options.spaceId,
+                        );
+                        const spaceMsg = {
+                            type: "SET_SPACE_CONTEXT",
+                            id: crypto.randomUUID(),
+                            spaceId: options.spaceId,
+                            spaceName: options.spaceName || "",
+                        };
+                        this.engineWorker.postMessage(spaceMsg);
+                        this.iframe?.contentWindow?.postMessage(spaceMsg, "*");
+                    }
+
                     resolve();
                 }
             };
@@ -234,6 +256,45 @@ export class MirageHost {
             this.iframe = null;
         }
         this.appPermissions = { permissions: [] };
+    }
+
+    // ==========================================================================
+    // Space Management
+    // ==========================================================================
+
+    /**
+     * Create a new space
+     */
+    async createSpace(name: string, appId?: string): Promise<any> {
+        return this.request("POST", "/spaces", { name, appOrigin: appId });
+    }
+
+    /**
+     * List user's spaces
+     */
+    async listSpaces(): Promise<any[]> {
+        return this.request("GET", "/spaces");
+    }
+
+    /**
+     * Get details for a specific space
+     */
+    async getSpace(id: string): Promise<any> {
+        return this.request("GET", `/spaces/${id}`);
+    }
+
+    /**
+     * Delete a space
+     */
+    async deleteSpace(id: string): Promise<void> {
+        return this.request("DELETE", `/spaces/${id}`);
+    }
+
+    /**
+     * Invite a user to a space
+     */
+    async inviteToSpace(spaceId: string, pubkey: string): Promise<void> {
+        return this.request("POST", `/spaces/${spaceId}/invite`, { pubkey });
     }
 
     /**

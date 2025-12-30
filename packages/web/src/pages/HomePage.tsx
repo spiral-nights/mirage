@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Plus, Zap, Copy, Check } from 'lucide-react';
+import { Plus, Copy, Check } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { PublishModal } from '../components/PublishModal';
 import { useMirage } from '../hooks/useMirage';
@@ -68,23 +68,13 @@ export const HomePage = () => {
             The decentralized platform for building, running, and sharing cluster applications. No servers, just pure protocol.
           </p>
 
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-6 mb-20 md:mb-32">
-            <button
-              onClick={() => setIsPublishOpen(true)} // Assuming setIsModalOpen should be setIsPublishOpen
-              className="px-10 py-5 bg-vivid-magenta text-white rounded-[24px] font-black text-sm uppercase tracking-widest shadow-vivid-glow hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3"
-            >
-              <Plus size={20} /> {/* Assuming PlusCircle should be Plus from lucide-react */}
-              Publish App
-            </button>
-
-            <button
-              onClick={() => navigate('/create')}
-              className="px-10 py-5 bg-vivid-teal/10 text-vivid-teal border border-vivid-teal/20 rounded-[24px] font-black text-sm uppercase tracking-widest hover:bg-vivid-teal/20 transition-all flex items-center justify-center gap-3"
-            >
-              <Zap size={20} fill="currentColor" />
-              Connect Space
-            </button>
-          </div>
+          <button
+            onClick={() => setIsPublishOpen(true)}
+            className="px-10 py-5 bg-vivid-magenta text-white rounded-[24px] font-black text-sm uppercase tracking-widest shadow-vivid-glow hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 mb-20 md:mb-32"
+          >
+            <Plus size={20} />
+            Publish App
+          </button>
         </motion.div>
       </header>
 
@@ -135,17 +125,7 @@ export const HomePage = () => {
         </div>
       </motion.div>
 
-      <div className="fixed bottom-12 right-12">
-        <button
-          onClick={() => setIsPublishOpen(true)}
-          className="group flex items-center gap-3 bg-white text-black px-8 py-5 rounded-[28px] font-black shadow-2xl hover:scale-105 active:scale-95 transition-all duration-500"
-        >
-          <div className="w-8 h-8 rounded-xl bg-black text-white flex items-center justify-center group-hover:rotate-90 transition-transform duration-500">
-            <Plus size={20} strokeWidth={3} />
-          </div>
-          PUBLISH TO NOSTR
-        </button>
-      </div>
+
 
       <PublishModal
         isOpen={isPublishOpen}

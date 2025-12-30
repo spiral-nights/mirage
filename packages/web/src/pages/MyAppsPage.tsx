@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Link } from 'react-router-dom';
+
 import { useMirage } from '../hooks/useMirage';
 import { cn } from '../lib/utils';
 import {
@@ -18,21 +18,28 @@ import {
 } from 'lucide-react';
 import { type AppDefinition } from '@mirage/core';
 import { PublishModal } from '../components/PublishModal';
+import { SpacePickerModal } from '../components/SpacePickerModal';
+import { CreateSpaceModal } from '../components/CreateSpaceModal';
 import { nip19 } from 'nostr-tools';
+import { useSpaces } from '../hooks/useSpaces';
 
 interface SpaceWithApp {
   id: string;
   name: string;
   createdAt: number;
-  memberCount: number;
   appOrigin?: string;
 }
 
 export const MyAppsPage = () => {
-  const { apps, spaces, isReady, deleteApp, deleteSpace, fetchApp, pubkey } = useMirage();
+  const { apps, isReady, deleteApp, fetchApp, pubkey } = useMirage();
+  const { spaces, deleteSpace } = useSpaces();
 
   // Modal State
-  const [modalOpen, setModalOpen] = useState(false);
+  const [publishModalOpen, setPublishModalOpen] = useState(false);
+  const [pickerModalOpen, setPickerModalOpen] = useState(false);
+  const [createSpaceOpen, setCreateSpaceOpen] = useState(false);
+  const [selectedApp, setSelectedApp] = useState<AppDefinition | null>(null);
+
   const [modalProps, setModalProps] = useState<{
     mode: 'edit' | 'view';
     initialName: string;
@@ -82,15 +89,21 @@ export const MyAppsPage = () => {
         initialCode: code,
         existingDTag: data.identifier
       });
-      setModalOpen(true);
+      setPublishModalOpen(true);
     } catch (e) {
       console.error("Failed to open source:", e);
       alert("Failed to load application source from relays.");
     }
   };
 
+  const handleLaunch = (app: AppDefinition) => {
+    setSelectedApp(app);
+    setPickerModalOpen(true);
+  };
+
   return (
     <div className="max-w-5xl">
+      {/* ... header and sections ... */}
       <header className="mb-10 md:mb-16">
         <h1 className="text-4xl md:text-6xl font-black mb-4 md:mb-6 tracking-tighter">
           Your <span className="serif-italic px-1 md:px-3">Library</span>
@@ -121,6 +134,7 @@ export const MyAppsPage = () => {
                 onDeleteApp={deleteApp}
                 onDeleteSpace={deleteSpace}
                 onOpenSource={handleOpenSource}
+                onLaunch={handleLaunch}
                 pubkey={pubkey}
               />
             ))
@@ -153,12 +167,27 @@ export const MyAppsPage = () => {
         </section>
       )}
 
-      {/* Modal for Edit/View Source */}
+      {/* Modals */}
       <PublishModal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
+        isOpen={publishModalOpen}
+        onClose={() => setPublishModalOpen(false)}
         returnTo="/"
         {...modalProps}
+      />
+
+      <SpacePickerModal
+        isOpen={pickerModalOpen}
+        onClose={() => setPickerModalOpen(false)}
+        app={selectedApp}
+        onCreateNew={() => {
+          setPickerModalOpen(false);
+          setCreateSpaceOpen(true);
+        }}
+      />
+
+      <CreateSpaceModal
+        isOpen={createSpaceOpen}
+        onClose={() => setCreateSpaceOpen(false)}
       />
     </div>
   );
@@ -171,6 +200,7 @@ const AppWithSpaces = ({
   onDeleteApp,
   onDeleteSpace,
   onOpenSource,
+  onLaunch,
   pubkey
 }: {
   app: AppDefinition;
@@ -179,6 +209,7 @@ const AppWithSpaces = ({
   onDeleteApp: (naddr: string) => Promise<boolean>;
   onDeleteSpace: (spaceId: string) => Promise<boolean>;
   onOpenSource: (app: AppDefinition, mode: 'edit' | 'view') => void;
+  onLaunch: (app: AppDefinition) => void;
   pubkey: string | null;
 }) => {
   const [isExpanded, setIsExpanded] = useState(spaces.length > 0);
@@ -268,7 +299,7 @@ const AppWithSpaces = ({
                 {spaces.length > 0 && (
                   <span className="flex items-center gap-1.5 text-[8px] md:text-[10px] text-vivid-cyan bg-vivid-cyan/10 border border-vivid-cyan/20 px-2 md:px-3 py-0.5 md:py-1 rounded-full uppercase font-black tracking-widest">
                     <Database size={8} className="md:w-[10px] md:h-[10px]" />
-                    {spaces.length} Storage
+                    {spaces.length} Spaces
                   </span>
                 )}
               </div>
@@ -298,13 +329,13 @@ const AppWithSpaces = ({
             </div>
 
             <div className="flex items-center gap-3">
-              <Link
-                to={`/run/${app.naddr}`}
+              <button
+                onClick={() => onLaunch(app)}
                 className="h-10 md:h-11 px-4 md:px-6 rounded-2xl bg-vivid-magenta text-white hover:opacity-90 transition-all flex items-center gap-3 font-black text-xs md:text-sm shadow-vivid-glow active:scale-95 translate-y-0 hover:-translate-y-0.5"
               >
                 <Play size={14} className="md:w-4 md:h-4" fill="currentColor" />
                 Launch
-              </Link>
+              </button>
 
               <button
                 onClick={() => setIsExpanded(!isExpanded)}

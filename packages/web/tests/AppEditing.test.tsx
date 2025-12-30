@@ -62,7 +62,7 @@ describe('PublishModal - App Management', () => {
             />
         );
 
-        const codeInput = screen.getByPlaceholderText(/Paste your HTML/i);
+        const codeInput = screen.getByPlaceholderText(/<html>/i);
         fireEvent.change(codeInput, { target: { value: '<h1>Test App</h1>' } });
 
         expect((codeInput as HTMLTextAreaElement).value).toBe('<h1>Test App</h1>');

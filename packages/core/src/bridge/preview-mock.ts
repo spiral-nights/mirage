@@ -99,6 +99,20 @@ const PREVIEW_PROFILE: MockProfile = {
     picture: '',
 };
 
+let currentSpace: { id: string; name: string } | null = null;
+
+export function setPreviewSpaceContext(id: string, name: string): void {
+    currentSpace = { id, name };
+    console.log('[Preview Mock] Set space context:', currentSpace);
+}
+
+function resolveSpaceId(spaceId: string): string {
+    if (spaceId === 'current') {
+        return currentSpace?.id || 'default';
+    }
+    return spaceId;
+}
+
 // ============================================================================
 // Helper Functions
 // ============================================================================
@@ -132,6 +146,12 @@ async function handlePreviewGet(path: string): Promise<Response> {
     // === System ===
     if (path === '/mirage/v1/ready') {
         return jsonResponse({ ready: true, authenticated: true, relayCount: 3 });
+    }
+
+    // === Space Context ===
+    if (path === '/mirage/v1/space') {
+        if (currentSpace) return jsonResponse(currentSpace);
+        return jsonResponse({ id: null, standalone: true });
     }
 
     // === Events ===
@@ -187,14 +207,14 @@ async function handlePreviewGet(path: string): Promise<Response> {
     // GET /spaces/:id/messages
     const messagesMatch = path.match(/\/mirage\/v1\/spaces\/([^/]+)\/messages/);
     if (messagesMatch) {
-        const spaceId = messagesMatch[1];
+        const spaceId = resolveSpaceId(messagesMatch[1]);
         return jsonResponse(previewMessages.get(spaceId) || []);
     }
 
     // GET /spaces/:id/store
     const storeMatch = path.match(/\/mirage\/v1\/spaces\/([^/]+)\/store\/?$/);
     if (storeMatch) {
-        const spaceId = storeMatch[1];
+        const spaceId = resolveSpaceId(storeMatch[1]);
         const store = previewStore.get(spaceId);
         return jsonResponse(store ? Object.fromEntries(store) : {});
     }
@@ -202,7 +222,7 @@ async function handlePreviewGet(path: string): Promise<Response> {
     // GET /spaces/:id (single space)
     const spaceMatch = path.match(/\/mirage\/v1\/spaces\/([^/]+)$/);
     if (spaceMatch) {
-        const spaceId = spaceMatch[1];
+        const spaceId = resolveSpaceId(spaceMatch[1]);
         const space = previewSpaces.get(spaceId);
         if (space) return jsonResponse(space);
         return jsonResponse({ error: 'Space not found' }, 404);
@@ -274,7 +294,7 @@ async function handlePreviewPost(path: string, body: any): Promise<Response> {
     // POST /spaces/:id/messages
     const messagesMatch = path.match(/\/mirage\/v1\/spaces\/([^/]+)\/messages/);
     if (messagesMatch) {
-        const spaceId = messagesMatch[1];
+        const spaceId = resolveSpaceId(messagesMatch[1]);
         if (!previewMessages.has(spaceId)) {
             previewMessages.set(spaceId, []);
         }
@@ -359,7 +379,7 @@ async function handlePreviewPut(path: string, body: any): Promise<Response> {
     // === Spaces Store ===
     const storeKeyMatch = path.match(/\/mirage\/v1\/spaces\/([^/]+)\/store\/(.+)/);
     if (storeKeyMatch) {
-        const spaceId = storeKeyMatch[1];
+        const spaceId = resolveSpaceId(storeKeyMatch[1]);
         const key = storeKeyMatch[2];
         if (!previewStore.has(spaceId)) {
             previewStore.set(spaceId, new Map());
@@ -390,7 +410,7 @@ async function handlePreviewDelete(path: string): Promise<Response> {
     // === Spaces ===
     const spaceMatch = path.match(/\/mirage\/v1\/spaces\/([^/]+)$/);
     if (spaceMatch) {
-        const spaceId = spaceMatch[1];
+        const spaceId = resolveSpaceId(spaceMatch[1]);
         previewSpaces.delete(spaceId);
         previewMessages.delete(spaceId);
         previewStore.delete(spaceId);

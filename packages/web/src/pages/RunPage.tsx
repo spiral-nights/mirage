@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useMirage } from '../hooks/useMirage';
 import { useAppActions } from '../contexts/AppActionsContext';
 import { XCircle } from 'lucide-react';
@@ -8,6 +8,7 @@ import { nip19 } from 'nostr-tools';
 
 export const RunPage = () => {
   const { naddr } = useParams<{ naddr: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { fetchApp, host, pubkey, apps } = useMirage();
   const { setAppActions } = useAppActions();
@@ -15,6 +16,9 @@ export const RunPage = () => {
 
   const [status, setStatus] = useState<'loading' | 'running' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
+
+  const spaceId = searchParams.get('spaceId');
+  const spaceName = searchParams.get('spaceName');
 
   // Modal State
   const [modalOpen, setModalOpen] = useState(false);
@@ -92,7 +96,11 @@ export const RunPage = () => {
         }
 
         // 3. Mount the app with its naddr for space scoping
-        await host.mount(html, containerRef.current!, naddr);
+        await host.mount(html, containerRef.current!, {
+          appId: naddr,
+          spaceId: spaceId || undefined,
+          spaceName: spaceName || undefined
+        });
 
         if (!mounted) return;
 
@@ -160,6 +168,7 @@ export const RunPage = () => {
     if (currentApp) {
       setAppActions({
         app: currentApp,
+        space: spaceId ? { id: spaceId, name: spaceName || 'Unnamed Space' } : null,
         isAuthor,
         onViewEditSource: handleOpenSource,
         onShare: handleShare,
@@ -171,13 +180,14 @@ export const RunPage = () => {
     return () => {
       setAppActions({
         app: null,
+        space: null,
         isAuthor: false,
         onViewEditSource: null,
         onShare: null,
         onExit: null,
       });
     };
-  }, [currentApp, isAuthor, handleOpenSource, handleShare, handleExit, setAppActions]);
+  }, [currentApp, spaceId, spaceName, isAuthor, handleOpenSource, handleShare, handleExit, setAppActions]);
 
   if (status === 'error') {
     return (

@@ -3,6 +3,7 @@ import { type AppDefinition } from '@mirage/core';
 
 interface AppActionsContextType {
     app: AppDefinition | null;
+    space?: { id: string; name: string } | null;
     isAuthor: boolean;
     onViewEditSource: (() => void) | null;
     onShare: (() => void) | null;
@@ -14,6 +15,7 @@ const AppActionsContext = createContext<AppActionsContextType | undefined>(undef
 
 export const AppActionsProvider = ({ children }: { children: ReactNode }) => {
     const [app, setApp] = useState<AppDefinition | null>(null);
+    const [space, setSpace] = useState<{ id: string; name: string } | null | undefined>(null);
     const [isAuthor, setIsAuthor] = useState(false);
     const [onViewEditSource, setOnViewEditSource] = useState<(() => void) | null>(null);
     const [onShare, setOnShare] = useState<(() => void) | null>(null);
@@ -21,6 +23,7 @@ export const AppActionsProvider = ({ children }: { children: ReactNode }) => {
 
     const setAppActions = useCallback((actions: Omit<AppActionsContextType, 'setAppActions'>) => {
         setApp(actions.app);
+        setSpace(actions.space);
         setIsAuthor(actions.isAuthor);
         setOnViewEditSource(() => actions.onViewEditSource);
         setOnShare(() => actions.onShare);
@@ -31,6 +34,7 @@ export const AppActionsProvider = ({ children }: { children: ReactNode }) => {
         <AppActionsContext.Provider
             value={{
                 app,
+                space,
                 isAuthor,
                 onViewEditSource,
                 onShare,

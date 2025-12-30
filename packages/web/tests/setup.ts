@@ -43,6 +43,17 @@ class MockWorker {
   randomUUID: () => Math.random().toString(36).substring(7),
 };
 
+// Mock localStorage
+const storageMap: Record<string, string> = {};
+(globalThis as any).localStorage = {
+  getItem: (key: string) => storageMap[key] || null,
+  setItem: (key: string, value: string) => { storageMap[key] = value; },
+  removeItem: (key: string) => { delete storageMap[key]; },
+  clear: () => { for (const key in storageMap) delete storageMap[key]; },
+  length: 0,
+  key: (index: number) => Object.keys(storageMap)[index] || null,
+};
+
 // Mock matchMedia
 (globalThis as any).window.matchMedia = (query: string) => ({
   matches: false,

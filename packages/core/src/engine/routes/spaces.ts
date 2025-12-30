@@ -22,6 +22,20 @@ let keyCache: Map<string, SpaceKey> | null = null;
 // Map<scopedSpaceId, { state: Map<string, { value: any; updatedAt: number }>; latestTimestamp: number }>
 const storeCache = new Map<string, { state: Map<string, { value: unknown; updatedAt: number }>; latestTimestamp: number }>();
 
+async function getKeys(ctx: SpaceRouteContext): Promise<Map<string, SpaceKey>> {
+    if (!keyCache) {
+        keyCache = await loadSpaceKeys(ctx);
+    }
+    return keyCache;
+}
+
+function resolveSpaceId(ctx: SpaceRouteContext, spaceId: string): string {
+    if (spaceId === 'current') {
+        return ctx.currentSpace?.id || 'default';
+    }
+    return spaceId;
+}
+
 /**
  * Injects a session-only key (e.g. from a shared URL)
  */
@@ -32,16 +46,22 @@ export async function setSessionKey(ctx: SpaceRouteContext, spaceId: string, key
     console.log('[Spaces] Session key injected for:', spaceId);
 }
 
-async function getKeys(ctx: SpaceRouteContext): Promise<Map<string, SpaceKey>> {
-    if (!keyCache) {
-        keyCache = await loadSpaceKeys(ctx);
-    }
-    return keyCache;
-}
-
 // ============================================================================
 // Route Handlers
 // ============================================================================
+
+/**
+ * GET /mirage/v1/space
+ * Get current space context
+ */
+export async function getSpaceContext(
+    ctx: SpaceRouteContext
+): Promise<{ status: number; body: unknown }> {
+    if (ctx.currentSpace) {
+        return { status: 200, body: ctx.currentSpace };
+    }
+    return { status: 200, body: { id: null, standalone: true } };
+}
 
 /**
  * GET /mirage/v1/spaces
@@ -120,17 +140,18 @@ export async function listAllSpaces(
  */
 export async function createSpace(
     ctx: SpaceRouteContext,
-    body: { name: string }
+    body: { name: string; appOrigin?: string }
 ): Promise<{ status: number; body: unknown }> {
     if (!ctx.currentPubkey) return { status: 401, body: { error: 'Not authenticated' } };
     if (!body?.name) return { status: 400, body: { error: 'Space name required' } };
 
-    console.log('[Spaces] createSpace called with name:', body.name, 'appOrigin:', ctx.appOrigin);
+    const targetOrigin = body.appOrigin || ctx.appOrigin;
+    console.log('[Spaces] createSpace called with name:', body.name, 'targetOrigin:', targetOrigin);
 
     // 1. Generate ID and Key
     const spaceId = generateRandomId();
     const key = generateSymmetricKey(); // Base64
-    const scopedId = `${ctx.appOrigin}:${spaceId}`;
+    const scopedId = `${targetOrigin}:${spaceId}`;
     const createdAt = Math.floor(Date.now() / 1000);
 
     console.log('[Spaces] Creating space with scopedId:', scopedId);
@@ -151,6 +172,7 @@ export async function createSpace(
         name: body.name,
         createdAt,
         memberCount: 1,
+        appOrigin: targetOrigin,
     };
 
     console.log('[Spaces] Created space:', spaceId, 'with name:', body.name);
@@ -163,10 +185,11 @@ export async function createSpace(
  */
 export async function deleteSpace(
     ctx: SpaceRouteContext,
-    spaceId: string
+    rawSpaceId: string
 ): Promise<{ status: number; body: unknown }> {
     if (!ctx.currentPubkey) return { status: 401, body: { error: 'Not authenticated' } };
 
+    const spaceId = resolveSpaceId(ctx, rawSpaceId);
     const keys = await getKeys(ctx);
 
     // 1. Try directly with current appOrigin (fast path)
@@ -199,11 +222,12 @@ export async function deleteSpace(
  */
 export async function getSpaceMessages(
     ctx: SpaceRouteContext,
-    spaceId: string,
+    rawSpaceId: string,
     params: { since?: number; limit?: number }
 ): Promise<{ status: number; body: unknown }> {
     if (!ctx.currentPubkey) return { status: 401, body: { error: 'Not authenticated' } };
 
+    const spaceId = resolveSpaceId(ctx, rawSpaceId);
     const scopedId = `${ctx.appOrigin}:${spaceId}`;
     const keys = await getKeys(ctx);
     const keyInfo = keys.get(scopedId);
@@ -256,12 +280,13 @@ export async function getSpaceMessages(
  */
 export async function postSpaceMessage(
     ctx: SpaceRouteContext,
-    spaceId: string,
+    rawSpaceId: string,
     body: { content: string }
 ): Promise<{ status: number; body: unknown }> {
     if (!ctx.currentPubkey) return { status: 401, body: { error: 'Not authenticated' } };
     if (!body?.content) return { status: 400, body: { error: 'Content required' } };
 
+    const spaceId = resolveSpaceId(ctx, rawSpaceId);
     const scopedId = `${ctx.appOrigin}:${spaceId}`;
     const keys = await getKeys(ctx);
     const keyInfo = keys.get(scopedId);
@@ -303,12 +328,13 @@ export async function postSpaceMessage(
  */
 export async function inviteMember(
     ctx: SpaceRouteContext,
-    spaceId: string,
+    rawSpaceId: string,
     body: { pubkey: string }
 ): Promise<{ status: number; body: unknown }> {
     if (!ctx.currentPubkey) return { status: 401, body: { error: 'Not authenticated' } };
     if (!body?.pubkey) return { status: 400, body: { error: 'Pubkey required' } };
 
+    const spaceId = resolveSpaceId(ctx, rawSpaceId);
     let receiverPubkey = body.pubkey;
     if (receiverPubkey.startsWith('npub')) {
         try {
@@ -419,10 +445,11 @@ export async function syncInvites(ctx: SpaceRouteContext): Promise<void> {
  */
 export async function getSpaceStore(
     ctx: SpaceRouteContext,
-    spaceId: string
+    rawSpaceId: string
 ): Promise<{ status: number; body: unknown }> {
     if (!ctx.currentPubkey) return { status: 401, body: { error: 'Not authenticated' } };
 
+    const spaceId = resolveSpaceId(ctx, rawSpaceId);
     const scopedId = `${ctx.appOrigin}:${spaceId}`;
     const keys = await getKeys(ctx);
     const keyInfo = keys.get(scopedId);
@@ -499,12 +526,13 @@ export async function getSpaceStore(
  */
 export async function updateSpaceStore(
     ctx: SpaceRouteContext,
-    spaceId: string,
+    rawSpaceId: string,
     key: string,
     value: unknown
 ): Promise<{ status: number; body: unknown }> {
     if (!ctx.currentPubkey) return { status: 401, body: { error: 'Not authenticated' } };
 
+    const spaceId = resolveSpaceId(ctx, rawSpaceId);
     const scopedId = `${ctx.appOrigin}:${spaceId}`;
     const keys = await getKeys(ctx);
     const keyInfo = keys.get(scopedId);

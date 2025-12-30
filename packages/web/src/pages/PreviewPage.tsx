@@ -11,6 +11,7 @@ interface PreviewState {
     code: string;
     mode: 'create' | 'edit';
     appName?: string;
+    spaceRequirement?: 'required' | 'optional' | 'none';
     existingDTag?: string;
     returnTo?: string; // Path to return to on cancel (default: /create)
 }
@@ -52,7 +53,7 @@ export const PreviewPage = () => {
                 const { code } = previewState;
 
                 // Mount the app in preview mode (no naddr, so no persistent storage)
-                await host.mount(code, containerRef.current!, '__preview__');
+                await host.mount(code, containerRef.current!, { appId: '__preview__' });
 
                 if (!mounted) return;
 
@@ -88,7 +89,7 @@ export const PreviewPage = () => {
         setIsPublishing(true);
         try {
             const name = previewState.appName || 'Unnamed App';
-            const naddr = await publishApp(code, name, existingDTag);
+            const naddr = await publishApp(code, name, existingDTag, previewState.spaceRequirement);
             console.log('Updated app:', naddr);
 
             // Navigate to the updated app
@@ -106,7 +107,7 @@ export const PreviewPage = () => {
 
         setIsPublishing(true);
         try {
-            const naddr = await publishApp(previewState.code, appName);
+            const naddr = await publishApp(previewState.code, appName, undefined, previewState.spaceRequirement);
             console.log('Published app:', naddr);
 
             // Navigate to the newly published app
@@ -187,7 +188,7 @@ export const PreviewPage = () => {
 
             {/* Loading Overlay */}
             {status === 'loading' && (
-                <div className="absolute inset-0 bg-[#050505] z-10 flex flex-col items-center justify-center p-12">
+                <div className="absolute inset-0 md:left-64 bg-[#050505] z-10 flex flex-col items-center justify-center p-12">
                     <div className="w-full max-w-3xl animate-pulse">
                         <div className="h-20 bg-white/5 rounded-3xl mb-12 w-1/4" />
                         <div className="space-y-6">
