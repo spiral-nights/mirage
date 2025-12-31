@@ -60,20 +60,20 @@ export const HomePage = () => {
           className="max-w-4xl pt-12 md:pt-20"
         >
           <h1 className="text-6xl md:text-8xl font-black mb-8 md:mb-12 tracking-tighter leading-[0.9]">
-            Build something <br />
-            <span className="text-transparent bg-clip-text bg-brand-gradient pr-4">magic.</span>
+            New <br />
+            <span className="text-transparent bg-clip-text bg-brand-gradient pr-4">Application</span>
           </h1>
 
           <p className="text-lg md:text-2xl text-gray-500 font-light mb-12 md:mb-20 max-w-2xl leading-relaxed">
-            The decentralized platform for building, running, and sharing cluster applications. No servers, just pure protocol.
+            Generate full-stack decentralized applications. Powered by Nostr.
           </p>
 
           <button
             onClick={() => setIsPublishOpen(true)}
-            className="px-10 py-5 bg-white text-black rounded-[24px] font-black text-sm uppercase tracking-widest hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 mb-20 md:mb-32 shadow-2xl hover:shadow-vivid-cyan/20"
+            className="px-10 py-5 bg-white text-black rounded-[24px] font-black text-sm uppercase tracking-widest hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 mb-20 md:mb-32 shadow-2xl hover:shadow-vivid-cyan/20 group"
           >
-            <Plus size={20} />
-            Publish App
+            <Plus size={20} className="group-hover:text-vivid-magenta transition-colors" />
+            Deploy App
           </button>
         </motion.div>
       </header>
@@ -88,17 +88,17 @@ export const HomePage = () => {
           <div className="absolute top-0 left-0 w-full h-1 bg-brand-gradient opacity-50" />
 
           <div className="flex items-center gap-3 mb-8">
-            <h2 className="text-sm font-black text-gray-700 uppercase tracking-[0.3em]">Ignition Sequence</h2>
+            <h2 className="text-sm font-black text-gray-700 uppercase tracking-[0.3em]">System Prompt</h2>
           </div>
 
           <div className="mb-10">
             <label className="block text-xl font-medium text-white mb-6">
-              What do you want to bring to life?
+              Requirement Description
             </label>
             <textarea
               value={promptInput}
               onChange={(e) => setPromptInput(e.target.value)}
-              placeholder="e.g. A decentralized chess board for global tournaments..."
+              placeholder="e.g. A collaborative task board with drag-and-drop columns and real-time sync..."
               className="w-full bg-background border border-white/5 rounded-3xl p-6 text-xl text-white placeholder:text-gray-800 focus:border-vivid-cyan/30 focus:ring-4 focus:ring-vivid-cyan/5 outline-none transition-all resize-none h-40 font-light"
             />
           </div>
@@ -109,16 +109,16 @@ export const HomePage = () => {
               className={cn(
                 "flex items-center gap-3 px-10 py-5 rounded-[24px] font-black transition-all transform active:scale-95 shadow-2xl",
                 copied
-                  ? "bg-vivid-teal text-black"
-                  : "bg-white text-black hover:bg-vivid-cyan hover:text-white"
+                  ? "bg-vivid-yellow text-black"
+                  : "bg-white text-black hover:bg-vivid-cyan hover:text-black"
               )}
             >
               {copied ? <Check size={22} /> : <Copy size={22} />}
-              {copied ? "COPIED" : "GENERATE PROTOCOL"}
+              {copied ? "COPIED" : "COPY PROMPT"}
             </button>
 
             <p className="text-gray-700 max-w-xs leading-relaxed italic text-sm font-light">
-              Paste this blueprint into your favorite AI model to generate the application source.
+              Use this prompt with an LLM to generate the application source code.
             </p>
           </div>
         </div>

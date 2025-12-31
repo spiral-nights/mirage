@@ -42,9 +42,9 @@ export const Sidebar = ({ onNavItemClick }: { onNavItemClick?: () => void }) => 
   return (
     <aside className="h-full w-full bg-surface border-r border-white/5 p-6 flex flex-col z-20">
       <div className="mb-12 px-2 hidden md:block">
-        <span className="text-3xl font-black text-transparent bg-clip-text bg-brand-gradient tracking-tighter">
+        <Link to="/" className="text-3xl font-black text-transparent bg-clip-text bg-brand-gradient tracking-tighter hover:opacity-80 transition-opacity">
           Mirage
-        </span>
+        </Link>
       </div>
 
       <nav className="space-y-6">
@@ -84,7 +84,7 @@ export const Sidebar = ({ onNavItemClick }: { onNavItemClick?: () => void }) => 
                   Active Space
                 </div>
                 <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 text-white border border-white/10">
-                  <Database size={16} className="text-vivid-cyan" />
+                  <Database size={16} className="text-vivid-yellow" />
                   <span className="text-sm font-bold truncate">{space.name}</span>
                 </div>
               </div>

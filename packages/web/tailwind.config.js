@@ -12,15 +12,15 @@ export default {
         card: "#0A0A0A",
         border: "#1A1A1A",
         vivid: {
-          cyan: "#00C6FF",
-          magenta: "#FF0080",
-          teal: "#00F5D4",
-          yellow: "#FFD700",
-          blue: "#0072FF",
+          cyan: "#00FFFF",   // Triad Point 1
+          magenta: "#FF00FF", // Triad Point 2
+          yellow: "#FFFF00",  // Triad Point 3
+          teal: "#00F5D4",    // Keeping for secondary
+          blue: "#0072FF",    // Keeping for deep accents
         },
         accent: {
-          primary: "#00C6FF",
-          secondary: "#0072FF",
+          primary: "#00FFFF",
+          secondary: "#FF00FF",
         }
       },
       fontFamily: {
@@ -29,7 +29,7 @@ export default {
         mono: ['"JetBrains Mono"', "monospace"],
       },
       backgroundImage: {
-        'brand-gradient': 'linear-gradient(135deg, #00C6FF 0%, #0072FF 100%)',
+        'brand-gradient': 'linear-gradient(135deg, #00FFFF 0%, #FF00FF 50%, #FFFF00 100%)',
         'vivid-rainbow': 'linear-gradient(90deg, #00F5D4, #00C6FF, #FF0080, #FFD700)',
       },
     },

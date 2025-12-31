@@ -115,7 +115,7 @@ export const MyAppsPage = () => {
       {/* Main Apps Section */}
       <section className="mb-12 md:mb-20">
         <div className="flex items-center gap-4 mb-8 md:mb-10">
-          <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl md:rounded-2xl bg-white/5 flex items-center justify-center text-vivid-cyan">
+          <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl md:rounded-2xl bg-white/5 flex items-center justify-center text-vivid-magenta">
             <LayoutGrid size={18} />
           </div>
           <h2 className="text-[10px] md:text-sm font-black text-gray-700 uppercase tracking-[0.2em] md:tracking-[0.3em]">Active Applications</h2>
@@ -292,12 +292,12 @@ const AppWithSpaces = ({
                 {app.name}
               </h3>
               <div className="flex items-center gap-2">
-                <span className="flex items-center gap-1.5 text-[8px] md:text-[10px] text-vivid-cyan bg-vivid-cyan/10 border border-vivid-cyan/20 px-2 md:px-3 py-0.5 md:py-1 rounded-full uppercase font-black tracking-widest">
+                <span className="flex items-center gap-1.5 text-[8px] md:text-[10px] text-vivid-yellow bg-vivid-yellow/10 border border-vivid-yellow/20 px-2 md:px-3 py-0.5 md:py-1 rounded-full uppercase font-black tracking-widest">
                   <Sparkles size={8} fill="currentColor" className="md:w-[10px] md:h-[10px]" />
                   Verified
                 </span>
                 {spaces.length > 0 && (
-                  <span className="flex items-center gap-1.5 text-[8px] md:text-[10px] text-vivid-blue bg-vivid-blue/10 border border-vivid-blue/20 px-2 md:px-3 py-0.5 md:py-1 rounded-full uppercase font-black tracking-widest">
+                  <span className="flex items-center gap-1.5 text-[8px] md:text-[10px] text-vivid-cyan bg-vivid-cyan/10 border border-vivid-cyan/20 px-2 md:px-3 py-0.5 md:py-1 rounded-full uppercase font-black tracking-widest">
                     <Database size={8} className="md:w-[10px] md:h-[10px]" />
                     {spaces.length} Spaces
                   </span>
@@ -331,7 +331,7 @@ const AppWithSpaces = ({
             <div className="flex items-center gap-3">
               <button
                 onClick={() => onLaunch(app)}
-                className="h-10 md:h-11 px-4 md:px-6 rounded-2xl bg-white text-black hover:bg-vivid-cyan hover:text-white transition-all flex items-center gap-3 font-black text-xs md:text-sm active:scale-95 translate-y-0 hover:-translate-y-0.5"
+                className="h-10 md:h-11 px-4 md:px-6 rounded-2xl bg-white text-black hover:bg-vivid-cyan hover:text-black transition-all flex items-center gap-3 font-black text-xs md:text-sm active:scale-95 translate-y-0 hover:-translate-y-0.5"
               >
                 <Play size={14} className="md:w-4 md:h-4" fill="currentColor" />
                 Launch
@@ -364,7 +364,7 @@ const AppWithSpaces = ({
               {spaces.length > 0 ? (
                 <div className="space-y-2.5 p-4 bg-background/50 rounded-[24px] border border-white/5">
                   <p className="text-[10px] font-black text-gray-700 uppercase tracking-[0.2em] mb-4 px-2 flex items-center gap-2">
-                    <Database size={12} className="text-vivid-cyan" />
+                    <Database size={12} className="text-vivid-yellow" />
                     Encrypted Data Clusters
                   </p>
                   {spaces.map((space, i) => (
@@ -385,6 +385,7 @@ const AppWithSpaces = ({
     </motion.div>
   );
 };
+
 
 const SpaceRow = ({
   space,
@@ -441,13 +442,13 @@ const SpaceRow = ({
         )}
       </AnimatePresence>
 
-      <div className="w-8 h-8 rounded-xl bg-vivid-cyan/10 border border-vivid-cyan/20 flex items-center justify-center text-vivid-cyan shrink-0 transition-transform group-hover:scale-110">
+      <div className="w-8 h-8 rounded-xl bg-vivid-yellow/10 border border-vivid-yellow/20 flex items-center justify-center text-vivid-yellow shrink-0 transition-transform group-hover:scale-110">
         <Database size={14} />
       </div>
 
       <div className="flex-1 min-w-0">
         <span className={cn(
-          "text-sm font-semibold transition-colors group-hover:text-vivid-cyan truncate block",
+          "text-sm font-semibold transition-colors group-hover:text-vivid-yellow truncate block",
           isUnnamed ? 'text-gray-700 italic font-light' : 'text-gray-300'
         )}>
           {space.name}

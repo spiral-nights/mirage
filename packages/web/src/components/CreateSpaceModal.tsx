@@ -81,7 +81,7 @@ export const CreateSpaceModal = ({ isOpen, onClose, onSuccess, initialAppId }: C
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. My Personal Journal"
-            className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-4 text-white focus:border-vivid-cyan/30 focus:ring-4 focus:ring-vivid-cyan/5 outline-none transition-all font-medium"
+            className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-4 text-white focus:border-vivid-yellow/30 focus:ring-4 focus:ring-vivid-yellow/5 outline-none transition-all font-medium"
           />
         </div>
 
@@ -100,13 +100,13 @@ export const CreateSpaceModal = ({ isOpen, onClose, onSuccess, initialAppId }: C
                     className={cn(
                       "flex items-center gap-4 p-4 rounded-2xl border transition-all text-left group",
                       selectedAppId === app.naddr
-                        ? "bg-vivid-cyan/10 border-vivid-cyan/30 text-white"
+                        ? "bg-vivid-magenta/10 border-vivid-magenta/30 text-white"
                         : "bg-white/5 border-transparent text-gray-500 hover:bg-white/10 hover:text-gray-300"
                     )}
                   >
                     <div className={cn(
                       "w-10 h-10 rounded-xl flex items-center justify-center text-lg font-bold shrink-0 transition-all",
-                      selectedAppId === app.naddr ? "bg-vivid-cyan/20 text-vivid-cyan" : "bg-black/40 text-gray-600 group-hover:text-gray-400"
+                      selectedAppId === app.naddr ? "bg-vivid-magenta/20 text-vivid-magenta" : "bg-black/40 text-gray-600 group-hover:text-gray-400"
                     )}>
                       {app.name.charAt(0)}
                     </div>
@@ -115,7 +115,7 @@ export const CreateSpaceModal = ({ isOpen, onClose, onSuccess, initialAppId }: C
                       <div className="text-[10px] opacity-50 truncate font-mono">#{app.naddr.slice(0, 12)}...</div>
                     </div>
                     {selectedAppId === app.naddr && (
-                      <div className="w-6 h-6 rounded-full bg-vivid-cyan flex items-center justify-center text-black shadow-lg">
+                      <div className="w-6 h-6 rounded-full bg-vivid-magenta flex items-center justify-center text-white shadow-lg">
                         <Check size={14} strokeWidth={3} />
                       </div>
                     )}
@@ -132,8 +132,8 @@ export const CreateSpaceModal = ({ isOpen, onClose, onSuccess, initialAppId }: C
 
         {/* Show selected app info if pre-selected */}
         {initialAppId && selectedApp && (
-          <div className="flex items-center gap-4 p-4 rounded-2xl bg-vivid-cyan/10 border border-vivid-cyan/20">
-            <div className="w-10 h-10 rounded-xl bg-vivid-cyan/20 flex items-center justify-center text-lg font-bold text-vivid-cyan">
+          <div className="flex items-center gap-4 p-4 rounded-2xl bg-vivid-magenta/10 border border-vivid-magenta/20">
+            <div className="w-10 h-10 rounded-xl bg-vivid-magenta/20 flex items-center justify-center text-lg font-bold text-vivid-magenta">
               {selectedApp.name.charAt(0)}
             </div>
             <div className="flex-1 truncate">

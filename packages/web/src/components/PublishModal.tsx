@@ -108,7 +108,7 @@ export const PublishModal = ({
         {!isView && (
           <div className="mb-8">
             <label className="block text-xs font-black uppercase tracking-[0.3em] text-gray-600 mb-3">
-              Application Name <span className="text-vivid-cyan">*</span>
+              Application Name <span className="text-vivid-magenta">*</span>
             </label>
             <input
               type="text"
@@ -116,7 +116,7 @@ export const PublishModal = ({
               readOnly={isView}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. My Awesome App"
-              className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-4 text-white focus:border-vivid-cyan/30 focus:ring-4 focus:ring-vivid-cyan/5 outline-none transition-all font-medium"
+              className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-4 text-white focus:border-vivid-yellow/30 focus:ring-4 focus:ring-vivid-yellow/5 outline-none transition-all font-medium"
             />
           </div>
         )}
@@ -143,7 +143,7 @@ export const PublishModal = ({
               "font-mono text-xs text-gray-400 outline-none transition-all",
               isView
                 ? "cursor-default"
-                : "focus:border-vivid-cyan/30 focus:ring-4 focus:ring-vivid-cyan/5",
+                : "focus:border-vivid-yellow/30 focus:ring-4 focus:ring-vivid-yellow/5",
               "resize-none placeholder:text-gray-800"
             )}
           />
