@@ -7,33 +7,31 @@ export default {
   theme: {
     extend: {
       colors: {
-        background: "#050505",
-        card: "#0D0D12",
-        border: "#1F1F26",
+        background: "#000000",
+        surface: "#080808",
+        card: "#0A0A0A",
+        border: "#1A1A1A",
         vivid: {
-          cyan: "#00D2FF",
+          cyan: "#00C6FF",
           magenta: "#FF0080",
           teal: "#00F5D4",
           yellow: "#FFD700",
+          blue: "#0072FF",
         },
         accent: {
-          primary: "#FF0080", // Magenta
-          secondary: "#00D2FF", // Cyan
+          primary: "#00C6FF",
+          secondary: "#0072FF",
         }
       },
       fontFamily: {
-        sans: ['"Outfit"', "sans-serif"],
+        sans: ['"Plus Jakarta Sans"', '"Outfit"', "sans-serif"],
         serif: ['"Instrument Serif"', "serif"],
         mono: ['"JetBrains Mono"', "monospace"],
       },
       backgroundImage: {
-        'accent-gradient': 'linear-gradient(135deg, #FF0080 0%, #00D2FF 100%)',
-        'vivid-rainbow': 'linear-gradient(90deg, #00F5D4, #00D2FF, #FF0080, #FFD700)',
+        'brand-gradient': 'linear-gradient(135deg, #00C6FF 0%, #0072FF 100%)',
+        'vivid-rainbow': 'linear-gradient(90deg, #00F5D4, #00C6FF, #FF0080, #FFD700)',
       },
-      boxShadow: {
-        'vivid-glow': '0 0 20px rgba(255, 0, 128, 0.2)',
-        'vivid-glow-cyan': '0 0 20px rgba(0, 210, 255, 0.2)',
-      }
     },
   },
   plugins: [],

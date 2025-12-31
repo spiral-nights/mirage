@@ -192,7 +192,7 @@ export const RunPage = () => {
   if (status === 'error') {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-background text-center p-8">
-        <XCircle size={64} className="text-vivid-magenta mb-6" />
+        <XCircle size={64} className="text-red-500 mb-6" />
         <h1 className="text-3xl font-black mb-3 tracking-tight">App failure.</h1>
         <p className="text-gray-500 font-light italic mb-10 max-w-sm">{error}</p>
         <Link to="/" className="px-8 py-3 rounded-2xl bg-white/5 hover:bg-white/10 text-white font-bold transition-all transition-all">Go Home</Link>

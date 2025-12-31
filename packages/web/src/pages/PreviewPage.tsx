@@ -143,7 +143,7 @@ export const PreviewPage = () => {
     if (status === 'error') {
         return (
             <div className="flex flex-col items-center justify-center h-screen bg-background text-center p-8">
-                <XCircle size={64} className="text-vivid-magenta mb-6" />
+                <XCircle size={64} className="text-red-500 mb-6" />
                 <h1 className="text-3xl font-black mb-3 tracking-tight">Preview failure.</h1>
                 <p className="text-gray-500 font-light italic mb-10 max-w-sm">{error}</p>
                 <button
@@ -206,8 +206,8 @@ export const PreviewPage = () => {
                     className={cn(
                         "px-6 py-3 rounded-2xl font-bold text-sm uppercase tracking-wider transition-all flex items-center gap-2",
                         isPublishing
-                            ? "bg-vivid-magenta/50 text-white cursor-not-allowed"
-                            : "bg-vivid-magenta text-white shadow-vivid-glow hover:scale-[1.02]"
+                            ? "bg-white/5 text-gray-500 cursor-not-allowed"
+                            : "bg-vivid-cyan text-black hover:bg-white shadow-lg hover:shadow-xl hover:scale-[1.02]"
                     )}
                 >
                     <Save size={16} />

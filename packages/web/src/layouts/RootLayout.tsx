@@ -9,12 +9,8 @@ export const RootLayout = () => {
 
   return (
     <div className="flex flex-col md:flex-row h-screen w-full bg-background text-white overflow-hidden relative">
-      {/* Background Blobs */}
-      <div className="blob w-[300px] md:w-[600px] h-[300px] md:h-[600px] bg-vivid-magenta -top-20 md:-top-40 -left-20 md:-left-40 opacity-10" />
-      <div className="blob w-[250px] md:w-[500px] h-[250px] md:h-[500px] bg-vivid-cyan -bottom-20 md:-bottom-40 -right-20 md:-right-40 opacity-10" />
-
       {/* Mobile Header */}
-      <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-card/60 border-b border-white/5 backdrop-blur-xl z-[200] px-4 grid grid-cols-3 items-center">
+      <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-surface/60 border-b border-white/5 backdrop-blur-xl z-[200] px-4 grid grid-cols-3 items-center">
         {/* Left: Hamburger */}
         <div className="flex justify-start">
           <button
@@ -27,7 +23,7 @@ export const RootLayout = () => {
 
         {/* Center: Logo */}
         <div className="flex justify-center">
-           <span className="text-xl font-black vivid-text tracking-tighter">Mirage</span>
+           <span className="text-xl font-black text-transparent bg-clip-text bg-brand-gradient tracking-tighter">Mirage</span>
         </div>
 
         {/* Right: Profile */}

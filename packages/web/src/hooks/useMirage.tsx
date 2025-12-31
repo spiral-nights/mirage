@@ -277,8 +277,8 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
       {!isReady ? (
         <div className="fixed inset-0 bg-[#050505] flex flex-col items-center justify-center p-12 z-[9999]">
           <div className="relative mb-20 scale-125">
-            <div className="absolute -inset-10 bg-vivid-magenta rounded-full blur-[80px] opacity-10 animate-pulse" />
-            <span className="text-6xl font-black vivid-text tracking-tighter relative z-10">
+            <div className="absolute -inset-10 bg-vivid-cyan rounded-full blur-[80px] opacity-10 animate-pulse" />
+            <span className="text-6xl font-black text-transparent bg-clip-text bg-brand-gradient tracking-tighter relative z-10">
               Mirage
             </span>
           </div>

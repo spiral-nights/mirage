@@ -108,7 +108,7 @@ export const PublishModal = ({
         {!isView && (
           <div className="mb-8">
             <label className="block text-xs font-black uppercase tracking-[0.3em] text-gray-600 mb-3">
-              Application Name <span className="text-vivid-magenta">*</span>
+              Application Name <span className="text-vivid-cyan">*</span>
             </label>
             <input
               type="text"
@@ -116,7 +116,7 @@ export const PublishModal = ({
               readOnly={isView}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. My Awesome App"
-              className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-4 text-white focus:border-vivid-magenta/30 focus:ring-4 focus:ring-vivid-magenta/5 outline-none transition-all font-medium"
+              className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-4 text-white focus:border-vivid-cyan/30 focus:ring-4 focus:ring-vivid-cyan/5 outline-none transition-all font-medium"
             />
           </div>
         )}
@@ -164,7 +164,7 @@ export const PublishModal = ({
                 "flex-1 py-5 rounded-[24px] font-black transition-all relative overflow-hidden text-sm uppercase tracking-widest",
                 !name.trim() || !code.trim()
                   ? "bg-white/5 text-gray-600 cursor-not-allowed"
-                  : "bg-vivid-magenta text-white shadow-vivid-glow hover:scale-[1.02] active:scale-[0.98]"
+                  : "bg-vivid-cyan text-black hover:bg-white hover:text-black shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
               )}
             >
               <span className="flex items-center justify-center gap-3">
