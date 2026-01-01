@@ -9,6 +9,8 @@ import {
 } from "../src/engine/routes/spaces";
 import { RelayPool } from "../src/engine/relay-pool";
 import { decryptSymmetric } from "../src/engine/crypto";
+import { generateSecretKey, getPublicKey } from "nostr-tools";
+import { bytesToHex } from "@noble/ciphers/utils.js";
 
 // Mock NIP-44 helpers for Storage
 const mockEncrypt = mock(async (pubkey: string, plaintext: string) => `encrypted_${plaintext}`);
@@ -165,5 +167,32 @@ describe("Space Management (Phase 5)", () => {
         const state = res3.body as any;
         expect(state.milk).toEqual({ qty: 2 }); // Latest wins
         expect(state.eggs).toEqual({ qty: 12 });
+    });
+
+    test("Invite Member -> Publishes NIP-17 Gift Wrap", async () => {
+        // 1. Setup Space
+        const res1 = await createSpace(ctx, { name: "Invite Test" });
+        const spaceId = (res1.body as any).id;
+        
+        // 2. Invite Bob (Must use a valid secp256k1 pubkey for NIP-44 math to work)
+        const sk = generateSecretKey();
+        const bobPubkey = getPublicKey(sk);
+        
+        const res2 = await inviteMember(ctx, spaceId, { pubkey: bobPubkey });
+        expect(res2.status).toBe(200);
+        expect((res2.body as any).invited).toBe(bobPubkey);
+
+        // 3. Verify Gift Wrap Event (Kind 1059)
+        const wrapEvent = events.find(e => e.kind === 1059);
+        expect(wrapEvent).toBeDefined();
+        // Recipient tag
+        expect(wrapEvent.tags).toContainEqual(['p', bobPubkey]);
+
+        // Note: We can't easily decrypt the wrapper in this mock because NIP-44 logic
+        // is partially inside inviteMember (wrapEvent helper) and partially mocked.
+        // However, we can trust that inviteMember calls wrapEvent. 
+        
+        // To verify payload, we would need to mock wrapEvent or intercept the inner event.
+        // For this test, verifying 1059 publication to correct pubkey is a strong signal.
     });
 });

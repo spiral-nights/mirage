@@ -3,12 +3,29 @@ import { Sidebar } from '../components/Sidebar';
 import { UserProfile } from '../components/UserProfile';
 import { Outlet } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
+import { useMirage } from '../hooks/useMirage';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export const RootLayout = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { notification } = useMirage();
 
   return (
     <div className="flex flex-col md:flex-row h-screen w-full bg-background text-white overflow-hidden relative">
+      <AnimatePresence>
+        {notification && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 50, scale: 0.9 }}
+            className="fixed bottom-8 right-8 z-[1000] bg-white text-black px-6 py-4 rounded-2xl font-black shadow-2xl flex items-center gap-4 border-2 border-white"
+          >
+            <div className="w-3 h-3 bg-vivid-magenta rounded-full animate-pulse shadow-[0_0_10px_rgba(255,0,255,0.5)]" />
+            <span className="uppercase tracking-widest text-xs">{notification}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Mobile Header */}
       <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-surface/60 border-b border-white/5 backdrop-blur-xl z-[200] px-4 grid grid-cols-3 items-center">
         {/* Left: Hamburger */}

@@ -30,6 +30,7 @@ export type MessageType =
     | 'ACTION_SET_SESSION_KEY'
     | 'ACTION_GET_RELAY_STATUS'
     | 'RELAY_STATUS_RESULT'
+    | 'NEW_SPACE_INVITE'
     | 'ERROR';
 
 export interface BaseMessage {
@@ -71,6 +72,13 @@ export interface RelayStat {
 export interface RelayStatusResultMessage extends BaseMessage {
     type: 'RELAY_STATUS_RESULT';
     stats: RelayStat[];
+}
+
+/** New space invite received */
+export interface NewSpaceInviteMessage extends BaseMessage {
+    type: 'NEW_SPACE_INVITE';
+    spaceId: string;
+    spaceName?: string;
 }
 
 /** API request from Bridge to Engine */
@@ -158,6 +166,7 @@ export type MirageMessage =
     | SetSessionKeyMessage
     | GetRelayStatusMessage
     | RelayStatusResultMessage
+    | NewSpaceInviteMessage
     | ErrorMessage;
 
 // ============================================================================

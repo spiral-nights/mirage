@@ -57,6 +57,7 @@ export class MirageHost {
         string,
         { resolve: (val: any) => void; reject: (err: any) => void }
     >();
+    private listeners: Record<string, ((event: any) => void)[]> = {};
 
     constructor(config: MirageHostConfig) {
         this.config = config;
@@ -78,6 +79,26 @@ export class MirageHost {
 
         // Initialize Engine with relays
         this.sendRelayConfig("SET", this.relays);
+    }
+
+    // ==========================================================================
+    // Event Management
+    // ==========================================================================
+
+    on(event: string, callback: (data: any) => void): void {
+        if (!this.listeners[event]) this.listeners[event] = [];
+        this.listeners[event].push(callback);
+    }
+
+    off(event: string, callback: (data: any) => void): void {
+        if (!this.listeners[event]) return;
+        this.listeners[event] = this.listeners[event].filter(cb => cb !== callback);
+    }
+
+    private emit(event: string, data: any): void {
+        if (this.listeners[event]) {
+            this.listeners[event].forEach(cb => cb(data));
+        }
     }
 
     // ==========================================================================
@@ -573,6 +594,10 @@ export class MirageHost {
             message.type === "STREAM_ERROR"
         ) {
             this.postToIframe(message);
+        }
+        // Route: New Space Invite Notification
+        else if (message.type === "NEW_SPACE_INVITE") {
+            this.emit("new_space_invite", message);
         }
     }
 

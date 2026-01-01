@@ -1,4 +1,4 @@
-import { Home, PlusCircle, Code2, Edit3, Share, XCircle, Database } from 'lucide-react';
+import { Home, PlusCircle, Code2, Edit3, Send, XCircle, Database } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Link, useLocation } from 'react-router-dom';
 import { useAppActions } from '../contexts/AppActionsContext';
@@ -30,7 +30,7 @@ const ActionButton = ({ icon: Icon, label, onClick }: { icon: any, label: string
 
 export const Sidebar = ({ onNavItemClick }: { onNavItemClick?: () => void }) => {
   const location = useLocation();
-  const { app, space, isAuthor, onViewEditSource, onShare, onExit } = useAppActions();
+  const { app, space, isAuthor, onViewEditSource, onInvite, onExit } = useAppActions();
 
   const handleAppAction = (action: (() => void) | null) => {
     if (action) {
@@ -100,11 +100,11 @@ export const Sidebar = ({ onNavItemClick }: { onNavItemClick?: () => void }) => 
                   label={app.naddr === '__preview__' ? "Edit Source" : (isAuthor ? "Edit Source" : "View Source")}
                   onClick={() => handleAppAction(onViewEditSource)}
                 />
-                {onShare && (
+                {onInvite && (
                   <ActionButton
-                    icon={Share}
-                    label="Share"
-                    onClick={() => handleAppAction(onShare)}
+                    icon={Send}
+                    label="Invite"
+                    onClick={() => handleAppAction(onInvite)}
                   />
                 )}
                 <ActionButton

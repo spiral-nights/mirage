@@ -115,7 +115,7 @@ export const PreviewPage = () => {
             app: { name: 'Preview Mode', naddr: '__preview__' } as any,
             isAuthor: true,
             onViewEditSource: handleEditSource,
-            onShare: null,
+            onInvite: null,
             onExit: handleCancel,
         });
 
@@ -124,7 +124,7 @@ export const PreviewPage = () => {
                 app: null,
                 isAuthor: false,
                 onViewEditSource: null,
-                onShare: null,
+                onInvite: null,
                 onExit: null,
             });
         };

@@ -115,6 +115,13 @@ All endpoints use the `/mirage/v1/` prefix.
 | `PUT` | `/spaces/{id}/store/{key}` | No | Update a specific key |
 | `GET` | `/spaces/{id}/messages` | **Yes** | Chat messages |
 | `POST` | `/spaces/{id}/messages` | No | Send chat message |
+| `POST` | `/spaces/{id}/invite` | No | **Invite Member (NIP-17)** |
+
+### Secure Sharing (Identity-Based)
+Mirage uses **NIP-17 Gift Wraps** for sharing encrypted space keys. 
+1. **Invite:** Alice wraps the symmetric key in a Kind 1059 Gift Wrap addressed to Bob's pubkey.
+2. **Auto-Discovery:** Bob's Engine automatically scans for incoming wraps, decrypts them, and merges the new space keys into his local NIP-78 keychain.
+3. **Privacy:** Invites use Kind 13 rumors to ensure they do not clutter standard Nostr chat inboxes.
 
 ### Direct Messages (NIP-17)
 

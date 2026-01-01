@@ -6,7 +6,7 @@ interface AppActionsContextType {
     space?: { id: string; name: string } | null;
     isAuthor: boolean;
     onViewEditSource: (() => void) | null;
-    onShare: (() => void) | null;
+    onInvite: (() => void) | null;
     onExit: (() => void) | null;
     setAppActions: (actions: Omit<AppActionsContextType, 'setAppActions'>) => void;
 }
@@ -18,7 +18,7 @@ export const AppActionsProvider = ({ children }: { children: ReactNode }) => {
     const [space, setSpace] = useState<{ id: string; name: string } | null | undefined>(null);
     const [isAuthor, setIsAuthor] = useState(false);
     const [onViewEditSource, setOnViewEditSource] = useState<(() => void) | null>(null);
-    const [onShare, setOnShare] = useState<(() => void) | null>(null);
+    const [onInvite, setOnInvite] = useState<(() => void) | null>(null);
     const [onExit, setOnExit] = useState<(() => void) | null>(null);
 
     const setAppActions = useCallback((actions: Omit<AppActionsContextType, 'setAppActions'>) => {
@@ -26,7 +26,7 @@ export const AppActionsProvider = ({ children }: { children: ReactNode }) => {
         setSpace(actions.space);
         setIsAuthor(actions.isAuthor);
         setOnViewEditSource(() => actions.onViewEditSource);
-        setOnShare(() => actions.onShare);
+        setOnInvite(() => actions.onInvite);
         setOnExit(() => actions.onExit);
     }, []);
 
@@ -37,7 +37,7 @@ export const AppActionsProvider = ({ children }: { children: ReactNode }) => {
                 space,
                 isAuthor,
                 onViewEditSource,
-                onShare,
+                onInvite,
                 onExit,
                 setAppActions,
             }}

@@ -9,6 +9,7 @@ interface MirageContextType {
   isReady: boolean;
   pubkey: string | null;
   apps: AppDefinition[];
+  notification: string | null;
   publishApp: (html: string, name?: string, existingDTag?: string) => Promise<string>;
   fetchApp: (naddr: string) => Promise<string | null>;
   refreshApps: () => Promise<void>;
@@ -26,6 +27,7 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
   const [pubkey, setPubkey] = useState<string | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [apps, setApps] = useState<AppDefinition[]>([]);
+  const [notification, setNotification] = useState<string | null>(null);
   const initRef = useRef(false);
 
   // Refresh apps from the engine
@@ -47,6 +49,28 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
       console.error('[useMirage] Failed to refresh apps:', e);
     }
   }, [host]);
+
+  // Listen for Engine events
+  useEffect(() => {
+    if (!host) return;
+
+    const handleNewSpace = (msg: any) => {
+        setNotification(`New space added: ${msg.spaceName || 'Unnamed Space'}`);
+        // Refresh apps/spaces? The apps list might not change if it's just a space for an existing app?
+        // But if it's a new app entirely? NIP-17 logic currently adds key.
+        // It doesn't fetch the app code automatically unless we build that.
+        // For now, refreshing apps/spaces is good.
+        refreshApps();
+        
+        setTimeout(() => setNotification(null), 3000);
+    };
+
+    host.on('new_space_invite', handleNewSpace);
+
+    return () => {
+        host.off('new_space_invite', handleNewSpace);
+    };
+  }, [host, refreshApps]);
 
   useEffect(() => {
     const init = async () => {
@@ -273,7 +297,7 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <MirageContext.Provider value={{ host, isReady, pubkey, apps, publishApp, fetchApp, refreshApps, deleteApp }}>
+    <MirageContext.Provider value={{ host, isReady, pubkey, apps, notification, publishApp, fetchApp, refreshApps, deleteApp }}>
       {!isReady ? (
         <div className="fixed inset-0 bg-[#050505] flex flex-col items-center justify-center p-12 z-[9999]">
           <div className="relative mb-20 scale-125">

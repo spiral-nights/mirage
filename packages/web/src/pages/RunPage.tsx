@@ -4,6 +4,7 @@ import { useMirage } from '../hooks/useMirage';
 import { useAppActions } from '../contexts/AppActionsContext';
 import { XCircle } from 'lucide-react';
 import { PublishModal } from '../components/PublishModal';
+import { InviteModal } from '../components/InviteModal';
 import { nip19 } from 'nostr-tools';
 
 export const RunPage = () => {
@@ -21,6 +22,7 @@ export const RunPage = () => {
   const spaceName = searchParams.get('spaceName');
 
   // Modal State
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalProps, setModalProps] = useState<{
     mode: 'edit' | 'view';
@@ -69,24 +71,6 @@ export const RunPage = () => {
       setStatus('loading');
 
       try {
-        // 1. Handle URL Hash (Deep Linking)
-        const hash = window.location.hash.substring(1);
-        if (hash) {
-          const params = new URLSearchParams(hash);
-          const spaceId = params.get('space');
-          const key = params.get('key');
-          if (spaceId && key) {
-            console.log('[RunPage] Injecting space from URL:', spaceId);
-            // Injected via ACTION_SET_SESSION_KEY
-            await host.sendToEngine({
-              type: 'ACTION_SET_SESSION_KEY',
-              id: crypto.randomUUID(),
-              spaceId,
-              key
-            });
-          }
-        }
-
         // 2. Fetch App HTML
         const html = await fetchApp(naddr);
         if (!mounted) return;
@@ -125,16 +109,14 @@ export const RunPage = () => {
     };
   }, [naddr, host]); // Only depend on naddr and host, not fetchApp
 
-  const handleShare = useCallback((e?: React.MouseEvent) => {
+  const handleInvite = useCallback((e?: React.MouseEvent) => {
     e?.stopPropagation();
-    // Current base URL
-    const url = new URL(window.location.href);
-
-    // We should ideally fetch the current space from the engine
-    // For now, if we have a space in the hash, we keep it
-    navigator.clipboard.writeText(url.toString());
-    alert('Share link copied to clipboard!');
-  }, []);
+    if (spaceId) {
+      setInviteModalOpen(true);
+    } else {
+      alert("No active space to invite to.");
+    }
+  }, [spaceId]);
 
   const handleOpenSource = useCallback(async (e?: React.MouseEvent) => {
     e?.stopPropagation();
@@ -171,7 +153,7 @@ export const RunPage = () => {
         space: spaceId ? { id: spaceId, name: spaceName || 'Unnamed Space' } : null,
         isAuthor,
         onViewEditSource: handleOpenSource,
-        onShare: handleShare,
+        onInvite: handleInvite,
         onExit: handleExit,
       });
     }
@@ -183,11 +165,11 @@ export const RunPage = () => {
         space: null,
         isAuthor: false,
         onViewEditSource: null,
-        onShare: null,
+        onInvite: null,
         onExit: null,
       });
     };
-  }, [currentApp, spaceId, spaceName, isAuthor, handleOpenSource, handleShare, handleExit, setAppActions]);
+  }, [currentApp, spaceId, spaceName, isAuthor, handleOpenSource, handleInvite, handleExit, setAppActions]);
 
   if (status === 'error') {
     return (
@@ -237,6 +219,16 @@ export const RunPage = () => {
         returnTo={`/run/${naddr}`}
         {...modalProps}
       />
+
+      {/* Invite Modal */}
+      {spaceId && (
+        <InviteModal
+          isOpen={inviteModalOpen}
+          onClose={() => setInviteModalOpen(false)}
+          spaceId={spaceId}
+          spaceName={spaceName || 'Unnamed Space'}
+        />
+      )}
     </div>
   );
 };

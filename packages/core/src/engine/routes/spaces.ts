@@ -36,16 +36,6 @@ function resolveSpaceId(ctx: SpaceRouteContext, spaceId: string): string {
     return spaceId;
 }
 
-/**
- * Injects a session-only key (e.g. from a shared URL)
- */
-export async function setSessionKey(ctx: SpaceRouteContext, spaceId: string, key: string): Promise<void> {
-    const keys = await getKeys(ctx);
-    const scopedId = `${ctx.appOrigin}:${spaceId}`;
-    keys.set(scopedId, { key, version: 1 });
-    console.log('[Spaces] Session key injected for:', spaceId);
-}
-
 // ============================================================================
 // Route Handlers
 // ============================================================================
@@ -71,6 +61,9 @@ export async function listSpaces(
     ctx: SpaceRouteContext
 ): Promise<{ status: number; body: unknown }> {
     if (!ctx.currentPubkey) return { status: 401, body: { error: 'Not authenticated' } };
+
+    // Sync invites on list
+    await syncInvites(ctx);
 
     console.log('[Spaces] listSpaces called, appOrigin=', ctx.appOrigin);
 
@@ -360,6 +353,7 @@ export async function inviteMember(
         scopedId,
         key: keyInfo.key,
         version: keyInfo.version,
+        name: keyInfo.name, // Include name for notification
         origin: ctx.appOrigin
     };
 
@@ -403,6 +397,7 @@ export async function syncInvites(ctx: SpaceRouteContext): Promise<void> {
 
     const keys = await getKeys(ctx);
     let updated = false;
+    const newSpaces: { id: string; name?: string }[] = [];
 
     // 2. Try to decrypt each
     for (const wrap of events) {
@@ -419,9 +414,16 @@ export async function syncInvites(ctx: SpaceRouteContext): Promise<void> {
                         console.log('[Spaces] Accepted invite for:', payload.scopedId);
                         keys.set(payload.scopedId, {
                             key: payload.key,
-                            version: payload.version
+                            version: payload.version,
+                            name: payload.name // Save name
                         });
                         updated = true;
+                        
+                        // Parse spaceId from scopedId
+                        const parts = payload.scopedId.split(':');
+                        if (parts.length > 1) {
+                            newSpaces.push({ id: parts[1], name: payload.name });
+                        }
                     }
                 }
             }
@@ -432,6 +434,16 @@ export async function syncInvites(ctx: SpaceRouteContext): Promise<void> {
 
     if (updated) {
         await saveSpaceKeys(ctx, keys);
+        
+        // Emit notifications
+        for (const space of newSpaces) {
+            self.postMessage({
+                type: 'NEW_SPACE_INVITE',
+                id: crypto.randomUUID(),
+                spaceId: space.id,
+                spaceName: space.name
+            });
+        }
     }
 }
 

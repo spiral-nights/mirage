@@ -670,7 +670,10 @@ paths:
       tags: [Spaces]
       summary: Invite someone to the space
       description: |
-        Add a person to your space. They'll receive an invitation.
+        Add a person to your space. They'll receive an invitation
+        containing the symmetric encryption key, wrapped in a NIP-17 Gift Wrap.
+
+        **Note:** This is a privileged Host-only operation.
       operationId: inviteToSpace
       security:
         - nip07: []
@@ -690,10 +693,18 @@ paths:
               properties:
                 pubkey:
                   type: string
-                  description: The user's ID (their public key)
+                  description: The user's ID (Hex public key or npub)
       responses:
         '200':
           description: Invitation sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  invited:
+                    type: string
+                    description: The pubkey of the invited user
 
   /spaces/all:
     get:

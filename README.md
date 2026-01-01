@@ -77,6 +77,7 @@ await fetch('/mirage/v1/storage/settings', {
 | `/mirage/v1/storage/:key` | `GET/PUT/DELETE` | App data storage |
 | `/mirage/v1/spaces/:id/store` | `GET/PUT` | Shared Key-Value Store (Database) |
 | `/mirage/v1/spaces/:id/messages` | `GET/POST` | Private group messages |
+| `/mirage/v1/spaces/:id/invite` | `POST` | Invite user to space (Host-only) |
 | `/mirage/v1/dms/:pubkey` | `GET/POST` | Encrypted direct messages |
 | `/mirage/v1/contacts` | `GET/PUT` | NIP-02 Contact Lists |
 

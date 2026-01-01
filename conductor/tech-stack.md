@@ -18,3 +18,4 @@
 - **Animations:** Framer Motion
 - **Icons:** Lucide React
 - **Testing:** Bun Test + Happy DOM + React Testing Library
+- **Notifications:** Framer Motion (Custom Toast)

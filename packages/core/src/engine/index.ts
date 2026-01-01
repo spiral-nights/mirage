@@ -20,7 +20,6 @@ import {
     syncInvites,
     getSpaceStore,
     updateSpaceStore,
-    setSessionKey,
     getSpaceContext,
     type SpaceRouteContext
 } from './routes/spaces';
@@ -47,7 +46,6 @@ import type {
     RelayConfigMessage,
     FetchAppRequestMessage,
     FetchAppResultMessage,
-    SetSessionKeyMessage,
 } from '../types';
 import { handleStreamOpen, sendStreamError } from './streaming';
 import { requestSign, handleSignatureResult, requestEncrypt, requestDecrypt, handleEncryptResult, handleDecryptResult } from './signing';
@@ -164,10 +162,6 @@ self.onmessage = async (event: MessageEvent<MirageMessage>) => {
 
         case 'ACTION_FETCH_APP':
             await handleFetchApp(message as FetchAppRequestMessage);
-            break;
-
-        case 'ACTION_SET_SESSION_KEY':
-            await handleSetSessionKey(message as SetSessionKeyMessage);
             break;
 
         case 'ACTION_GET_RELAY_STATUS':
@@ -720,25 +714,6 @@ async function handleFetchApp(message: FetchAppRequestMessage): Promise<void> {
         type: 'FETCH_APP_RESULT',
         id: message.id,
         ...result
-    });
-}
-
-async function handleSetSessionKey(message: SetSessionKeyMessage): Promise<void> {
-    const spaceCtx: SpaceRouteContext = {
-        pool: pool!,
-        requestSign,
-        requestEncrypt,
-        requestDecrypt,
-        currentPubkey,
-        appOrigin,
-    };
-    await setSessionKey(spaceCtx, message.spaceId, message.key);
-    // No result message needed for now, but we'll send a dummy to resolve the promise if used via sendToEngine
-    self.postMessage({
-        type: 'API_RESPONSE',
-        id: message.id,
-        status: 200,
-        body: { success: true }
     });
 }
 
