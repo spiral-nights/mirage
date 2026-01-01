@@ -53,7 +53,6 @@ export function setPrivateKey(key: string): void {
         if (key) {
             privateKeyBytes = hexToBytes(key);
             publicKey = getPublicKey(privateKeyBytes);
-            console.log('[Bridge] Private key set for standalone mode:', publicKey.slice(0, 8) + '...');
         }
     } catch (e) {
         console.error('[Bridge] Invalid private key:', e);
@@ -98,7 +97,6 @@ export function handleEngineMessage(event: MessageEvent<MirageMessage>): void {
     if (message.type === 'API_RESPONSE') {
         const pending = pendingRequests.get(message.id);
         if (pending) {
-            console.log(`[Bridge] API Response: id=${message.id} status=${message.status}`, message.body);
             pendingRequests.delete(message.id);
             const response = new Response(JSON.stringify(message.body), {
                 status: message.status,
@@ -148,15 +146,10 @@ export function handleEngineMessage(event: MessageEvent<MirageMessage>): void {
     // Route: SET_APP_ORIGIN (track current app for preview mode detection)
     else if (message.type === 'SET_APP_ORIGIN') {
         currentAppOrigin = (message as any).origin;
-        console.log('[Bridge] SET_APP_ORIGIN received, currentAppOrigin now:', currentAppOrigin);
-        if (currentAppOrigin === '__preview__') {
-            console.log('[Bridge] PREVIEW MODE ENABLED - API requests will be handled in-memory');
-        }
     }
     // Route: SET_SPACE_CONTEXT (for preview mock)
     else if (message.type === 'SET_SPACE_CONTEXT') {
         const ctxMsg = message as any;
-        console.log('[Bridge] SET_SPACE_CONTEXT received:', ctxMsg.spaceName);
         setPreviewSpaceContext(ctxMsg.spaceId, ctxMsg.spaceName);
     }
 }
@@ -167,10 +160,8 @@ export function handleEngineMessage(event: MessageEvent<MirageMessage>): void {
 async function handleEncryptRequest(message: { id: string; pubkey: string; plaintext: string }): Promise<void> {
     try {
         if (privateKeyBytes) {
-            console.log(`[Bridge] Encrypting for ${message.pubkey} (Local Signer)`);
             const conversationKey = nip44.v2.utils.getConversationKey(privateKeyBytes, message.pubkey);
             const ciphertext = nip44.v2.encrypt(message.plaintext, conversationKey);
-            console.log(`[Bridge] Encryption success. Ciphertext len: ${ciphertext.length}`);
             postToEngine({ type: 'ENCRYPT_RESULT', id: message.id, ciphertext });
             return;
         }
@@ -207,14 +198,12 @@ async function handleEncryptRequest(message: { id: string; pubkey: string; plain
 async function handleDecryptRequest(message: { id: string; pubkey: string; ciphertext: string }): Promise<void> {
     try {
         if (privateKeyBytes) {
-            console.log(`[Bridge] Decrypting from ${message.pubkey} (Local Signer). Ctext len: ${message.ciphertext?.length}`);
             if (!message.ciphertext || message.ciphertext.startsWith('{')) {
                 console.warn('[Bridge] CRITICAL: Suspicious ciphertext (starts with {). Is it plaintext?');
             }
 
             const conversationKey = nip44.v2.utils.getConversationKey(privateKeyBytes, message.pubkey);
             const plaintext = nip44.v2.decrypt(message.ciphertext, conversationKey);
-            console.log(`[Bridge] Decryption success.`);
             postToEngine({ type: 'DECRYPT_RESULT', id: message.id, plaintext });
             return;
         }

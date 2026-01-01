@@ -314,8 +314,9 @@ export class MirageHost {
     /**
      * Invite a user to a space
      */
-    async inviteToSpace(spaceId: string, pubkey: string): Promise<void> {
-        return this.request("POST", `/mirage/v1/spaces/${spaceId}/invite`, { pubkey });
+    async inviteToSpace(spaceId: string, pubkey: string, spaceName?: string): Promise<void> {
+        console.log(`[InviteDebug] host.inviteToSpace(spaceId=${spaceId}, pubkey=${pubkey.slice(0, 10)}..., name=${spaceName})`);
+        return this.request("POST", `/mirage/v1/spaces/${spaceId}/invite`, { pubkey, name: spaceName });
     }
 
     /**
@@ -337,6 +338,9 @@ export class MirageHost {
         path: string,
         body?: unknown,
     ): Promise<any> {
+        if (path.includes('/invite')) {
+            console.log(`[InviteDebug] host.request: ${method} ${path}`);
+        }
         return this.sendToEngine({
             type: "API_REQUEST",
             id: crypto.randomUUID(),
@@ -597,6 +601,7 @@ export class MirageHost {
         }
         // Route: New Space Invite Notification
         else if (message.type === "NEW_SPACE_INVITE") {
+            console.log(`[InviteDebug] Host received NEW_SPACE_INVITE for: ${(message as any).spaceName || (message as any).spaceId}`);
             this.emit("new_space_invite", message);
         }
     }

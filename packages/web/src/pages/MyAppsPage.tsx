@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 
 import { useMirage } from '../hooks/useMirage';
 import { cn } from '../lib/utils';
@@ -30,7 +31,21 @@ interface SpaceWithApp {
   appOrigin?: string;
 }
 
+function getAppCanonicalId(naddr: string): string {
+    try {
+        const decoded = nip19.decode(naddr);
+        if (decoded.type === 'naddr') {
+            const data = decoded.data as { pubkey: string; identifier: string };
+            return `${data.pubkey}:${data.identifier}`;
+        }
+        return naddr;
+    } catch {
+        return naddr;
+    }
+}
+
 export const MyAppsPage = () => {
+  const navigate = useNavigate();
   const { apps, isReady, deleteApp, fetchApp, pubkey } = useMirage();
   const { spaces, deleteSpace } = useSpaces();
 
@@ -47,17 +62,26 @@ export const MyAppsPage = () => {
     existingDTag?: string;
   }>({ mode: 'view', initialName: '', initialCode: '' });
 
-  // Group spaces by their parent app
+  // Group spaces by their parent app using canonical ID
   const appSpaces = useMemo(() => {
     const map = new Map<string, SpaceWithApp[]>();
     spaces.forEach(space => {
       if (space.appOrigin) {
-        if (!map.has(space.appOrigin)) map.set(space.appOrigin, []);
-        map.get(space.appOrigin)!.push(space);
+        const id = getAppCanonicalId(space.appOrigin);
+        if (!map.has(id)) map.set(id, []);
+        map.get(id)!.push(space);
       }
     });
     return map;
   }, [spaces]);
+
+  const externalSpaces = useMemo(() => {
+    const appIds = new Set(apps.map(a => getAppCanonicalId(a.naddr)));
+    return spaces.filter(s => {
+        if (!s.appOrigin) return false;
+        return !appIds.has(getAppCanonicalId(s.appOrigin));
+    });
+  }, [spaces, apps]);
 
   const orphanSpaces = useMemo(() => {
     return spaces.filter(s => !s.appOrigin);
@@ -96,6 +120,10 @@ export const MyAppsPage = () => {
     }
   };
 
+  const handleLaunchExternalApp = (naddr: string) => {
+      navigate(`/run/${naddr}`);
+  };
+
   const handleLaunch = (app: AppDefinition) => {
     setSelectedApp(app);
     setPickerModalOpen(true);
@@ -129,7 +157,7 @@ export const MyAppsPage = () => {
                 key={app.naddr}
                 app={app}
                 index={i}
-                spaces={appSpaces.get(app.naddr) || []}
+                spaces={appSpaces.get(getAppCanonicalId(app.naddr)) || []}
                 onDeleteApp={deleteApp}
                 onDeleteSpace={deleteSpace}
                 onOpenSource={handleOpenSource}
@@ -144,6 +172,55 @@ export const MyAppsPage = () => {
           )}
         </div>
       </section>
+
+      {/* External/Shared Spaces Section */}
+      {externalSpaces.length > 0 && (
+        <section className="mb-12 md:mb-20">
+          <div className="flex items-center gap-4 mb-8 md:mb-10">
+            <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl md:rounded-2xl bg-vivid-cyan/10 flex items-center justify-center text-vivid-cyan">
+              <Database size={18} />
+            </div>
+            <h2 className="text-[10px] md:text-sm font-black text-gray-400 uppercase tracking-[0.2em] md:tracking-[0.3em]">Shared Spaces (Other Apps)</h2>
+            <div className="h-px flex-1 bg-white/5" />
+          </div>
+
+          <div className="bg-card/40 border border-white/5 rounded-[32px] md:rounded-[40px] p-4 md:p-6 backdrop-blur-sm">
+            <div className="space-y-3">
+              {externalSpaces.map((space) => (
+                <div key={space.id} className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
+                    <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-xl bg-vivid-cyan/20 flex items-center justify-center text-vivid-cyan">
+                            <Database size={18} />
+                        </div>
+                        <div>
+                            <h3 className="font-bold text-white">{space.name}</h3>
+                            <p className="text-xs text-gray-500 font-mono">App: {space.appOrigin?.slice(0, 16)}...</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        {space.appOrigin && (
+                            <button
+                                onClick={() => handleLaunchExternalApp(space.appOrigin!)}
+                                className="p-2 hover:bg-white/10 rounded-lg text-gray-500 hover:text-vivid-cyan transition-colors"
+                                title="Launch App"
+                            >
+                                <Play size={16} />
+                            </button>
+                        )}
+                        <button
+                            onClick={() => deleteSpace(space.id)}
+                            className="p-2 hover:bg-white/10 rounded-lg text-gray-500 hover:text-red-500 transition-colors"
+                            title="Delete Space"
+                        >
+                            <Trash2 size={16} />
+                        </button>
+                    </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Legacy/Orphan Spaces Section */}
       {orphanSpaces.length > 0 && (

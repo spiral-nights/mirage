@@ -73,7 +73,7 @@ describe('InviteModal', () => {
         fireEvent.click(sendBtn);
 
         await waitFor(() => {
-            expect(mockInviteToSpace).toHaveBeenCalledWith('123', validHex);
+            expect(mockInviteToSpace).toHaveBeenCalledWith('123', validHex, 'Test Space');
         });
         
         expect(screen.getByText('Sent!')).toBeTruthy();

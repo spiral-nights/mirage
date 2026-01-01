@@ -1,8 +1,10 @@
 import { describe, test, expect, mock, beforeEach } from "bun:test";
 import { 
     createSpace, 
+    deleteSpace,
     postSpaceMessage, 
     inviteMember, 
+    syncInvites,
     updateSpaceStore, 
     getSpaceStore,
     type SpaceRouteContext 
@@ -23,6 +25,10 @@ function matches(event: any, filter: any) {
     if (filter['#d']) {
         const d = event.tags.find((t:any) => t[0] === 'd')?.[1];
         if (!d || !filter['#d'].includes(d)) return false;
+    }
+    if (filter['#p']) {
+        const p = event.tags.find((t:any) => t[0] === 'p')?.[1];
+        if (!p || !filter['#p'].includes(p)) return false;
     }
     if (filter['#t']) {
         const tTags = event.tags.filter((t:any) => t[0] === 't').map((t:any) => t[1]);
@@ -187,12 +193,73 @@ describe("Space Management (Phase 5)", () => {
         expect(wrapEvent).toBeDefined();
         // Recipient tag
         expect(wrapEvent.tags).toContainEqual(['p', bobPubkey]);
+    });
 
-        // Note: We can't easily decrypt the wrapper in this mock because NIP-44 logic
-        // is partially inside inviteMember (wrapEvent helper) and partially mocked.
-        // However, we can trust that inviteMember calls wrapEvent. 
+    test("Soft Delete -> Sets deleted flag", async () => {
+        const res1 = await createSpace(ctx, { name: "Delete Test" });
+        const spaceId = (res1.body as any).id;
         
-        // To verify payload, we would need to mock wrapEvent or intercept the inner event.
-        // For this test, verifying 1059 publication to correct pubkey is a strong signal.
+        // Delete
+        await deleteSpace(ctx, spaceId);
+        
+        // Verify key has deleted: true
+        // We check the last NIP-78 event
+        const storageEvent = events[events.length - 1];
+        const content = storageEvent.content.replace('encrypted_', '');
+        const keys = JSON.parse(content);
+        const scopedId = `test_app:${spaceId}`;
+        
+        expect(keys[scopedId].deleted).toBe(true);
+        expect(keys[scopedId].deletedAt).toBeDefined();
+    });
+
+    test("Revive Deleted Space -> Invite Newer than Delete", async () => {
+        // 1. Create and Delete
+        const res1 = await createSpace(ctx, { name: "Revive Test" });
+        const spaceId = (res1.body as any).id;
+        await deleteSpace(ctx, spaceId); // Deletion happens now
+        
+        // Get deletion timestamp
+        const delEvent = events[events.length - 1];
+        const delKeys = JSON.parse(delEvent.content.replace('encrypted_', ''));
+        const deletedAt = delKeys[`test_app:${spaceId}`].deletedAt;
+        
+        // 2. Mock a NEW invite (Kind 1059) that arrived LATER
+        const invitePayload = {
+            type: 'mirage_invite',
+            spaceId,
+            scopedId: `test_app:${spaceId}`,
+            key: 'some_key',
+            version: 1,
+            name: 'Revived Space'
+        };
+        
+        const innerEvent = {
+            kind: 13,
+            content: JSON.stringify(invitePayload),
+            created_at: deletedAt + 100 // 100 seconds AFTER deletion
+        };
+        
+        // Mock wrapped event
+        const wrapEvent = {
+            kind: 1059,
+            pubkey: 'sender_ephemeral',
+            created_at: deletedAt + 100,
+            tags: [['p', ctx.currentPubkey]],
+            content: `encrypted_${JSON.stringify(innerEvent)}`
+        };
+        
+        // Add to pool so syncInvites finds it
+        events.push(wrapEvent);
+        
+        // 3. Run syncInvites
+        await syncInvites(ctx);
+        
+        // 4. Verify key is revived
+        const reviveEvent = events[events.length - 1];
+        const reviveKeys = JSON.parse(reviveEvent.content.replace('encrypted_', ''));
+        
+        expect(reviveKeys[`test_app:${spaceId}`].deleted).toBe(false);
+        expect(reviveKeys[`test_app:${spaceId}`].deletedAt).toBeUndefined();
     });
 });

@@ -39,6 +39,8 @@ export function wrapEvent(signedEvent: Event, receiverPubkey: string): Event {
     // We backdate by ~24 hours with some random jitter (minus 0-4 hours)
     const twoDaysAgo = Math.floor(Date.now() / 1000) - (24 * 60 * 60);
     const jitter = Math.floor(Math.random() * (4 * 60 * 60));
+    
+    console.log(`[InviteDebug] wrapEvent: Backdating by ~24h. Timestamp=${twoDaysAgo - jitter} (Now=${Math.floor(Date.now() / 1000)})`);
 
     const unsignedWrapper: UnsignedEvent = {
         kind: 1059, // Gift Wrap

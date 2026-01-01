@@ -32,9 +32,6 @@ export async function interceptedFetch(rawInput: RequestInfo | URL, init?: Reque
     // Wait for bridge to be initialized
     await engineReady;
 
-    // Debug: Log current app origin for all requests
-    console.log(`[Bridge] Intercepted ${init?.method || 'GET'} ${url}, currentAppOrigin=${currentAppOrigin}`);
-
     // PREVIEW MODE: Handle requests in-memory without engine/signing
     if (currentAppOrigin === '__preview__') {
         const method = (init?.method?.toUpperCase() || 'GET') as 'GET' | 'POST' | 'PUT' | 'DELETE';
@@ -47,9 +44,7 @@ export async function interceptedFetch(rawInput: RequestInfo | URL, init?: Reque
             }
         }
 
-        console.log(`[Bridge PREVIEW] Routing to mock handler: ${method} ${url}`);
         const response = await handlePreviewRequest(method, url, body);
-        console.log(`[Bridge PREVIEW] Mock handler returned: status=${response.status}`);
         return response;
     }
 

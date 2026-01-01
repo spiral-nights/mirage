@@ -322,6 +322,8 @@ export interface SpaceKey {
     version: number;
     name?: string;  // Space name for display
     createdAt?: number;  // When the space was created
+    deleted?: boolean; // If true, ignore this space (tombstone)
+    deletedAt?: number; // Timestamp of deletion
 }
 
 // ============================================================================

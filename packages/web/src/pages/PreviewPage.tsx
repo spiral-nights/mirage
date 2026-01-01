@@ -45,7 +45,6 @@ export const PreviewPage = () => {
         let mounted = true;
 
         const loadApp = async () => {
-            console.log('[PreviewPage] Loading preview app...');
             setStatus('loading');
 
             try {
@@ -57,7 +56,6 @@ export const PreviewPage = () => {
                 if (!mounted) return;
 
                 setStatus('running');
-                console.log('[PreviewPage] Preview app loaded successfully');
             } catch (err) {
                 if (!mounted) return;
                 console.error('Failed to run preview app:', err);
@@ -82,7 +80,6 @@ export const PreviewPage = () => {
         setIsPublishing(true);
         try {
             const naddr = await publishApp(code, name, existingDTag);
-            console.log('Updated app:', naddr);
 
             // Navigate to the updated app
             navigate(`/run/${naddr}`);

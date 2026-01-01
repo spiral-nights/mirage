@@ -14,3 +14,4 @@ Mirage is a client-side "operating system" for decentralized, ephemeral applicat
 - **Space-First UX:** A "Notion-like" model where users create named Spaces (instances) of apps, ensuring clear data ownership and easy sharing.
 - **Mirage Studio:** A web interface for prompting LLMs, publishing app code to Nostr, managing personal app collections, and configuring network relays.
 - **Secure Sharing:** Identity-based sharing of encrypted spaces using NIP-17 Gift Wraps, ensuring keys never leak via URLs.
+- **Background Synchronization:** A persistent Engine Worker manages relay connections and background tasks (like fetching invites) even when apps are idle.

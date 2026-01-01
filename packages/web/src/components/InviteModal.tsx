@@ -79,12 +79,16 @@ export const InviteModal = ({ isOpen, onClose, spaceId, spaceName }: InviteModal
     if (!host) return;
     setIsLoadingProfile(true);
     try {
+      console.log(`[InviteDebug] Fetching profile for: ${pubkey}`);
       const res = await host.request('GET', `/mirage/v1/profiles/${pubkey}`);
       if (res && res.profile) {
+        console.log(`[InviteDebug] Profile found: ${res.profile.name || 'no name'}`);
         setProfile(res.profile);
+      } else {
+        console.log(`[InviteDebug] No profile found for ${pubkey}`);
       }
     } catch (e) {
-      console.warn('Failed to fetch profile:', e);
+      console.warn(`[InviteDebug] Failed to fetch profile:`, e);
     } finally {
       setIsLoadingProfile(false);
     }
@@ -94,8 +98,9 @@ export const InviteModal = ({ isOpen, onClose, spaceId, spaceName }: InviteModal
     try {
       const text = await navigator.clipboard.readText();
       setInput(text);
+      console.log(`[InviteDebug] Pasted from clipboard: ${text.slice(0, 10)}...`);
     } catch (e) {
-      console.error('Clipboard access denied');
+      console.error('[InviteDebug] Clipboard access denied');
     }
   };
 
@@ -104,7 +109,9 @@ export const InviteModal = ({ isOpen, onClose, spaceId, spaceName }: InviteModal
     setIsSending(true);
     setError(null);
     try {
-      await host.inviteToSpace(spaceId, parsedPubkey);
+      console.log(`[InviteDebug] Initiating invite to space: ${spaceId} (${spaceName}) for pubkey: ${parsedPubkey}`);
+      await host.inviteToSpace(spaceId, parsedPubkey, spaceName);
+      console.log(`[InviteDebug] host.inviteToSpace call successful`);
       setSuccess(true);
       setTimeout(() => {
         onClose();
@@ -112,7 +119,7 @@ export const InviteModal = ({ isOpen, onClose, spaceId, spaceName }: InviteModal
         setInput('');
       }, 2000);
     } catch (e: any) {
-      console.error(e);
+      console.error(`[InviteDebug] Failed to send invite:`, e);
       setError(e.message || 'Failed to send invite');
     } finally {
       setIsSending(false);

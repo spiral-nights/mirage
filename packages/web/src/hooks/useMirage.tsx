@@ -39,9 +39,7 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
     }
 
     try {
-      console.log('[useMirage] Refreshing apps from engine...');
       const library = await currentHost.request('GET', '/mirage/v1/library/apps');
-      console.log('[useMirage] Loaded apps:', library);
       if (Array.isArray(library)) {
         setApps(library);
       }
@@ -76,7 +74,6 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
     const init = async () => {
       // If initialization has already completed, just set the local state
       if (globalHost && !initPromise) {
-        console.log('[useMirage] Using existing host instance');
         setHost(globalHost);
         setIsReady(true);
         return;
@@ -84,7 +81,6 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
 
       // If another init is in progress, wait for it to finish completely
       if (initPromise) {
-        console.log('[useMirage] Waiting for existing init...');
         await initPromise;
         setHost(globalHost);
         setIsReady(true);
@@ -93,20 +89,16 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
 
       // Prevent double initialization within same render cycle (React Strict Mode)
       if (initRef.current) {
-        console.log('[useMirage] Init already started, skipping');
         return;
       }
       initRef.current = true;
 
       // Create new init promise
       initPromise = (async () => {
-        const startTime = performance.now();
         try {
-          console.log('[useMirage] Creating new MirageHost instance');
           const origin = window.location.origin;
 
           // 1. Wait for window.nostr
-          const nostrWaitStart = performance.now();
           const waitForNostr = async (limit: number) => {
             for (let i = 0; i < limit / 100; i++) {
               if ((window as any).nostr) return true;
@@ -115,7 +107,6 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
             return !!(window as any).nostr;
           };
           await waitForNostr(2000);
-          console.log(`[useMirage] Nostr wait took: ${(performance.now() - nostrWaitStart).toFixed(2)}ms`);
 
           const signer = (window as any).nostr;
 
@@ -139,16 +130,12 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
 
           globalHost = mirageHost;
           setHost(mirageHost);
-
-          // 2. Attempt to get pubkey with retries
           try {
             if (signer) {
-              const pubkeyStart = performance.now();
               let pk = '';
               let attempts = 0;
               while (attempts < 3) {
                 try {
-                  console.log(`[useMirage] Requesting pubkey (attempt ${attempts + 1})...`);
                   pk = await Promise.race([
                     signer.getPublicKey(),
                     new Promise<string>((_, reject) => setTimeout(() => reject(new Error('Signer timed out')), 10000))
@@ -160,19 +147,14 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
                   if (attempts < 3) await new Promise(r => setTimeout(r, 500));
                 }
               }
-              console.log(`[useMirage] Pubkey retrieval took: ${(performance.now() - pubkeyStart).toFixed(2)}ms`);
 
               if (pk) {
-                console.log('[useMirage] Received pubkey:', pk.slice(0, 8) + '...');
                 setPubkey(pk);
                 mirageHost.setPubkey(pk);
 
                 // Load initial data
-                console.log('[useMirage] Loading initial data...');
-                const dataLoadStart = performance.now();
                 try {
                   const library = await mirageHost.request('GET', '/mirage/v1/library/apps');
-                  console.log(`[useMirage] Initial data load took: ${(performance.now() - dataLoadStart).toFixed(2)}ms`);
 
                   if (Array.isArray(library)) setApps(library);
                 } catch (dataErr) {
@@ -188,7 +170,6 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
         } catch (e) {
           console.error('[useMirage] Host initialization failed:', e);
         } finally {
-          console.log(`[useMirage] Total initialization took: ${(performance.now() - startTime).toFixed(2)}ms`);
           setIsReady(true);
           initPromise = null;
         }
@@ -204,7 +185,6 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
   const fetchApp = async (naddr: string): Promise<string | null> => {
     const currentHost = host || globalHost;
     if (!currentHost) return null;
-    console.log('[useMirage] Fetching app:', naddr);
     try {
       return await currentHost.fetchApp(naddr);
     } catch (err) {
@@ -228,8 +208,6 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
 
     const dTag = existingDTag || `mirage:app:${crypto.randomUUID()}`;
 
-    console.log('[useMirage] Publishing app:', { name, dTag, update: !!existingDTag });
-
     // 1. Publish to Nostr via Engine API
     const result = await currentHost.request('POST', '/mirage/v1/events', {
       kind: 30078,
@@ -245,8 +223,6 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
       throw new Error(result.error);
     }
 
-    console.log('[useMirage] App published, generating naddr...');
-
     // 2. Generate naddr
     const naddr = nip19.naddrEncode({
       kind: 30078,
@@ -257,12 +233,8 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
 
     const appDef: AppDefinition = { naddr, name, createdAt: Date.now() };
 
-    console.log('[useMirage] Saving to library:', appDef);
-
     // 3. Save to Library (The engine handles upsert by naddr)
     await currentHost.request('POST', '/mirage/v1/library/apps', appDef);
-
-    console.log('[useMirage] App saved to library successfully');
 
     // Update local state
     setApps(prevApps => {
@@ -282,10 +254,8 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
     }
 
     try {
-      console.log('[useMirage] Deleting app:', naddr.slice(0, 20) + '...');
       const result = await currentHost.request('DELETE', '/mirage/v1/library/apps', { naddr });
       if (result.deleted) {
-        console.log('[useMirage] App deleted successfully');
         setApps(prevApps => prevApps.filter(a => a.naddr !== naddr));
         return true;
       }

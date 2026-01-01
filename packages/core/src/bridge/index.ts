@@ -68,13 +68,11 @@ export async function initBridge(options: BridgeOptions = {}): Promise<void> {
     // 1. Detect Environment
     if (window.parent !== window) {
         // ... Child Mode ...
-        console.log('[Bridge] Detected Child Mode. Connecting to Parent Host...');
         setChildMode(true);
         setEnginePort(window.parent);
         window.addEventListener('message', handleEngineMessage);
     } else {
         // ... Standalone Mode ...
-        console.log('[Bridge] Detected Standalone Mode. Spawning proper Worker...');
         if (!options.workerUrl) throw new Error('Worker URL required for Standalone Mode');
 
         // Fetch/Blob dance to bypass origin restrictions
@@ -115,7 +113,6 @@ export async function initBridge(options: BridgeOptions = {}): Promise<void> {
 
         // Send relay config if provided
         if (options.relays && options.relays.length > 0) {
-            console.log('[Bridge] Sending relay config:', options.relays);
             worker.postMessage({
                 type: 'RELAY_CONFIG',
                 id: crypto.randomUUID(),
@@ -130,7 +127,6 @@ export async function initBridge(options: BridgeOptions = {}): Promise<void> {
             // Check for npub and convert if needed
             if (hexKey.startsWith('npub')) {
                 try {
-                    console.log('[Bridge] Converting npub to hex...');
                     const decoded = nip19.decode(hexKey);
                     if (decoded.type === 'npub') {
                         hexKey = decoded.data;
@@ -140,7 +136,6 @@ export async function initBridge(options: BridgeOptions = {}): Promise<void> {
                 }
             }
 
-            console.log('[Bridge] Sending pubkey:', hexKey.slice(0, 8) + '...');
             worker.postMessage({
                 type: 'SET_PUBKEY',
                 id: crypto.randomUUID(),
@@ -161,7 +156,6 @@ export async function initBridge(options: BridgeOptions = {}): Promise<void> {
 
     // 3. Signal Ready
     signalEngineReady();
-    console.log('[Bridge] Initialized & Ready');
 
     // In Child Mode, tell parent we are ready so it can send config
     if (isChildMode) {

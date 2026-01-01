@@ -59,7 +59,6 @@ export const RunPage = () => {
 
     // Skip if already loaded this specific app
     if (loadedNaddrRef.current === naddr) {
-      console.log('[RunPage] App already loaded, skipping');
       return;
     }
 
@@ -67,7 +66,6 @@ export const RunPage = () => {
     isLoadingRef.current = true;
 
     const loadApp = async () => {
-      console.log('[RunPage] Loading app:', naddr.slice(0, 20) + '...');
       setStatus('loading');
 
       try {
@@ -90,7 +88,6 @@ export const RunPage = () => {
 
         loadedNaddrRef.current = naddr;
         setStatus('running');
-        console.log('[RunPage] App loaded successfully');
 
       } catch (err) {
         if (!mounted) return;

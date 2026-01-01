@@ -127,7 +127,7 @@ async function preloadSpaceKeys(): Promise<void> {
     }
 
     console.log('[Engine] Preloading space keys...');
-    const ctx = {
+    const ctx: SpaceRouteContext = {
         pool,
         requestSign,
         requestEncrypt,
@@ -139,9 +139,45 @@ async function preloadSpaceKeys(): Promise<void> {
     try {
         await loadSpaceKeys(ctx);
         console.log('[Engine] Space keys preloaded');
+    } catch (e) {
+        console.error('[Engine] Failed to preload space keys:', e);
     } finally {
-        keysReadyResolve?.(); // Always resolve, even on error
+        // Start background sync loop regardless of load success
+        startBackgroundSync();
+        keysReadyResolve?.(); // Always resolve
     }
+}
+
+/**
+ * Background loop to poll for invites and other background tasks.
+ */
+function startBackgroundSync(): void {
+    console.log('[InviteDebug] Starting background sync loop (60s interval)');
+    
+    const runSync = async () => {
+        if (!pool || !currentPubkey) return;
+        
+        const ctx: SpaceRouteContext = {
+            pool,
+            requestSign,
+            requestEncrypt,
+            requestDecrypt,
+            currentPubkey,
+            appOrigin,
+            currentSpace,
+        };
+        
+        console.log('[InviteDebug] Running periodic background sync...');
+        await syncInvites(ctx);
+    };
+
+    // Initial sync
+    runSync().catch(err => console.error('[InviteDebug] Background sync failed:', err));
+
+    // Periodic sync
+    setInterval(() => {
+        runSync().catch(err => console.error('[InviteDebug] Background sync failed:', err));
+    }, 60000); // Every 60 seconds
 }
 
 // ============================================================================
