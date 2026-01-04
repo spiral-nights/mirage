@@ -1,4 +1,4 @@
-import { Home, PlusCircle, Code2, Edit3, Send, XCircle, Database, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Home, PlusCircle, Code2, Edit3, Send, XCircle, Database, ChevronLeft, ChevronRight, HelpCircle } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Link, useLocation } from 'react-router-dom';
 import { useAppActions } from '../contexts/AppActionsContext';
@@ -108,6 +108,15 @@ export const Sidebar = ({ onNavItemClick, collapsed = false, onToggle }: Sidebar
                   icon={PlusCircle}
                   label="Create App"
                   active={location.pathname === '/create'}
+                  collapsed={collapsed}
+                />
+              </div>
+              <div onClick={onNavItemClick}>
+                <NavItem
+                  to="/help"
+                  icon={HelpCircle}
+                  label="Help & Guide"
+                  active={location.pathname === '/help'}
                   collapsed={collapsed}
                 />
               </div>

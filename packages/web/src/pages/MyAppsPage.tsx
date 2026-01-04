@@ -32,16 +32,16 @@ interface SpaceWithApp {
 }
 
 function getAppCanonicalId(naddr: string): string {
-    try {
-        const decoded = nip19.decode(naddr);
-        if (decoded.type === 'naddr') {
-            const data = decoded.data as { pubkey: string; identifier: string };
-            return `${data.pubkey}:${data.identifier}`;
-        }
-        return naddr;
-    } catch {
-        return naddr;
+  try {
+    const decoded = nip19.decode(naddr);
+    if (decoded.type === 'naddr') {
+      const data = decoded.data as { pubkey: string; identifier: string };
+      return `${data.pubkey}:${data.identifier}`;
     }
+    return naddr;
+  } catch {
+    return naddr;
+  }
 }
 
 export const MyAppsPage = () => {
@@ -78,8 +78,8 @@ export const MyAppsPage = () => {
   const externalSpaces = useMemo(() => {
     const appIds = new Set(apps.map(a => getAppCanonicalId(a.naddr)));
     return spaces.filter(s => {
-        if (!s.appOrigin) return false;
-        return !appIds.has(getAppCanonicalId(s.appOrigin));
+      if (!s.appOrigin) return false;
+      return !appIds.has(getAppCanonicalId(s.appOrigin));
     });
   }, [spaces, apps]);
 
@@ -121,7 +121,7 @@ export const MyAppsPage = () => {
   };
 
   const handleLaunchExternalApp = (naddr: string) => {
-      navigate(`/run/${naddr}`);
+    navigate(`/run/${naddr}`);
   };
 
   const handleLaunch = (app: AppDefinition) => {
@@ -136,7 +136,7 @@ export const MyAppsPage = () => {
           Your <span className="text-transparent bg-clip-text bg-brand-gradient pr-2">Library</span>
         </h1>
         <p className="text-gray-500 text-base md:text-xl font-light max-w-2xl leading-relaxed">
-          Manage your decentralized application clusters and their associated encrypted data spaces.
+          Your personal collection of decentralized apps and their private data spaces.
         </p>
       </header>
 
@@ -188,33 +188,33 @@ export const MyAppsPage = () => {
             <div className="space-y-3">
               {externalSpaces.map((space) => (
                 <div key={space.id} className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
-                    <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-xl bg-vivid-cyan/20 flex items-center justify-center text-vivid-cyan">
-                            <Database size={18} />
-                        </div>
-                        <div>
-                            <h3 className="font-bold text-white">{space.name}</h3>
-                            <p className="text-xs text-gray-500 font-mono">App: {space.appOrigin?.slice(0, 16)}...</p>
-                        </div>
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-vivid-cyan/20 flex items-center justify-center text-vivid-cyan">
+                      <Database size={18} />
                     </div>
-                    <div className="flex items-center gap-2">
-                        {space.appOrigin && (
-                            <button
-                                onClick={() => handleLaunchExternalApp(space.appOrigin!)}
-                                className="p-2 hover:bg-white/10 rounded-lg text-gray-500 hover:text-vivid-cyan transition-colors"
-                                title="Launch App"
-                            >
-                                <Play size={16} />
-                            </button>
-                        )}
-                        <button
-                            onClick={() => deleteSpace(space.id)}
-                            className="p-2 hover:bg-white/10 rounded-lg text-gray-500 hover:text-red-500 transition-colors"
-                            title="Delete Space"
-                        >
-                            <Trash2 size={16} />
-                        </button>
+                    <div>
+                      <h3 className="font-bold text-white">{space.name}</h3>
+                      <p className="text-xs text-gray-500 font-mono">App: {space.appOrigin?.slice(0, 16)}...</p>
                     </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {space.appOrigin && (
+                      <button
+                        onClick={() => handleLaunchExternalApp(space.appOrigin!)}
+                        className="p-2 hover:bg-white/10 rounded-lg text-gray-500 hover:text-vivid-cyan transition-colors"
+                        title="Launch App"
+                      >
+                        <Play size={16} />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => deleteSpace(space.id)}
+                      className="p-2 hover:bg-white/10 rounded-lg text-gray-500 hover:text-red-500 transition-colors"
+                      title="Delete Space"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

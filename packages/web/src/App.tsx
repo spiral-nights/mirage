@@ -5,6 +5,7 @@ import { RunPage } from './pages/RunPage';
 import { PreviewPage } from './pages/PreviewPage';
 import { MyAppsPage } from './pages/MyAppsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { HelpPage } from './pages/HelpPage';
 import { MirageProvider } from './hooks/useMirage';
 import { AppActionsProvider } from './contexts/AppActionsContext';
 
@@ -21,6 +22,7 @@ function App() {
               <Route path="preview" element={<PreviewPage />} />
               <Route path="favorites" element={<div>Favorites (Coming Soon)</div>} />
               <Route path="settings" element={<SettingsPage />} />
+              <Route path="help" element={<HelpPage />} />
             </Route>
           </Routes>
         </BrowserRouter>
