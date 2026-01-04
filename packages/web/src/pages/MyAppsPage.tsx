@@ -545,7 +545,7 @@ const SpaceRow = ({
                 No
               </button>
               <button
-                onClick={() => handleDelete}
+                onClick={handleDelete}
                 className="px-3 py-1.5 text-[10px] font-black uppercase rounded-lg bg-red-600 text-white flex items-center gap-2"
                 disabled={isDeleting}
               >

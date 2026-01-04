@@ -553,7 +553,6 @@ async function matchRoute(
       appOrigin,
       currentSpace,
     };
-    console.log(`[Engine] Storage request: key="${key}" appOrigin="${appOrigin?.slice(0, 20)}..." currentSpace.id="${currentSpace?.id}" currentSpace.name="${currentSpace?.name}"`);
 
     if (method === "GET") {
       return {

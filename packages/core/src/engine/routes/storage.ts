@@ -38,14 +38,11 @@ export async function internalGetStorage<T = unknown>(
     key: string,
     targetPubkey?: string
 ): Promise<T | null> {
-    console.log(`[StorageDebug] GET key="${key}" appOrigin="${ctx.appOrigin}" spaceId="${ctx.currentSpace?.id}" spaceName="${ctx.currentSpace?.name}"`);
-
     if (!ctx.currentPubkey && !targetPubkey) throw new Error('Not authenticated');
 
     // System storage (keychain, library) uses 'mirage' origin and doesn't require space
     const isSystemStorage = ctx.appOrigin === 'mirage';
     if (!isSystemStorage && !ctx.currentSpace?.id) {
-        console.error(`[StorageDebug] FAILED: No space context for app storage. appOrigin=${ctx.appOrigin}`);
         throw new Error('Space context required for storage operations');
     }
 
@@ -55,8 +52,6 @@ export async function internalGetStorage<T = unknown>(
         ? `${ctx.appOrigin}:${key}`
         : `${ctx.appOrigin}:${ctx.currentSpace!.id}:${key}`;
 
-    console.log(`[StorageDebug] Querying dTag="${dTag}" author="${author.slice(0, 8)}..."`);
-
     const filter: Filter = {
         kinds: [30078],
         authors: [author],
@@ -65,7 +60,6 @@ export async function internalGetStorage<T = unknown>(
     };
 
     const event = await ctx.pool.query([filter], 3000);
-    console.log(`[StorageDebug] Query result: ${event ? 'FOUND' : 'NOT FOUND'}`);
 
     if (!event) return null;
     const content = event.content;
