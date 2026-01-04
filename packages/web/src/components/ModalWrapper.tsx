@@ -6,18 +6,19 @@ interface ModalWrapperProps {
     onClose: () => void;
     children: ReactNode;
     className?: string; // For customizing the inner content container (e.g. max-w-xl)
+    fullScreen?: boolean;
 }
 
 /**
  * Standardized modal wrapper that respects the sidebar layout.
  * On desktop, it offsets the overlay by the sidebar width (md:left-64)
- * so the modal sits within the content area, not covering the nav.
+ * unless fullScreen is true.
  */
-export const ModalWrapper = ({ isOpen, onClose, children, className = '' }: ModalWrapperProps) => {
+export const ModalWrapper = ({ isOpen, onClose, children, className = '', fullScreen = false }: ModalWrapperProps) => {
     return (
         <AnimatePresence>
             {isOpen && (
-                <div className="fixed inset-0 md:left-64 z-50 flex items-center justify-center p-6">
+                <div className={`fixed inset-0 ${fullScreen ? '' : 'md:left-64'} z-50 flex items-center justify-center p-6`}>
                     {/* Backdrop */}
                     <motion.div
                         initial={{ opacity: 0 }}

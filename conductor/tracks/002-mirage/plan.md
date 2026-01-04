@@ -1,4 +1,4 @@
-# Plan: Mirage Studio (The Website)
+# Plan: Mirage (The Website)
 
 ## Goal
 Build a beautiful, functional web interface for prompting, publishing, and running Mirage micro-apps.

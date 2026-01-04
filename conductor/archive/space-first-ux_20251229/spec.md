@@ -40,7 +40,7 @@ This track implements the "Space-First" model for Mirage, shifting the paradigm 
 
 ### 4. Developer Experience & Testing
 - **System Prompt:** Update the Mirage AI system prompt to reflect the space-first model, discouraging internal space creation and encouraging the use of `GET /mirage/v1/space`.
-- **Preview Mocking:** Ensure all new Space endpoints (especially `GET /space` and `SET_SPACE_CONTEXT`) are fully supported in the `preview-mock` bridge, allowing apps to be tested in the studio editor with simulated space contexts.
+- **Preview Mocking:** Ensure all new Space endpoints (especially `GET /space` and `SET_SPACE_CONTEXT`) are fully supported in the `preview-mock` bridge, allowing apps to be tested in the Mirage UI with simulated space contexts.
 
 ## Acceptance Criteria
 - Users can create multiple "Spaces" for the same App, and each space has isolated data.

@@ -3,6 +3,7 @@ import { MirageHost } from '@mirage/host';
 import { type AppDefinition } from '@mirage/core';
 import { nip19 } from 'nostr-tools';
 import { INITIAL_ENABLED_RELAYS } from '../lib/relays';
+import { LoginModal } from '../components/LoginModal';
 
 interface MirageContextType {
   host: MirageHost | null;
@@ -14,6 +15,7 @@ interface MirageContextType {
   fetchApp: (naddr: string) => Promise<string | null>;
   refreshApps: () => Promise<void>;
   deleteApp: (naddr: string) => Promise<boolean>;
+  logout: () => void;
 }
 
 const MirageContext = createContext<MirageContextType | undefined>(undefined);
@@ -26,9 +28,17 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
   const [host, setHost] = useState<MirageHost | null>(globalHost);
   const [pubkey, setPubkey] = useState<string | null>(null);
   const [isReady, setIsReady] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
   const [apps, setApps] = useState<AppDefinition[]>([]);
   const [notification, setNotification] = useState<string | null>(null);
   const initRef = useRef(false);
+
+  const logout = useCallback(() => {
+    localStorage.removeItem('mirage_identity_v1');
+    (window as any).nostr = undefined;
+    setPubkey(null);
+    setShowLogin(true);
+  }, []);
 
   // Refresh apps from the engine
   const refreshApps = useCallback(async () => {
@@ -54,12 +64,7 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
 
     const handleNewSpace = (msg: any) => {
         setNotification(`New space added: ${msg.spaceName || 'Unnamed Space'}`);
-        // Refresh apps/spaces? The apps list might not change if it's just a space for an existing app?
-        // But if it's a new app entirely? NIP-17 logic currently adds key.
-        // It doesn't fetch the app code automatically unless we build that.
-        // For now, refreshing apps/spaces is good.
         refreshApps();
-        
         setTimeout(() => setNotification(null), 3000);
     };
 
@@ -76,6 +81,9 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
       if (globalHost && !initPromise) {
         setHost(globalHost);
         setIsReady(true);
+        if (!pubkey && !(window as any).nostr) {
+           setShowLogin(true);
+        }
         return;
       }
 
@@ -98,17 +106,30 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
         try {
           const origin = window.location.origin;
 
-          // 1. Wait for window.nostr
+          // 1. Try to detect NIP-07 extension
           const waitForNostr = async (limit: number) => {
+            if ((window as any).nostr) return true;
             for (let i = 0; i < limit / 100; i++) {
               if ((window as any).nostr) return true;
               await new Promise(r => setTimeout(r, 100));
             }
             return !!(window as any).nostr;
           };
-          await waitForNostr(2000);
+          await waitForNostr(500);
 
           const signer = (window as any).nostr;
+
+          // 2. Decide if we show login
+          if (!signer) {
+              setShowLogin(true);
+          } else {
+              try {
+                  const pk = await signer.getPublicKey();
+                  setPubkey(pk);
+              } catch (e) {
+                  setShowLogin(true);
+              }
+          }
 
           // Load relays from localStorage
           let initialRelays = INITIAL_ENABLED_RELAYS;
@@ -125,47 +146,24 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
             relays: initialRelays,
             engineUrl: `${origin}/engine-worker.js`,
             bridgeUrl: `${origin}/bridge.js`,
-            signer
+            signer: (window as any).nostr
           });
 
           globalHost = mirageHost;
           setHost(mirageHost);
-          try {
-            if (signer) {
-              let pk = '';
-              let attempts = 0;
-              while (attempts < 3) {
-                try {
-                  pk = await Promise.race([
-                    signer.getPublicKey(),
-                    new Promise<string>((_, reject) => setTimeout(() => reject(new Error('Signer timed out')), 10000))
-                  ]);
-                  if (pk) break;
-                } catch (e) {
-                  console.warn(`[useMirage] Pubkey attempt ${attempts + 1} failed:`, e);
-                  attempts++;
-                  if (attempts < 3) await new Promise(r => setTimeout(r, 500));
-                }
-              }
 
-              if (pk) {
-                setPubkey(pk);
-                mirageHost.setPubkey(pk);
+          if ((window as any).nostr) {
+             const pk = await (window as any).nostr.getPublicKey();
+             mirageHost.setPubkey(pk);
+             setPubkey(pk);
 
-                // Load initial data
-                try {
-                  const library = await mirageHost.request('GET', '/mirage/v1/library/apps');
-
-                  if (Array.isArray(library)) setApps(library);
-                } catch (dataErr) {
-                  console.warn('[useMirage] Initial data fetch failed:', dataErr);
-                }
-              } else {
-                console.warn('[useMirage] Failed to get pubkey after 3 attempts');
-              }
-            }
-          } catch (e) {
-            console.warn('[useMirage] Signer access failed:', e);
+             // Load initial data
+             try {
+               const library = await mirageHost.request('GET', '/mirage/v1/library/apps');
+               if (Array.isArray(library)) setApps(library);
+             } catch (dataErr) {
+               console.warn('[useMirage] Initial data fetch failed:', dataErr);
+             }
           }
         } catch (e) {
           console.error('[useMirage] Host initialization failed:', e);
@@ -182,6 +180,26 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
     init();
   }, []);
 
+  const handleLoginSuccess = useCallback(async (pk: string) => {
+      setPubkey(pk);
+      setShowLogin(false);
+      
+      const currentHost = host || globalHost;
+      if (currentHost) {
+          const signer = (window as any).nostr;
+          if (signer) {
+              currentHost.setSigner(signer);
+          }
+          currentHost.setPubkey(pk);
+          try {
+              const library = await currentHost.request('GET', '/mirage/v1/library/apps');
+              if (Array.isArray(library)) setApps(library);
+          } catch (e) {
+              console.warn('[useMirage] Data fetch after login failed:', e);
+          }
+      }
+  }, [host]);
+
   const fetchApp = async (naddr: string): Promise<string | null> => {
     const currentHost = host || globalHost;
     if (!currentHost) return null;
@@ -195,8 +213,6 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
 
   /**
    * Publish an app to Nostr. 
-   * If existingDTag is provided, it updates that event (overwrite/update).
-   * Otherwise, it creates a new one.
    */
   const publishApp = async (
     html: string,
@@ -233,7 +249,7 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
 
     const appDef: AppDefinition = { naddr, name, createdAt: Date.now() };
 
-    // 3. Save to Library (The engine handles upsert by naddr)
+    // 3. Save to Library
     await currentHost.request('POST', '/mirage/v1/library/apps', appDef);
 
     // Update local state
@@ -248,10 +264,7 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
   // Delete an app from the library
   const deleteApp = async (naddr: string): Promise<boolean> => {
     const currentHost = host || globalHost;
-    if (!currentHost) {
-      console.warn('[useMirage] Cannot delete app: host not ready');
-      return false;
-    }
+    if (!currentHost) return false;
 
     try {
       const result = await currentHost.request('DELETE', '/mirage/v1/library/apps', { naddr });
@@ -267,7 +280,7 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <MirageContext.Provider value={{ host, isReady, pubkey, apps, notification, publishApp, fetchApp, refreshApps, deleteApp }}>
+    <MirageContext.Provider value={{ host, isReady, pubkey, apps, notification, publishApp, fetchApp, refreshApps, deleteApp, logout }}>
       {!isReady ? (
         <div className="fixed inset-0 bg-[#050505] flex flex-col items-center justify-center p-12 z-[9999]">
           <div className="relative mb-20 scale-125">
@@ -290,7 +303,10 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
           </div>
         </div>
       ) : (
-        children
+        <>
+            {showLogin && <LoginModal isOpen={true} onSuccess={handleLoginSuccess} />}
+            {children}
+        </>
       )}
     </MirageContext.Provider>
   );

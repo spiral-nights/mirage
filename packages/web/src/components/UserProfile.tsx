@@ -6,7 +6,7 @@ import { type UserProfile as UserProfileType } from '@mirage/core';
 import { AnimatePresence, motion } from 'framer-motion';
 
 export const UserProfile = () => {
-  const { host, isReady, pubkey } = useMirage();
+  const { host, isReady, pubkey, logout } = useMirage();
   const navigate = useNavigate();
   const [profile, setProfile] = useState<UserProfileType | null>(null);
   const [loading, setLoading] = useState(false);
@@ -15,11 +15,6 @@ export const UserProfile = () => {
   useEffect(() => {
     if (isReady && host && pubkey) {
       setLoading(true);
-      // The API returns { status, body: UserProfile | { error } }
-      // But host.request() usually returns just the body if successful, or throws/returns error object?
-      // Let's check host.request implementation again.
-      // host.request returns `response.body`.
-      // So if success, it returns UserProfile object directly.
       host.request('GET', '/mirage/v1/user/me')
         .then((response: any) => {
            if (response && !response.error) {
@@ -32,12 +27,14 @@ export const UserProfile = () => {
         .finally(() => {
           setLoading(false);
         });
+    } else if (!pubkey) {
+      setProfile(null);
     }
   }, [host, isReady, pubkey]);
 
   const handleLogout = () => {
-    // Redirect to connect page which effectively acts as a reset for the session flow
-    window.location.href = '/create'; 
+    logout();
+    setIsOpen(false);
   };
 
   const displayName = profile?.displayName || profile?.name || (pubkey ? `${pubkey.slice(0, 6)}...${pubkey.slice(-4)}` : 'Unknown');

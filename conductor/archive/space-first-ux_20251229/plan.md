@@ -46,6 +46,6 @@
 - [ ] Task: System Prompt Update
     - [ ] Sub-task: Update `packages/web/src/lib/system-prompt.ts` with new Space-First guidelines.
 - [ ] Task: Integration Testing
-    - [ ] Sub-task: Verify `preview-mock` works in the Studio with space context.
+    - [ ] Sub-task: Verify `preview-mock` works in the Mirage UI with space context.
     - [ ] Sub-task: Verify standalone app behavior (Default space fallback).
 - [ ] Task: Conductor - User Manual Verification 'Developer Experience & Cleanup' (Protocol in workflow.md)

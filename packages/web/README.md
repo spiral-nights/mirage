@@ -1,4 +1,4 @@
-# Mirage Studio (@mirage/web)
+# Mirage (@mirage/web)
 
 The official web interface for the Mirage App Engine. This is where users "vibe code"—generating apps via AI and publishing them to Nostr—and where they run those apps in a secure, sandboxed environment.
 
@@ -26,7 +26,7 @@ bun run --filter @mirage/web dev
 
 The app will be available at `http://localhost:5173`.
 
-> **Note:** The Studio relies on the `@mirage/host` engine. In development, the engine worker and bridge scripts must be served correctly. The default setup assumes `engine-worker.js` and `bridge.js` are available in the public path.
+> **Note:** The Mirage website relies on the `@mirage/host` engine. In development, the engine worker and bridge scripts must be served correctly. The default setup assumes `engine-worker.js` and `bridge.js` are available in the public path.
 
 ## 🧪 Testing
 

@@ -9,9 +9,9 @@
 ## Packages
 - **@mirage/core:** Headless engine logic, relay pool, and bridge implementation.
 - **@mirage/host:** Parent window controller for sandboxing and NIP-07 signing.
-- **@mirage/web:** React-based "Mirage Studio" UI.
+- **@mirage/web:** React-based "Mirage" UI.
 
-## Web Studio (@mirage/web)
+## Web Interface (@mirage/web)
 - **Framework:** React 19
 - **Bundler:** Vite
 - **Styling:** Tailwind CSS (Vivid Pop Theme)

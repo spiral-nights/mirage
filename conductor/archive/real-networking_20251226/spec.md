@@ -1,7 +1,7 @@
 # Specification: Real Networking & Persistence
 
 ## 1. Overview
-Transition the Mirage Studio from a mocked state to a fully functional, Nostr-connected application. This track implements real event broadcasting, standard NIP-19 addressing, and cross-device persistence for the user's app collection.
+Transition the Mirage from a mocked state to a fully functional, Nostr-connected application. This track implements real event broadcasting, standard NIP-19 addressing, and cross-device persistence for the user's app collection.
 
 ## 2. Functional Requirements
 
@@ -13,7 +13,7 @@ Transition the Mirage Studio from a mocked state to a fully functional, Nostr-co
 ### 2.2 Robust Publishing
 - **Network Broadcast:** Connect `publishApp` to the Engine's relay pool to broadcast Kind 30078 events.
 - **Confirmation Flow:** Implement a listener for the Engine's "OK" (Event Published) acknowledgment.
-- **Error Handling:** Display a user-friendly error notification in the Studio UI if the signature or broadcast fails.
+- **Error Handling:** Display a user-friendly error notification in the Mirage UI if the signature or broadcast fails.
 
 ### 2.3 Real Fetching & Runtime
 - **On-Demand Fetching:** Replace hardcoded dummy HTML with a real lookup. The Engine will query configured relays for the latest Kind 30078 matching the `naddr`.

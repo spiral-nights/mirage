@@ -143,6 +143,51 @@ Mirage uses **NIP-17 Gift Wraps** for sharing encrypted space keys.
 
 ---
 
+## 5. Authentication
+
+Mirage supports multiple authentication mechanisms to accommodate different user setups.
+
+### NIP-07 Browser Extensions
+
+The primary authentication method uses [NIP-07](https://github.com/nostr-protocol/nips/blob/master/07.md) compatible browser extensions:
+
+| Extension | Platform | Notes |
+|-----------|----------|-------|
+| Alby | Chrome, Firefox | Popular, supports Lightning |
+| nos2x | Chrome | Lightweight |
+| Nostr Connect | Mobile | Remote signing |
+
+**Flow:**
+1. User clicks "Login with Nostr"
+2. Host calls `window.nostr.getPublicKey()`
+3. Extension prompts user for permission
+4. Public key returned, user authenticated
+
+### WebAuthn PRF Credential Storage (Experimental)
+
+For users without a browser extension, Mirage can encrypt and store credentials locally using the [WebAuthn PRF extension](https://www.w3.org/TR/webauthn-3/#prf-extension).
+
+**How it works:**
+1. User provides their nsec (private key)
+2. WebAuthn PRF derives a stable encryption key from biometric authentication
+3. The nsec is encrypted with AES-256-GCM and stored in localStorage
+4. On subsequent visits, biometric prompt unlocks the credential
+
+**Platform Compatibility:**
+
+| Platform | Authenticator | PRF Support |
+|----------|---------------|-------------|
+| macOS | Touch ID | ✅ Supported |
+| iOS | Face ID / Touch ID | ✅ Supported |
+| Android | Chrome with fingerprint | ✅ Supported |
+| Windows | Windows Hello | ❌ **Not Supported** |
+| Any | YubiKey 5 series | ✅ Supported |
+| Any | FIDO2 security key with hmac-secret | ✅ Supported |
+
+> **Note:** Windows Hello lacks the `hmac-secret` capability required for PRF. Windows users should use a hardware security key or a NIP-07 extension.
+
+---
+
 ## 6. App Preview Mode
 
 ### Overview

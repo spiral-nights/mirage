@@ -14,7 +14,7 @@ This allows developers (and AI agents) to build feature-rich social and data app
 * **AI-Native Design:** The API is designed to be "self-documenting" for LLMs. You can prompt an AI: *"Make a grocery list app using the Mirage API"* and it will work instantly.
 * **Zero-Knowledge Security:** Apps run in a sandboxed `iframe` with a `null` origin. They **never** touch the user's private keys.
 * **Family-Ready:** Built-in support for encrypted spaces and NIP-17 encryption allows for private, shared apps (e.g., "Family Chores" or "Team Notes").
-* **PWA Support:** Mirage Studio is installable as a Progressive Web App on desktop and mobile devices.
+* **PWA Support:** Mirage is installable as a Progressive Web App on desktop and mobile devices.
 
 ## 🏗️ Architecture
 
@@ -101,11 +101,28 @@ Mirage implements a strict **"Air Gap"** between the app logic and user secrets.
 | NIP | Feature | Usage in Mirage |
 | --- | --- | --- |
 | **01** | Basic Protocol | Events, Metadata, Text Notes |
-| **07** | Browser Signer | Delegating key operations to extensions |
+| **07** | Browser Signer | User login and event signing via browser extensions |
 | **17** | Private DMs | Encrypted messaging |
 | **02** | Contact List | Manage follows/friends |
 | **44** | Encryption | NIP-44 v2 encryption for spaces |
 | **78** | App Data | Arbitrary JSON storage for apps |
+
+## 🔐 Authentication
+
+Mirage supports two authentication mechanisms:
+
+### NIP-07 Login
+Users can authenticate using any [NIP-07](https://github.com/nostr-protocol/nips/blob/master/07.md) compatible browser extension (Alby, nos2x, Nostr Connect, etc.). The extension securely manages private keys and signs events on behalf of the user.
+
+### WebAuthn PRF Credential Storage (Experimental)
+For users without a browser extension, Mirage supports saving encrypted credentials using the [WebAuthn PRF extension](https://www.w3.org/TR/webauthn-3/#prf-extension). This allows:
+- Deriving a stable encryption key from biometric authentication (Touch ID, Face ID, fingerprint)
+- Encrypting and storing the user's nsec locally
+- Unlocking credentials with a simple biometric prompt
+
+> **⚠️ Platform Support:** WebAuthn PRF requires specific hardware:
+> - ✅ **Supported:** macOS Touch ID, Chrome on Android, YubiKey 5 series, FIDO2 security keys
+> - ❌ **Not Supported:** Windows Hello (lacks `hmac-secret` capability)
 
 ## 🎨 App Preview Mode
 

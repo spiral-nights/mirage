@@ -1,7 +1,7 @@
 # Spec: WebAuthn-Secured Login Flow
 
 ## Overview
-Implement a comprehensive login system for Mirage Studio that prioritizes NIP-07 extensions while providing a secure, local-first alternative for users without extensions. This includes a reusable login modal that supports identity generation, manual `nsec` entry, and secure persistence using the WebAuthn PRF (Pseudo-Random Function) extension.
+Implement a comprehensive login system for Mirage that prioritizes NIP-07 extensions while providing a secure, local-first alternative for users without extensions. This includes a reusable login modal that supports identity generation, manual `nsec` entry, and secure persistence using the WebAuthn PRF (Pseudo-Random Function) extension.
 
 ## Functional Requirements
 - **Extension Integration:** If `window.nostr` is detected, show a "Sign in with Extension" button in the login modal to provide a clear entry point.

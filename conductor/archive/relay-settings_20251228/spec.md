@@ -1,7 +1,7 @@
 # Specification: Relay Settings Page
 
 ## 1. Overview
-Implement a Relay Settings page in Mirage Studio to manage relay connections. The management logic is strictly a Host/Client concern and is isolated from the sandboxed App API.
+Implement a Relay Settings page in Mirage to manage relay connections. The management logic is strictly a Host/Client concern and is isolated from the sandboxed App API.
 
 ## 2. Functional Requirements
 
@@ -25,7 +25,7 @@ Implement a Relay Settings page in Mirage Studio to manage relay connections. Th
 -   **Internal Messaging:**
     -   New message type: `ACTION_GET_RELAY_STATUS`.
     -   The Engine handles this message by returning the current pool stats.
-    -   The Host class provides `getRelayStats()` to expose this data to the Studio UI.
+    -   The Host class provides `getRelayStats()` to expose this data to the Mirage UI.
 
 ## 3. Technical Considerations
 -   **Security:** Relay management endpoints/messages are NOT exposed via the standard API requested by apps. They are internal control messages between Host and Engine.

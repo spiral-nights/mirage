@@ -157,6 +157,13 @@ export class MirageHost {
         });
     }
 
+    /**
+     * Update the signer used by the host.
+     */
+    setSigner(signer: Nip07Signer): void {
+        this.signer = new Signer(signer);
+    }
+
     private sendRelayConfig(
         action: "SET" | "ADD" | "REMOVE",
         relays: string[],
@@ -745,3 +752,6 @@ export class MirageHost {
 // Re-export utilities
 export { parsePermissions, isPathAllowed } from "./permissions";
 export { Signer } from "./signer";
+export { LocalSigner } from "./local-signer";
+export * from "./auth";
+export * from "./webauthn-prf";
