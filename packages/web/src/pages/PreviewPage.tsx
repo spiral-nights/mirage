@@ -154,13 +154,68 @@ export const PreviewPage = () => {
     }
 
     return (
-        <div className="fixed top-16 md:top-0 left-0 md:left-64 right-0 bottom-0 bg-background overflow-hidden flex flex-col">
+        <div className="h-full w-full bg-background overflow-hidden flex flex-col relative">
+            {/* Desktop Header Toolbar */}
+            <div className="hidden md:flex flex-none h-20 items-center justify-between px-8 bg-background border-b border-white/5 z-40 relative">
+                {/* Left: Preview Badge */}
+                <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="px-4 py-2 bg-vivid-cyan/10 border border-vivid-cyan/20 rounded-xl backdrop-blur-xl">
+                    <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-vivid-cyan rounded-full animate-pulse" />
+                        <span className="text-vivid-cyan text-xs font-black uppercase tracking-wider">Preview Mode</span>
+                    </div>
+                </motion.div>
+
+                {/* Center: Actions */}
+                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-3">
+                    <motion.button
+                        onClick={handleEditSourceDesktop}
+                        initial={{ opacity: 0, y: -20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="px-6 py-3 bg-white/5 hover:bg-white/10 border border-white/5 rounded-2xl font-bold text-sm uppercase tracking-wider transition-all flex items-center gap-2"
+                    >
+                        <Edit3 size={16} />
+                        Edit Source
+                    </motion.button>
+
+                    <motion.button
+                        onClick={handlePublish}
+                        disabled={isPublishing}
+                        initial={{ opacity: 0, y: -20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.1 }}
+                        className={cn(
+                            "px-6 py-3 rounded-2xl font-bold text-sm uppercase tracking-wider transition-all flex items-center gap-2",
+                            isPublishing
+                                ? "bg-white/5 text-gray-500 cursor-not-allowed"
+                                : "bg-vivid-cyan text-black hover:bg-white shadow-lg hover:shadow-xl hover:scale-[1.02]"
+                        )}
+                    >
+                        <Save size={16} />
+                        {isPublishing ? 'Publishing...' : isEditMode ? 'Update App' : 'Publish App'}
+                    </motion.button>
+
+                    <motion.button
+                        onClick={handleCancelDesktop}
+                        initial={{ opacity: 0, y: -20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.2 }}
+                        className="px-6 py-3 bg-transparent border border-white/5 rounded-2xl font-bold text-sm uppercase tracking-wider hover:bg-white/5 transition-all flex items-center gap-2"
+                    >
+                        <XCircle size={16} />
+                        Cancel
+                    </motion.button>
+                </div>
+            </div>
+
             {/* App Container */}
-            <div ref={containerRef} className="flex-1 w-full h-full relative z-0" />
+            <div ref={containerRef} className="flex-1 w-full relative z-0" />
 
             {/* Loading Overlay */}
             {status === 'loading' && (
-                <div className="absolute inset-0 bg-[#050505] z-10 flex flex-col items-center justify-center p-12">
+                <div className="absolute inset-0 bg-[#050505] z-50 flex flex-col items-center justify-center p-12">
                     <div className="w-full max-w-3xl animate-pulse">
                         <div className="h-20 bg-white/5 rounded-3xl mb-12 w-1/4" />
                         <div className="space-y-6">
@@ -182,60 +237,6 @@ export const PreviewPage = () => {
                 </div>
             )}
 
-            {/* Preview Actions Bar - Top center on desktop, hidden on mobile */}
-            <div className="hidden md:flex absolute top-8 left-1/2 -translate-x-1/2 z-20 gap-3">
-                <motion.button
-                    onClick={handleEditSourceDesktop}
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="px-6 py-3 bg-white/5 hover:bg-white/10 border border-white/5 rounded-2xl font-bold text-sm uppercase tracking-wider transition-all flex items-center gap-2"
-                >
-                    <Edit3 size={16} />
-                    Edit Source
-                </motion.button>
-
-                <motion.button
-                    onClick={handlePublish}
-                    disabled={isPublishing}
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 }}
-                    className={cn(
-                        "px-6 py-3 rounded-2xl font-bold text-sm uppercase tracking-wider transition-all flex items-center gap-2",
-                        isPublishing
-                            ? "bg-white/5 text-gray-500 cursor-not-allowed"
-                            : "bg-vivid-cyan text-black hover:bg-white shadow-lg hover:shadow-xl hover:scale-[1.02]"
-                    )}
-                >
-                    <Save size={16} />
-                    {isPublishing ? 'Publishing...' : isEditMode ? 'Update App' : 'Publish App'}
-                </motion.button>
-
-                <motion.button
-                    onClick={handleCancelDesktop}
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 }}
-                    className="px-6 py-3 bg-transparent border border-white/5 rounded-2xl font-bold text-sm uppercase tracking-wider hover:bg-white/5 transition-all flex items-center gap-2"
-                >
-                    <XCircle size={16} />
-                    Cancel
-                </motion.button>
-            </div>
-
-            {/* Preview Badge - Top left */}
-            <div className="absolute top-8 left-8 z-20 hidden md:block">
-                <motion.div
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    className="px-4 py-2 bg-vivid-cyan/10 border border-vivid-cyan/20 rounded-xl backdrop-blur-xl">
-                    <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-vivid-cyan rounded-full animate-pulse" />
-                        <span className="text-vivid-cyan text-xs font-black uppercase tracking-wider">Preview Mode</span>
-                    </div>
-                </motion.div>
-            </div>
-
             {/* Mobile Preview Badge */}
             <div className="md:hidden absolute top-20 left-1/2 -translate-x-1/2 z-20">
                 <div className="px-3 py-1.5 bg-vivid-cyan/10 border border-vivid-cyan/20 rounded-lg backdrop-blur-xl">
@@ -245,8 +246,6 @@ export const PreviewPage = () => {
                     </div>
                 </div>
             </div>
-
-
 
             {/* Edit Source Modal (shown in-place, no navigation) */}
             <PublishModal

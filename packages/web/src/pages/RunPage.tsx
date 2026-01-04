@@ -180,7 +180,7 @@ export const RunPage = () => {
   }
 
   return (
-    <div className="fixed top-16 md:top-0 left-0 md:left-64 right-0 bottom-0 bg-background overflow-hidden flex flex-col">
+    <div className="h-full w-full bg-background overflow-hidden flex flex-col relative">
       {/* App Container */}
       <div ref={containerRef} className="flex-1 w-full h-full relative z-0" />
 

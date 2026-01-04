@@ -329,6 +329,7 @@ async function handleApiRequest(message: ApiRequestMessage): Promise<void> {
   }
 
   const { method, path, body } = message;
+  console.log(`[API] ${method} ${path}`, body ? { body } : '');
 
   // Track original sender
   const sender = (message as any)._sender;

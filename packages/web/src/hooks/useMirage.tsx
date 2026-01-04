@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, createContext, useContext, type ReactNode } from 'react';
 import { MirageHost } from '@mirage/host';
-import { type AppDefinition } from '@mirage/core';
+import { type AppDefinition, type UserProfile } from '@mirage/core';
 import { nip19 } from 'nostr-tools';
 import { INITIAL_ENABLED_RELAYS } from '../lib/relays';
 import { LoginModal } from '../components/LoginModal';
@@ -16,6 +16,7 @@ interface MirageContextType {
   refreshApps: () => Promise<void>;
   deleteApp: (naddr: string) => Promise<boolean>;
   logout: () => void;
+  profile: UserProfile | null;
 }
 
 const MirageContext = createContext<MirageContextType | undefined>(undefined);
@@ -30,6 +31,7 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
   const [isReady, setIsReady] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [apps, setApps] = useState<AppDefinition[]>([]);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
   const initRef = useRef(false);
 
@@ -37,6 +39,7 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
     localStorage.removeItem('mirage_identity_v1');
     (window as any).nostr = undefined;
     setPubkey(null);
+    setProfile(null);
     setShowLogin(true);
   }, []);
 
@@ -63,15 +66,15 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
     if (!host) return;
 
     const handleNewSpace = (msg: any) => {
-        setNotification(`New space added: ${msg.spaceName || 'Unnamed Space'}`);
-        refreshApps();
-        setTimeout(() => setNotification(null), 3000);
+      setNotification(`New space added: ${msg.spaceName || 'Unnamed Space'}`);
+      refreshApps();
+      setTimeout(() => setNotification(null), 3000);
     };
 
     host.on('new_space_invite', handleNewSpace);
 
     return () => {
-        host.off('new_space_invite', handleNewSpace);
+      host.off('new_space_invite', handleNewSpace);
     };
   }, [host, refreshApps]);
 
@@ -82,7 +85,7 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
         setHost(globalHost);
         setIsReady(true);
         if (!pubkey && !(window as any).nostr) {
-           setShowLogin(true);
+          setShowLogin(true);
         }
         return;
       }
@@ -121,14 +124,14 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
 
           // 2. Decide if we show login
           if (!signer) {
-              setShowLogin(true);
+            setShowLogin(true);
           } else {
-              try {
-                  const pk = await signer.getPublicKey();
-                  setPubkey(pk);
-              } catch (e) {
-                  setShowLogin(true);
-              }
+            try {
+              const pk = await signer.getPublicKey();
+              setPubkey(pk);
+            } catch (e) {
+              setShowLogin(true);
+            }
           }
 
           // Load relays from localStorage
@@ -153,17 +156,22 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
           setHost(mirageHost);
 
           if ((window as any).nostr) {
-             const pk = await (window as any).nostr.getPublicKey();
-             mirageHost.setPubkey(pk);
-             setPubkey(pk);
+            const pk = await (window as any).nostr.getPublicKey();
+            mirageHost.setPubkey(pk);
+            setPubkey(pk);
 
-             // Load initial data
-             try {
-               const library = await mirageHost.request('GET', '/mirage/v1/library/apps');
-               if (Array.isArray(library)) setApps(library);
-             } catch (dataErr) {
-               console.warn('[useMirage] Initial data fetch failed:', dataErr);
-             }
+            // Load initial data
+            try {
+              const [library, userProfile] = await Promise.all([
+                mirageHost.request('GET', '/mirage/v1/library/apps').catch((e: any) => { console.warn('Apps fetch failed', e); return []; }),
+                mirageHost.request('GET', '/mirage/v1/user/me').catch((e: any) => { console.warn('Profile fetch failed', e); return null; })
+              ]);
+
+              if (Array.isArray(library)) setApps(library);
+              if (userProfile && !userProfile.error) setProfile(userProfile as UserProfile);
+            } catch (dataErr) {
+              console.warn('[useMirage] Initial data fetch failed:', dataErr);
+            }
           }
         } catch (e) {
           console.error('[useMirage] Host initialization failed:', e);
@@ -181,23 +189,27 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const handleLoginSuccess = useCallback(async (pk: string) => {
-      setPubkey(pk);
-      setShowLogin(false);
-      
-      const currentHost = host || globalHost;
-      if (currentHost) {
-          const signer = (window as any).nostr;
-          if (signer) {
-              currentHost.setSigner(signer);
-          }
-          currentHost.setPubkey(pk);
-          try {
-              const library = await currentHost.request('GET', '/mirage/v1/library/apps');
-              if (Array.isArray(library)) setApps(library);
-          } catch (e) {
-              console.warn('[useMirage] Data fetch after login failed:', e);
-          }
+    setPubkey(pk);
+    setShowLogin(false);
+
+    const currentHost = host || globalHost;
+    if (currentHost) {
+      const signer = (window as any).nostr;
+      if (signer) {
+        currentHost.setSigner(signer);
       }
+      currentHost.setPubkey(pk);
+      try {
+        const [library, userProfile] = await Promise.all([
+          currentHost.request('GET', '/mirage/v1/library/apps').catch((e: any) => { console.warn('Apps fetch failed', e); return []; }),
+          currentHost.request('GET', '/mirage/v1/user/me').catch((e: any) => { console.warn('Profile fetch failed', e); return null; })
+        ]);
+        if (Array.isArray(library)) setApps(library);
+        if (userProfile && !userProfile.error) setProfile(userProfile as UserProfile);
+      } catch (e) {
+        console.warn('[useMirage] Data fetch after login failed:', e);
+      }
+    }
   }, [host]);
 
   const fetchApp = async (naddr: string): Promise<string | null> => {
@@ -280,7 +292,7 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <MirageContext.Provider value={{ host, isReady, pubkey, apps, notification, publishApp, fetchApp, refreshApps, deleteApp, logout }}>
+    <MirageContext.Provider value={{ host, isReady, pubkey, apps, notification, publishApp, fetchApp, refreshApps, deleteApp, logout, profile }}>
       {!isReady ? (
         <div className="fixed inset-0 bg-[#050505] flex flex-col items-center justify-center p-12 z-[9999]">
           <div className="relative mb-20 scale-125">
@@ -304,8 +316,8 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
         </div>
       ) : (
         <>
-            {showLogin && <LoginModal isOpen={true} onSuccess={handleLoginSuccess} />}
-            {children}
+          {showLogin && <LoginModal isOpen={true} onSuccess={handleLoginSuccess} />}
+          {children}
         </>
       )}
     </MirageContext.Provider>
