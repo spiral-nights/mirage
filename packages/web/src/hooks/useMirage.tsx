@@ -52,7 +52,7 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
     }
 
     try {
-      const library = await currentHost.request('GET', '/mirage/v1/library/apps');
+      const library = await currentHost.request('GET', '/mirage/v1/admin/apps');
       if (Array.isArray(library)) {
         setApps(library);
       }
@@ -163,7 +163,7 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
             // Load initial data
             try {
               const [library, userProfile] = await Promise.all([
-                mirageHost.request('GET', '/mirage/v1/library/apps').catch((e: any) => { console.warn('Apps fetch failed', e); return []; }),
+                mirageHost.request('GET', '/mirage/v1/admin/apps').catch((e: any) => { console.warn('Apps fetch failed', e); return []; }),
                 mirageHost.request('GET', '/mirage/v1/user/me').catch((e: any) => { console.warn('Profile fetch failed', e); return null; })
               ]);
 
@@ -201,7 +201,7 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
       currentHost.setPubkey(pk);
       try {
         const [library, userProfile] = await Promise.all([
-          currentHost.request('GET', '/mirage/v1/library/apps').catch((e: any) => { console.warn('Apps fetch failed', e); return []; }),
+          currentHost.request('GET', '/mirage/v1/admin/apps').catch((e: any) => { console.warn('Apps fetch failed', e); return []; }),
           currentHost.request('GET', '/mirage/v1/user/me').catch((e: any) => { console.warn('Profile fetch failed', e); return null; })
         ]);
         if (Array.isArray(library)) setApps(library);
@@ -262,7 +262,7 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
     const appDef: AppDefinition = { naddr, name, createdAt: Date.now() };
 
     // 3. Save to Library
-    await currentHost.request('POST', '/mirage/v1/library/apps', appDef);
+    await currentHost.request('POST', '/mirage/v1/admin/apps', appDef);
 
     // Update local state
     setApps(prevApps => {
@@ -294,7 +294,7 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
     if (!currentHost) return false;
 
     try {
-      const result = await currentHost.request('DELETE', '/mirage/v1/library/apps', { naddr });
+      const result = await currentHost.request('DELETE', '/mirage/v1/admin/apps', { naddr });
       if (result.deleted) {
         setApps(prevApps => prevApps.filter(a => a.naddr !== naddr));
         return true;

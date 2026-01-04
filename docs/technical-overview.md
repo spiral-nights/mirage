@@ -80,7 +80,7 @@ A key feature for AI-generated apps is the **Shared Key-Value Store**. This allo
 The Engine automatically "flattens" the stream of events into a single JSON object state.
 1.  **Snapshot:** Engine caches the latest state.
 2.  **Merge:** New events overwrite old keys based on timestamp.
-3.  **Read:** `GET /spaces/:id/store` returns the clean, merged JSON.
+3.  **Read:** `GET /space/store` returns the clean, merged JSON for the current Space.
 
 ---
 
@@ -90,32 +90,70 @@ All endpoints use the `/mirage/v1/` prefix.
 
 ### Public & Social
 
+Use these endpoints to build open social features like global feeds, user discovery, and public profiles. These actions are performed by the user and are visible to the entire network.
+
 | Method | Endpoint | Streaming | Description |
 |--------|----------|-----------|-------------|
+| `GET` | `/ready` | No | Check system status |
 | `GET` | `/user/me` | No | Current user profile |
-| `GET` | `/users/{pubkey}` | No | User by public key |
-| `GET` | `/feed` | **Yes** | Public timeline |
-| `POST` | `/feed` | No | Publish a note |
+| `GET` | `/profiles/{pubkey}` | No | User by public key (Standard) |
+| `GET` | `/users/{pubkey}` | No | User by public key (Alias) |
+| `GET` | `/events` | **Yes** | Query Nostr events |
+| `POST` | `/events` | No | Publish a Nostr event |
+| `GET` | `/feed` | **Yes** | Public timeline (Alias) |
+| `POST` | `/feed` | No | Publish a note (Alias) |
 
-### App Storage (NIP-78)
+### User Personal Storage (`/space/me`)
+
+Use these endpoints for **personal, user-only data** within the current Space. This data is private to you and isolated per app. Even other members of the Space cannot see this data unless you explicitly opt-in.
+
+- **Isolation**: Scoped to (App + Space + User).
+- **Encryption**: Data is encrypted (NIP-44) by default, meaning ONLY you can read it.
+- **Why use this?**: For app settings, personal drafts, or bookmarks that don't belong in the shared team database.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/storage/{key}` | Retrieve stored value |
-| `PUT` | `/storage/{key}` | Store/update value (Encrypted by default) |
-| `DELETE` | `/storage/{key}` | Delete value |
-| *Note* | `?public=true` | Disables encryption (Essential for Vault Metadata) |
+| `GET` | `/space/me/{key}` | Retrieve your personal value |
+| `PUT` | `/space/me/{key}` | Store/update personal value |
+| `DELETE` | `/space/me/{key}` | Remove personal value |
+| `?public=true` | *Query Param* | Stores in plaintext (e.g., for a space-specific profile others can read) |
 
-### Private Spaces (Encrypted Groups)
+### Private Spaces (Shared & Collaborative)
+
+Use these endpoints for **multi-user collaboration** within a private group. This acts as the **Shared Database** for everyone in the Space.
+
+- **Symmetry**: 
+    - `/space/me`: **My** eyes only (Personal Storage).
+    - `/space/store`: **Our** eyes only (Shared Space Database).
+- **Implicit Context**: Apps automatically operate on the user's active Space. Ensure you've checked `/mirage/v1/space` to see if a context is active.
 
 | Method | Endpoint | Streaming | Description |
 |--------|----------|-----------|-------------|
-| `GET` | `/spaces` | No | List spaces |
-| `GET` | `/spaces/{id}/store` | **Yes** | **Shared Key-Value Store** (Merged State) |
-| `PUT` | `/spaces/{id}/store/{key}` | No | Update a specific key |
-| `GET` | `/spaces/{id}/messages` | **Yes** | Chat messages |
-| `POST` | `/spaces/{id}/messages` | No | Send chat message |
-| `POST` | `/spaces/{id}/invite` | No | **Invite Member (NIP-17)** |
+| `GET` | `/space/store` | **Yes** | **Shared Key-Value Store** (Merged State) |
+| `PUT` | `/space/store/{key}` | No | Update a specific key |
+| `GET` | `/space/messages` | **Yes** | Group chat history |
+| `POST` | `/space/messages` | No | Send message to the group |
+| `POST` | `/space/invite` | No | **Invite Member (NIP-17)** |
+| `GET` | `/space` | No | Get context (id, name, etc.) |
+| `PUT` | `/space` | No | Manual context set (Standalone usage) |
+
+### Administrative Endpoints
+
+These endpoints are used for **system-level management** of spaces and applications. Access is strictly restricted to the Mirage management UI (`appOrigin === 'mirage'`). Regular applications cannot access these routes.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/admin/spaces` | List all spaces owned by the user |
+| `POST` | `/admin/spaces` | Create a new Space |
+| `PUT` | `/admin/spaces/{id}` | Rename a Space |
+| `DELETE` | `/admin/spaces/{id}` | Delete a Space |
+| `GET` | `/admin/spaces/all` | List ALL spaces across all apps |
+| `GET` | `/admin/apps` | List apps in the library |
+| `POST` | `/admin/apps` | Add app to library |
+| `DELETE` | `/admin/apps` | Remove app from library |
+
+> [!TIP]
+> For a full list of all available endpoints, request parameters, and response schemas, see the [OpenAPI Specification](file:///home/spiralnights/code/mirage/docs/openapi.yaml).
 
 ### Secure Sharing (Identity-Based)
 Mirage uses **NIP-17 Gift Wraps** for sharing encrypted space keys. 
@@ -127,6 +165,8 @@ Mirage uses **NIP-17 Gift Wraps** for sharing encrypted space keys.
 
 ### Direct Messages (NIP-17)
 
+Use these endpoints for **private 1-on-1 communication**. This implements the modern "sealed sender" model (NIP-17) which provides better metadata privacy than legacy NIP-04 DMs.
+
 | Method | Endpoint | Streaming | Description |
 |--------|----------|-----------|-------------|
 | `GET` | `/dms` | No | List conversations |
@@ -134,6 +174,8 @@ Mirage uses **NIP-17 Gift Wraps** for sharing encrypted space keys.
 | `POST` | `/dms/{pubkey}` | No | Send message |
 
 ### Contact Lists (NIP-02)
+
+Use these endpoints to manage the user's "Following" list. This is a global list shared across all Nostr clients.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|

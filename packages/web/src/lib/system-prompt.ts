@@ -131,7 +131,7 @@ ${BBB}
 
 # INSTRUCTIONS
 1. Analyze the request.
-2. Choose the appropriate API endpoints (e.g., use ${B}/spaces${B} for collaboration, ${B}/storage${B} for private data).
+2. Choose the appropriate API endpoints (e.g., use ${B}/space/store${B} for collaboration, ${B}/space/me${B} for personal data).
 3. Write the complete, functional HTML file.
 `;
 };

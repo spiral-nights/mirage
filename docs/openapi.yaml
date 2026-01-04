@@ -323,51 +323,18 @@ paths:
                 items:
                   $ref: '#/components/schemas/Contact'
 
-  /storage/{key}:
+  /space/me/{key}:
     get:
-      tags: [Storage]
-      summary: Get stored value
+      tags: [Spaces]
+      summary: Get personal value in Space
       description: |
-        Retrieves a previously stored value by key. Data is automatically
-        synced across all devices.
+        Retrieves a value from your **personal storage** (User-only)
+        within the current Space context. This data is isolated per app,
+        per space, and per user.
 
-        **Requires Space:** This endpoint requires a Space context.
-        The app must be launched within a Space.
-      operationId: getStorage
-      security:
-        - nip07: []
-      parameters:
-        - name: key
-          in: path
-          required: true
-          description: Storage key (alphanumeric, dashes, underscores)
-          schema:
-            type: string
-            example: "settings"
-      responses:
-        '200':
-          description: Stored value retrieved
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/StorageValue'
-        '401':
-          description: Not authenticated
-        '404':
-          description: Key not found
-        '503':
-          description: Relay pool not initialized
-
-    put:
-      tags: [Storage]
-      summary: Store a value
-      description: |
-        Stores or updates a value by key. Changes are signed by you and
-        propagated to the network.
-
-        **Requires Space:** This endpoint requires a Space context.
-        The app must be launched within a Space.
-      operationId: putStorage
+        Use this for personal notes, app settings, or drafts that
+        other members of the Space should not see.
+      operationId: getSpaceMe
       security:
         - nip07: []
       parameters:
@@ -377,14 +344,60 @@ paths:
           description: Storage key
           schema:
             type: string
-            example: "settings"
+            example: "my-draft"
+        - name: pubkey
+          in: query
+          required: false
+          description: Read another user's public storage if they used ?public=true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Personal value retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StorageValue'
+        '401':
+          description: Not authenticated
+        '404':
+          description: Key not found
+
+    put:
+      tags: [Spaces]
+      summary: Store personal value in Space
+      description: |
+        Stores a value in your **personal storage** (User-only)
+        within the current Space context.
+
+        By default, data is **encrypted** to your public key (NIP-44).
+      operationId: putSpaceMe
+      security:
+        - nip07: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          description: Storage key
+          schema:
+            type: string
+            example: "my-draft"
+        - name: public
+          in: query
+          required: false
+          description: |
+            If "true", stores data in plaintext. Useful for data you want
+            others to discover (e.g., your space-specific bio or badge)
+            while still being the only one who can edit it.
+          schema:
+            type: string
+            enum: ["true", "false"]
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              description: Any JSON value to store
-              example: {"theme": "dark", "notifications": true}
+              description: JSON value to store
       responses:
         '200':
           description: Value stored successfully
@@ -392,15 +405,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/StorageValue'
-        '401':
-          description: Not authenticated
-        '503':
-          description: Relay pool not initialized
 
     delete:
-      tags: [Storage]
-      summary: Delete a stored value
-      operationId: deleteStorage
+      tags: [Spaces]
+      summary: Delete personal value in Space
+      operationId: deleteSpaceMe
       security:
         - nip07: []
       parameters:
@@ -410,7 +419,6 @@ paths:
           description: Storage key to delete
           schema:
             type: string
-            example: "obsolete-setting"
       responses:
         '200':
           description: Value deleted
@@ -421,10 +429,8 @@ paths:
                 properties:
                   deleted:
                     type: boolean
-                    example: true
                   key:
                     type: string
-                    example: "obsolete-setting"
         '401':
           description: Not authenticated
         '503':
@@ -499,6 +505,179 @@ paths:
                     type: string
         '400':
           description: spaceId is required
+
+  /space/store:
+    get:
+      tags: [Spaces]
+      summary: Get shared KV store for current space
+      description: |
+        Returns the clean, flattened state (JSON) of the shared key-value
+        store for the currently active space.
+      operationId: getImplicitSpaceStore
+      responses:
+        '200':
+          description: Space data snapshot
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          description: No space context set
+
+  /space/store/{key}:
+    put:
+      tags: [Spaces]
+      summary: Update shared KV store key for current space
+      description: |
+        Updates a specific key in the shared store for the current space.
+        This emits a Kind 42 event with the key and value.
+      operationId: updateImplicitSpaceStore
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Value updated
+        '400':
+          description: No space context set
+
+  /space/messages:
+    get:
+      tags: [Spaces]
+      summary: Get chat messages for current space
+      description: |
+        Returns a time-ordered list of encrypted messages from the
+        active space context. Supports `EventSource` for real-time chat.
+      operationId: getImplicitSpaceMessages
+      responses:
+        '200':
+          description: Message history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NostrEvent'
+    post:
+      tags: [Spaces]
+      summary: Post a message to current space
+      operationId: postImplicitSpaceMessage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content:
+                  type: string
+      responses:
+        '201':
+          description: Message sent
+
+  /admin/spaces:
+    get:
+      tags: [Admin]
+      summary: List all my spaces (Admin Only)
+      description: Restricted to system origin. Returns all spaces you're a member of.
+      operationId: adminListSpaces
+      security:
+        - nip07: []
+      responses:
+        '200':
+          description: All spaces
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Space'
+        '403':
+          description: Access restricted to system origin
+
+    post:
+      tags: [Admin]
+      summary: Create a space (Admin Only)
+      operationId: adminCreateSpace
+      security:
+        - nip07: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+      responses:
+        '201':
+          description: Space created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Space'
+
+  /admin/spaces/all:
+    get:
+      tags: [Admin]
+      summary: List ALL spaces across all apps (Admin Only)
+      operationId: adminListAllSpaces
+      responses:
+        '200':
+          description: All spaces
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Space'
+
+  /admin/spaces/{spaceId}:
+    put:
+      tags: [Admin]
+      summary: Rename space (Admin Only)
+      operationId: adminRenameSpace
+      parameters:
+        - name: spaceId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+      responses:
+        '200':
+          description: Space renamed
+
+    delete:
+      tags: [Admin]
+      summary: Delete space (Admin Only)
+      operationId: adminDeleteSpace
+      parameters:
+        - name: spaceId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Space deleted
 
   /spaces:
     get:
@@ -789,12 +968,12 @@ paths:
                 items:
                   $ref: '#/components/schemas/Space'
 
-  /library/apps:
+  /admin/apps:
     get:
-      tags: [System]
+      tags: [Admin]
       summary: List my applications
       description: Returns all Mirage applications you've published or added to your library.
-      operationId: listLibraryApps
+      operationId: listAdminApps
       security:
         - nip07: []
       responses:
@@ -808,10 +987,10 @@ paths:
                   $ref: '#/components/schemas/AppDefinition'
 
     post:
-      tags: [System]
+      tags: [Admin]
       summary: Add app to library
       description: Save an application to your personal library.
-      operationId: addLibraryApp
+      operationId: addAdminApp
       security:
         - nip07: []
       requestBody:
@@ -832,10 +1011,10 @@ paths:
                     type: boolean
 
     delete:
-      tags: [System]
+      tags: [Admin]
       summary: Remove app from library
       description: Deletes an application from your library.
-      operationId: deleteLibraryApp
+      operationId: deleteAdminApp
       security:
         - nip07: []
       requestBody:

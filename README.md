@@ -52,36 +52,36 @@ graph TD
 ### Quick Start
 
 ```javascript
-// Get recent posts (Kind 1)
-const posts = await fetch('/mirage/v1/events?kinds=1&limit=20').then(r => r.json());
+// 1. Get current space context
+const space = await fetch('/mirage/v1/space').then(r => r.json());
 
-// Stream live updates
-const stream = new EventSource('/mirage/v1/events?kinds=1');
-stream.onmessage = (e) => console.log(JSON.parse(e.data));
-
-// Save app data
+// 2. Save app data (automatically scoped to current space)
 await fetch('/mirage/v1/storage/settings', {
   method: 'PUT',
   body: JSON.stringify({ theme: 'dark' })
 });
+
+// 3. Update shared store in the space
+await fetch('/mirage/v1/space/store/list', {
+  method: 'PUT',
+  body: JSON.stringify({ item: 'Milk' })
+});
 ```
 
-### Endpoints
+### Common Endpoints
+All endpoints are prefixed with `/mirage/v1/`. Streaming is supported via `EventSource`.
 
 | Endpoint | Method | Description |
 | --- | --- | --- |
-| `/mirage/v1/ready` | `GET` | Check if system is ready |
-| `/mirage/v1/events` | `GET/POST` | Query or Publish Nostr events (Native) |
-| `/mirage/v1/user/me` | `GET` | Get current user profile |
-| `/mirage/v1/profiles/:pubkey` | `GET` | Get user by public key |
-| `/mirage/v1/storage/:key` | `GET/PUT/DELETE` | App data storage |
-| `/mirage/v1/spaces/:id/store` | `GET/PUT` | Shared Key-Value Store (Database) |
-| `/mirage/v1/spaces/:id/messages` | `GET/POST` | Private group messages |
-| `/mirage/v1/spaces/:id/invite` | `POST` | Invite user to space (Host-only) |
-| `/mirage/v1/dms/:pubkey` | `GET/POST` | Encrypted direct messages |
-| `/mirage/v1/contacts` | `GET/PUT` | NIP-02 Contact Lists |
+| `/space` | `GET` | Get metadata for the current Space context |
+| `/space/me/:key` | `GET/PUT` | Personal data storage (User-only) |
+| `/space/store` | `GET/PUT` | Shared KV Store for the Space (Database) |
+| `/space/messages` | `GET/POST` | Private group messages in the Space |
+| `/events` | `GET/POST` | Search or Publish any Nostr events |
+| `/user/me` | `GET` | Current user profile details |
 
-> **Streaming:** `GET` endpoints for events, spaces, and DMs support `EventSource` for real-time updates.
+> [!TIP]
+> This is a summary. For the full list of all endpoints (including Social, DM, and Administration), see the [Technical Overview](file:///home/spiralnights/code/mirage/docs/technical-overview.md) or the [OpenAPI Specification](file:///home/spiralnights/code/mirage/docs/openapi.yaml).
 
 ## 🛡️ Security Model
 

@@ -414,6 +414,9 @@ async function matchRoute(
     currentPubkey,
   };
 
+  // Helper to check admin access
+  const isAdminOrigin = appOrigin === SYSTEM_APP_ORIGIN;
+
   // GET /mirage/v1/ready
   if (method === "GET" && path === "/mirage/v1/ready") {
     return {
@@ -474,15 +477,19 @@ async function matchRoute(
     };
   }
 
-  // App Library Routes
-  if (path.startsWith("/mirage/v1/library/apps")) {
+  // App Library Routes (Admin Only)
+  if (path.startsWith("/mirage/v1/admin/apps")) {
+    if (!isAdminOrigin) {
+      return { handler: async () => ({ status: 403, body: { error: "Admin access required" } }), params: {} };
+    }
+
     const storageCtx: StorageRouteContext = {
       pool: pool!,
       requestSign,
       requestEncrypt,
       requestDecrypt,
       currentPubkey,
-      appOrigin: "mirage", // Explicit origin for  data
+      appOrigin: SYSTEM_APP_ORIGIN, // Use constant
     };
 
     if (method === "GET") {
@@ -542,8 +549,8 @@ async function matchRoute(
     };
   }
 
-  // Storage routes - /mirage/v1/storage/:key
-  const storageMatch = path.match(/^\/mirage\/v1\/storage\/(.+)$/);
+  // User Personal Storage - /mirage/v1/space/me/:key
+  const storageMatch = path.match(/^\/mirage\/v1\/space\/me\/(.+)$/);
   if (storageMatch) {
     const key = decodeURIComponent(storageMatch[1]);
     const storageCtx: StorageRouteContext = {
@@ -693,9 +700,6 @@ async function matchRoute(
   // =========================================================================
   // Admin Space Routes (require SYSTEM_APP_ORIGIN)
   // =========================================================================
-
-  // Helper to check admin access
-  const isAdminOrigin = appOrigin === SYSTEM_APP_ORIGIN;
 
   // GET /mirage/v1/admin/spaces - List spaces for current app origin
   if (method === "GET" && path === "/mirage/v1/admin/spaces") {

@@ -44,6 +44,16 @@ Apps declare required permissions in HTML meta tags:
 
 The Host validates permissions before routing requests.
 
+### Layer 5: Administrative Isolation
+
+Mirage distinguishes between regular apps and the management system (Host UI).
+
+- **Admin Prefix**: Sensitive operations (managing spaces, deleting apps) are prefixed with `/mirage/v1/admin/`.
+- **Origin Validation**: The Engine validates that the `appOrigin` of the request matches `SYSTEM_APP_ORIGIN` (mirage).
+- **App Isolation**: Regular apps (with `null` or unique app identifiers) receive `403 Forbidden` when attempting to access `/admin/*` endpoints.
+
+This ensures that a malicious app cannot rename your spaces, delete other apps, or access system-level configuration even if it manages to bypass other security layers.
+
 ### Layer 3: NIP-07 Signing
 
 Apps **never** have access to private keys:
