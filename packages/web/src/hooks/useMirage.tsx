@@ -147,8 +147,8 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
 
           const mirageHost = new MirageHost({
             relays: initialRelays,
-            engineUrl: `${origin}/engine-worker.js`,
-            bridgeUrl: `${origin}/bridge.js`,
+            engineUrl: `${origin}${import.meta.env.BASE_URL}engine-worker.js`,
+            bridgeUrl: `${origin}${import.meta.env.BASE_URL}bridge.js`,
             signer: (window as any).nostr
           });
 
