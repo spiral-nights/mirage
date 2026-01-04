@@ -131,28 +131,6 @@ export const MyAppsPage = () => {
         </p>
       </header>
 
-      {/* DEBUG INFO */}
-      <div className="mb-8 p-4 bg-red-500/10 border border-red-500/50 rounded-xl text-xs font-mono text-red-300 overflow-x-auto">
-        <strong>DEBUG DIAGNOSTICS:</strong><br />
-        Total Spaces: {spaces.length} | Apps: {apps.length} | External: {externalSpaces.length} | Orphan: {orphanSpaces.length}<br />
-        <hr className="border-red-500/30 my-2" />
-        <strong>APPS:</strong><br />
-        {apps.map(a => (
-          <div key={a.naddr}>
-            App Naddr: {a.naddr.slice(0, 15)}...<br />
-            Canonical: {getAppCanonicalId(a.naddr)}
-          </div>
-        ))}
-        <hr className="border-red-500/30 my-2" />
-        <strong>SPACES:</strong><br />
-        {spaces.map(s => (
-          <div key={s.id}>
-            Space Origin: {s.appOrigin?.slice(0, 15)}...<br />
-            Space Canonical: {s.appOrigin ? getAppCanonicalId(s.appOrigin) : 'null'}
-          </div>
-        ))}
-      </div>
-
       {/* Main Apps Section */}
       <section className="mb-12 md:mb-20">
         <div className="flex items-center gap-4 mb-8 md:mb-10">

@@ -103,6 +103,8 @@ export const RunPage = () => {
 
     return () => {
       mounted = false;
+      // Reset appOrigin and space context when navigating away
+      host?.unmount();
     };
   }, [naddr, host]); // Only depend on naddr and host, not fetchApp
 

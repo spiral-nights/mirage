@@ -18,7 +18,7 @@ export function useSpaces() {
     setLoading(true);
     try {
       // Use listAllSpaces to get spaces for all apps
-      const data = await host.request('GET', '/mirage/v1/spaces/all');
+      const data = await host.request('GET', '/mirage/v1/admin/spaces/all');
       if (Array.isArray(data)) {
         setSpaces(data);
       }
@@ -48,7 +48,7 @@ export function useSpaces() {
         await (host as any).renameSpace(spaceId, name);
       } else {
         // Fallback for older host version if necessary (though we just updated it)
-        await host.request('PUT', `/mirage/v1/spaces/${spaceId}`, { name });
+        await host.request('PUT', `/mirage/v1/admin/spaces/${spaceId}`, { name });
       }
       // Optimistically update local state
       setSpaces(prev => prev.map(s => s.id === spaceId ? { ...s, name } : s));

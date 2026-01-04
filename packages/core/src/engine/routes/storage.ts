@@ -11,6 +11,7 @@
 import type { Event, Filter } from 'nostr-tools';
 import type { RelayPool } from '../relay-pool';
 import type { UnsignedNostrEvent } from '../../types';
+import { SYSTEM_APP_ORIGIN } from '../keys';
 
 // ============================================================================
 // Types
@@ -41,7 +42,7 @@ export async function internalGetStorage<T = unknown>(
     if (!ctx.currentPubkey && !targetPubkey) throw new Error('Not authenticated');
 
     // System storage (keychain, library) uses 'mirage' origin and doesn't require space
-    const isSystemStorage = ctx.appOrigin === 'mirage';
+    const isSystemStorage = ctx.appOrigin === SYSTEM_APP_ORIGIN;
     if (!isSystemStorage && !ctx.currentSpace?.id) {
         throw new Error('Space context required for storage operations');
     }
@@ -109,7 +110,7 @@ export async function internalPutStorage<T>(
     if (!ctx.currentPubkey) throw new Error('Not authenticated');
 
     // System storage (keychain, library) uses 'mirage' origin and doesn't require space
-    const isSystemStorage = ctx.appOrigin === 'mirage';
+    const isSystemStorage = ctx.appOrigin === SYSTEM_APP_ORIGIN;
     if (!isSystemStorage && !ctx.currentSpace?.id) {
         throw new Error('Space context required for storage operations');
     }
@@ -227,7 +228,7 @@ export async function deleteStorage(
     }
 
     // System storage (keychain, library) uses 'mirage' origin and doesn't require space
-    const isSystemStorage = ctx.appOrigin === 'mirage';
+    const isSystemStorage = ctx.appOrigin === SYSTEM_APP_ORIGIN;
     if (!isSystemStorage && !ctx.currentSpace?.id) {
         return { status: 400, body: { error: 'Space context required for storage operations' } };
     }

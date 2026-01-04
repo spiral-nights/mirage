@@ -32,7 +32,7 @@ ${openApiSpec}
 Your app runs inside a "Space" - a user-created container for data.
 
 1. **Get current space:** ${B}GET /mirage/v1/space${B} returns the space context (id, name, etc.).
-2. **Use the space:** Use ${B}current${B} as the space ID: ${B}/mirage/v1/spaces/current/store/:key${B} for shared data.
+2. **Use the space:** Access shared data via ${B}/mirage/v1/space/store${B} (implicitly uses current space).
 3. **Standalone Check:** If ${B}/mirage/v1/space${B} returns ${B}{ standalone: true }${B}, warn the user or fallback to private storage.
 4. **DO NOT create spaces:** Users manage spaces in the Mirage UI. Your app ONLY consumes the provided space.
 
@@ -92,7 +92,7 @@ ${BBB}html
     }
 
     async function load() {
-      const res = await fetch('/mirage/v1/spaces/current/store');
+      const res = await fetch('/mirage/v1/space/store');
       if (res.ok) {
         const data = await res.json();
         render(data || {});
@@ -105,7 +105,7 @@ ${BBB}html
       if (!val) return;
 
       // 3. Update current space store
-      await fetch('/mirage/v1/spaces/current/store/' + Date.now(), {
+      await fetch('/mirage/v1/space/store/' + Date.now(), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: val })

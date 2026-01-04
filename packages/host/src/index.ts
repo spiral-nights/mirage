@@ -302,6 +302,21 @@ export class MirageHost {
             this.iframe = null;
         }
         this.appPermissions = { permissions: [] };
+
+        // Reset appOrigin to system origin so admin endpoints work again
+        this.engineWorker.postMessage({
+            type: "SET_APP_ORIGIN",
+            id: crypto.randomUUID(),
+            origin: "mirage",
+        });
+
+        // Clear space context
+        this.engineWorker.postMessage({
+            type: "SET_SPACE_CONTEXT",
+            id: crypto.randomUUID(),
+            spaceId: undefined,
+            spaceName: undefined,
+        });
     }
 
     // ==========================================================================
@@ -309,46 +324,46 @@ export class MirageHost {
     // ==========================================================================
 
     /**
-     * Create a new space
+     * Create a new space (Admin endpoint)
      */
     async createSpace(name: string, appId?: string): Promise<any> {
-        return this.request("POST", "/mirage/v1/spaces", { name, appOrigin: appId });
+        return this.request("POST", "/mirage/v1/admin/spaces", { name, appOrigin: appId });
     }
 
     /**
-     * Rename a space
+     * Rename a space (Admin endpoint)
      */
     async renameSpace(id: string, name: string): Promise<any> {
-        return this.request("PUT", `/mirage/v1/spaces/${id}`, { name });
+        return this.request("PUT", `/mirage/v1/admin/spaces/${id}`, { name });
     }
 
     /**
-     * List user's spaces
+     * List user's spaces (Admin endpoint)
      */
     async listSpaces(): Promise<any[]> {
-        return this.request("GET", "/mirage/v1/spaces");
+        return this.request("GET", "/mirage/v1/admin/spaces");
     }
 
     /**
-     * Get details for a specific space
+     * Get details for a specific space (Admin endpoint)
      */
     async getSpace(id: string): Promise<any> {
-        return this.request("GET", `/mirage/v1/spaces/${id}`);
+        return this.request("GET", `/mirage/v1/admin/spaces/${id}`);
     }
 
     /**
-     * Delete a space
+     * Delete a space (Admin endpoint)
      */
     async deleteSpace(id: string): Promise<void> {
-        return this.request("DELETE", `/mirage/v1/spaces/${id}`);
+        return this.request("DELETE", `/mirage/v1/admin/spaces/${id}`);
     }
 
     /**
-     * Invite a user to a space
+     * Invite a user to a space (Admin endpoint)
      */
     async inviteToSpace(spaceId: string, pubkey: string, spaceName?: string): Promise<void> {
         console.log(`[InviteDebug] host.inviteToSpace(spaceId=${spaceId}, pubkey=${pubkey.slice(0, 10)}..., name=${spaceName})`);
-        return this.request("POST", `/mirage/v1/spaces/${spaceId}/invite`, { pubkey, name: spaceName });
+        return this.request("POST", `/mirage/v1/admin/spaces/${spaceId}/invite`, { pubkey, name: spaceName });
     }
 
     /**

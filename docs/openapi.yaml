@@ -27,14 +27,24 @@ tags:
     description: |
       Save and load app data (settings, drafts, preferences).
       Data syncs across all your devices automatically.
-      
+
       **Space Required:** All storage operations require a Space context.
       Apps must be launched within a Space to use storage. This ensures
       complete data isolation between different instances of the same app.
   - name: Spaces
     description: |
-      Shared workspaces for collaboration. Data is encrypted and synced
-      between members. Use the `store` endpoint for easy shared state.
+      Access the current Space context and its shared data.
+      Use `GET /space` to get the current context, and `/space/store`
+      for collaborative key-value storage between Space members.
+
+      **Note:** Apps cannot create or manage Spaces directly.
+      Use the Admin endpoints for Space management.
+  - name: Admin
+    description: |
+      Administrative endpoints for Space management. These are restricted
+      to the Mirage management system (`appOrigin === 'mirage'`).
+
+      Regular apps calling these endpoints will receive a 403 Forbidden error.
   - name: DirectMessages
     description: |
       Private one-on-one messages. Fully encrypted - only you and the
@@ -320,7 +330,7 @@ paths:
       description: |
         Retrieves a previously stored value by key. Data is automatically
         synced across all devices.
-        
+
         **Requires Space:** This endpoint requires a Space context.
         The app must be launched within a Space.
       operationId: getStorage
@@ -354,7 +364,7 @@ paths:
       description: |
         Stores or updates a value by key. Changes are signed by you and
         propagated to the network.
-        
+
         **Requires Space:** This endpoint requires a Space context.
         The app must be launched within a Space.
       operationId: putStorage
@@ -448,11 +458,56 @@ paths:
                   - $ref: '#/components/schemas/Space'
                   - $ref: '#/components/schemas/SpaceContextStandalone'
 
+    put:
+      tags: [Spaces]
+      summary: Set current space context
+      description: |
+        Set the active Space for this session. After calling this, all
+        implicit Space operations (`/storage`, `/space/store`, etc.) will
+        use this Space.
+
+        **Standalone Apps:** Apps running outside the Mirage UI can use this
+        endpoint to set their Space context.
+      operationId: setSpaceContext
+      security:
+        - nip07: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [spaceId]
+              properties:
+                spaceId:
+                  type: string
+                  description: The Space ID to activate
+                spaceName:
+                  type: string
+                  description: Optional display name for the Space
+      responses:
+        '200':
+          description: Space context set successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  spaceId:
+                    type: string
+                  spaceName:
+                    type: string
+        '400':
+          description: spaceId is required
+
   /spaces:
     get:
+      deprecated: true
       tags: [Spaces]
-      summary: List my spaces
-      description: Returns all spaces you're a member of.
+      summary: "[DEPRECATED] List my spaces - use /admin/spaces"
+      description: |
+        **DEPRECATED:** Use `GET /admin/spaces` instead.
+        Returns all spaces you're a member of.
       operationId: listSpaces
       security:
         - nip07: []

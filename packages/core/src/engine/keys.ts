@@ -10,8 +10,14 @@ import type { SpaceKey } from "../types";
 import type { StorageRouteContext } from "./routes/storage";
 import { internalGetStorage, internalPutStorage } from "./routes/storage";
 
+/**
+ * System app origin - used for:
+ * 1. System-level storage (keychain, library) that exists outside of spaces
+ * 2. Admin API access validation (/admin/* routes)
+ */
+export const SYSTEM_APP_ORIGIN = "mirage";
+
 const KEY_STORAGE_ID = "mirage:space_keys";
-const KEYCHAIN_ORIGIN = "mirage";
 
 interface KeyMap {
   [spaceId: string]: SpaceKey;
@@ -26,7 +32,7 @@ export async function loadSpaceKeys(
 ): Promise<Map<string, SpaceKey>> {
   try {
     // Use a fixed origin for the keychain itself, so it's shared across all apps
-    const mirageCtx = { ...ctx, appOrigin: KEYCHAIN_ORIGIN };
+    const mirageCtx = { ...ctx, appOrigin: SYSTEM_APP_ORIGIN };
     const rawMap = await internalGetStorage<KeyMap>(mirageCtx, KEY_STORAGE_ID);
 
     if (!rawMap) {
@@ -58,7 +64,7 @@ export async function saveSpaceKeys(
     }
 
     // Use a fixed origin for the keychain itself
-    const mirageCtx = { ...ctx, appOrigin: KEYCHAIN_ORIGIN };
+    const mirageCtx = { ...ctx, appOrigin: SYSTEM_APP_ORIGIN };
     await internalPutStorage(mirageCtx, KEY_STORAGE_ID, rawMap);
     console.log("[Keys] Saved keys to NIP-78 (global keychain)");
   } catch (error) {
