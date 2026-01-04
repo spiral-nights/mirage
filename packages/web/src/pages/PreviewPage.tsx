@@ -72,17 +72,35 @@ export const PreviewPage = () => {
     }, [previewState, host, navigate]);
 
     const handlePublish = async () => {
-        if (!previewState) return;
+        if (!previewState || !host) return;
 
         const { code, existingDTag } = previewState;
         const name = previewState.appName || 'Unnamed App';
+        const isNewApp = !existingDTag;
 
         setIsPublishing(true);
         try {
             const naddr = await publishApp(code, name, existingDTag);
 
-            // Navigate to the updated app
-            navigate(`/run/${naddr}`);
+            // For new apps, auto-create a default space so storage works immediately
+            if (isNewApp) {
+                try {
+                    // Use the canonical ID for the space's appOrigin
+                    const { getAppCanonicalId } = await import('../lib/utils');
+                    const canonicalId = getAppCanonicalId(naddr);
+                    const space = await host.createSpace('Default Space', canonicalId);
+
+                    // Navigate to the app with the new default space active
+                    navigate(`/run/${naddr}?spaceId=${space.id}&spaceName=${encodeURIComponent('Default Space')}`);
+                } catch (spaceError) {
+                    console.error('Failed to create default space:', spaceError);
+                    // Still navigate to app, user will need to create a space manually
+                    navigate(`/run/${naddr}`);
+                }
+            } else {
+                // For updates, just navigate to the app
+                navigate(`/run/${naddr}`);
+            }
         } catch (error) {
             console.error('Publishing failed:', error);
             alert('Publishing failed. Do you have a Nostr extension (NIP-07) installed?');

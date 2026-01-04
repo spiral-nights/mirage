@@ -194,14 +194,55 @@ export async function deleteSpace(
 
     // Soft delete: mark as deleted instead of removing
     const existing = keys.get(targetScopedId)!;
-    keys.set(targetScopedId, { 
-        ...existing, 
+    keys.set(targetScopedId, {
+        ...existing,
         deleted: true,
         deletedAt: Math.floor(Date.now() / 1000)
     });
     await saveSpaceKeys(ctx, keys);
 
     return { status: 200, body: { deleted: spaceId } };
+}
+
+/**
+ * PUT /mirage/v1/spaces/:id
+ * Update space details (e.g. rename)
+ */
+export async function updateSpace(
+    ctx: SpaceRouteContext,
+    rawSpaceId: string,
+    body: { name: string }
+): Promise<{ status: number; body: unknown }> {
+    if (!ctx.currentPubkey) return { status: 401, body: { error: 'Not authenticated' } };
+    if (!body?.name) return { status: 400, body: { error: 'Space name required' } };
+
+    const spaceId = resolveSpaceId(ctx, rawSpaceId);
+    const keys = await getKeys(ctx);
+
+    // 1. Try directly with current appOrigin
+    let targetScopedId = `${ctx.appOrigin}:${spaceId}`;
+
+    // 2. Fallback: Search for any scopedId ending with :spaceId
+    if (!keys.has(targetScopedId)) {
+        const found = Array.from(keys.keys()).find(k => k.endsWith(`:${spaceId}`));
+        if (found) {
+            targetScopedId = found;
+        } else {
+            return { status: 404, body: { error: 'Space not found' } };
+        }
+    }
+
+    // Update name
+    const existing = keys.get(targetScopedId)!;
+    keys.set(targetScopedId, {
+        ...existing,
+        name: body.name,
+        // Ensure we don't accidentally revive if it was deleted (though UI shouldn't allow this)
+    });
+
+    await saveSpaceKeys(ctx, keys);
+
+    return { status: 200, body: { id: spaceId, name: body.name } };
 }
 
 /**
@@ -324,7 +365,7 @@ export async function inviteMember(
 
     const spaceId = resolveSpaceId(ctx, rawSpaceId);
     let receiverPubkey = body.pubkey;
-    
+
     console.log(`[InviteDebug] engine.inviteMember: spaceId=${spaceId} targetPubkey=${receiverPubkey.slice(0, 10)}...`);
 
     if (receiverPubkey.startsWith('npub')) {
@@ -423,19 +464,19 @@ export async function syncInvites(ctx: SpaceRouteContext): Promise<void> {
             if (innerEvent.kind === 13) {
                 const payload = JSON.parse(innerEvent.content);
                 console.log(`[InviteDebug] Found Kind 13 rumor, type: ${payload.type}`);
-                
+
                 // Check for 'mirage_invite' and correct payload fields
                 if (payload.type === 'mirage_invite' && payload.key && payload.scopedId) {
                     const existing = keys.get(payload.scopedId);
-                    
+
                     // Logic:
                     // 1. New space: Add it
                     // 2. Existing space (active): Update if newer version
                     // 3. Existing space (deleted): Revive if invite is NEWER than deletion timestamp
-                    
+
                     const isNewerInvite = existing?.deleted && innerEvent.created_at > (existing.deletedAt || 0);
-                    
-                    if (!existing || 
+
+                    if (!existing ||
                         (!existing.deleted && existing.version < payload.version) ||
                         isNewerInvite
                     ) {
@@ -443,16 +484,16 @@ export async function syncInvites(ctx: SpaceRouteContext): Promise<void> {
                         if (isNewerInvite) {
                             console.log(`[InviteDebug] Reviving deleted space because invite is newer (${innerEvent.created_at} > ${existing?.deletedAt})`);
                         }
-                        
+
                         keys.set(payload.scopedId, {
                             key: payload.key,
                             version: payload.version,
                             name: payload.name, // Save name
                             deleted: false, // Ensure active
-                            deletedAt: undefined 
+                            deletedAt: undefined
                         });
                         updated = true;
-                        
+
                         // Parse spaceId from scopedId
                         const parts = payload.scopedId.split(':');
                         if (parts.length > 1) {
@@ -476,7 +517,7 @@ export async function syncInvites(ctx: SpaceRouteContext): Promise<void> {
     if (updated) {
         console.log(`[InviteDebug] Saving updated keychain with ${newSpaces.length} new spaces`);
         await saveSpaceKeys(ctx, keys);
-        
+
         // Emit notifications
         for (const space of newSpaces) {
             console.log(`[InviteDebug] Emitting NEW_SPACE_INVITE notification for: ${space.name || space.id}`);

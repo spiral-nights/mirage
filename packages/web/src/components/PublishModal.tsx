@@ -104,7 +104,13 @@ export const PublishModal = ({
       </div>
 
       {/* Content */}
-      <div className="p-12 pt-6">
+      <form
+        className="p-12 pt-6"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!isView && name.trim() && code.trim()) handlePreview();
+        }}
+      >
         {!isView && (
           <div className="mb-8">
             <label className="block text-xs font-black uppercase tracking-[0.3em] text-gray-600 mb-3">
@@ -188,7 +194,7 @@ export const PublishModal = ({
             {isView ? "Close" : "Cancel"}
           </button>
         </div>
-      </div>
+      </form>
 
       {/* Footer Status */}
       <div className="px-12 py-5 bg-black/60 border-t border-white/5 flex justify-between items-center text-[10px] font-black text-gray-600 uppercase tracking-[0.3em]">

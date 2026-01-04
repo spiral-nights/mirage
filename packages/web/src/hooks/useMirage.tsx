@@ -266,7 +266,22 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
 
     // Update local state
     setApps(prevApps => {
-      const filtered = prevApps.filter(a => a.naddr !== naddr);
+      // Decode the new app to get its identifier
+      let newIdentifier = dTag;
+
+      // Filter out any existing app with the same identifier and pubkey
+      // We assume same pubkey since we are the author
+      const filtered = prevApps.filter(a => {
+        try {
+          const decoded = nip19.decode(a.naddr);
+          if (decoded.type === 'naddr' && decoded.data.identifier === newIdentifier && decoded.data.pubkey === pubkey) {
+            return false;
+          }
+        } catch (e) { /* ignore */ }
+        // Fallback to strict naddr match just in case
+        return a.naddr !== naddr;
+      });
+
       return [appDef, ...filtered];
     });
 

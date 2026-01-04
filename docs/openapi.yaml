@@ -27,6 +27,10 @@ tags:
     description: |
       Save and load app data (settings, drafts, preferences).
       Data syncs across all your devices automatically.
+      
+      **Space Required:** All storage operations require a Space context.
+      Apps must be launched within a Space to use storage. This ensures
+      complete data isolation between different instances of the same app.
   - name: Spaces
     description: |
       Shared workspaces for collaboration. Data is encrypted and synced
@@ -316,6 +320,9 @@ paths:
       description: |
         Retrieves a previously stored value by key. Data is automatically
         synced across all devices.
+        
+        **Requires Space:** This endpoint requires a Space context.
+        The app must be launched within a Space.
       operationId: getStorage
       security:
         - nip07: []
@@ -347,6 +354,9 @@ paths:
       description: |
         Stores or updates a value by key. Changes are signed by you and
         propagated to the network.
+        
+        **Requires Space:** This endpoint requires a Space context.
+        The app must be launched within a Space.
       operationId: putStorage
       security:
         - nip07: []

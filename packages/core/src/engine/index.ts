@@ -29,6 +29,7 @@ import {
   syncInvites,
   getSpaceStore,
   updateSpaceStore,
+  updateSpace,
   getSpaceContext,
   type SpaceRouteContext,
 } from "./routes/spaces";
@@ -550,7 +551,9 @@ async function matchRoute(
       requestDecrypt,
       currentPubkey,
       appOrigin,
+      currentSpace,
     };
+    console.log(`[Engine] Storage request: key="${key}" appOrigin="${appOrigin?.slice(0, 20)}..." currentSpace.id="${currentSpace?.id}" currentSpace.name="${currentSpace?.name}"`);
 
     if (method === "GET") {
       return {
@@ -644,6 +647,14 @@ async function matchRoute(
     if (method === "DELETE" && (subPath === "" || subPath === "/")) {
       return {
         handler: async () => deleteSpace(spaceCtx, spaceId),
+        params: { spaceId },
+      };
+    }
+
+    // PUT /mirage/v1/spaces/:id (update space details e.g. rename)
+    if (method === "PUT" && (subPath === "" || subPath === "/")) {
+      return {
+        handler: async (body) => updateSpace(spaceCtx, spaceId, body as { name: string }),
         params: { spaceId },
       };
     }

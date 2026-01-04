@@ -41,6 +41,24 @@ export function useSpaces() {
     }
   }, [host, refreshSpaces]);
 
+  const renameSpace = useCallback(async (spaceId: string, name: string) => {
+    if (!host) return false;
+    try {
+      if ((host as any).renameSpace) {
+        await (host as any).renameSpace(spaceId, name);
+      } else {
+        // Fallback for older host version if necessary (though we just updated it)
+        await host.request('PUT', `/mirage/v1/spaces/${spaceId}`, { name });
+      }
+      // Optimistically update local state
+      setSpaces(prev => prev.map(s => s.id === spaceId ? { ...s, name } : s));
+      return true;
+    } catch (e) {
+      console.error('[useSpaces] Rename failed:', e);
+      return false;
+    }
+  }, [host]);
+
   const deleteSpace = useCallback(async (spaceId: string) => {
     if (!host) return false;
     try {
@@ -60,5 +78,5 @@ export function useSpaces() {
     }
   }, [isReady, refreshSpaces]);
 
-  return { spaces, loading, refreshSpaces, createSpace, deleteSpace };
+  return { spaces, loading, refreshSpaces, createSpace, deleteSpace, renameSpace };
 }

@@ -1,20 +1,20 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-    Key, 
-    Shield, 
-    PlusCircle, 
-    Fingerprint, 
-    ArrowRight, 
-    Check, 
+import {
+    Key,
+    Shield,
+    PlusCircle,
+    Fingerprint,
+    ArrowRight,
+    Check,
     AlertCircle,
     Loader2
 } from 'lucide-react';
 import { ModalWrapper } from './ModalWrapper';
-import { 
-    createNewSecretKey, 
-    encodeNsec, 
-    validateAndDecodeKey, 
+import {
+    createNewSecretKey,
+    encodeNsec,
+    validateAndDecodeKey,
     injectSigner,
     isPrfSupported,
     derivePrfKey,
@@ -121,13 +121,13 @@ export const LoginModal = ({ isOpen, onSuccess }: LoginModalProps) => {
             const stored = loadIdentity();
             if (!stored) throw new Error("No saved identity found");
 
-            const { key } = await derivePrfKey({ 
-                credentialId: Uint8Array.from(atob(stored.credentialId), c => c.charCodeAt(0)) 
+            const { key } = await derivePrfKey({
+                credentialId: Uint8Array.from(atob(stored.credentialId), c => c.charCodeAt(0))
             });
             const nsec = await (await import('@mirage/host')).decryptWithPrfKey(key, stored.ciphertext, stored.iv);
             const sk = validateAndDecodeKey(nsec);
             if (!sk) throw new Error("Decryption failed to produce valid key");
-            
+
             completeLogin(sk);
         } catch (e: any) {
             setError("Failed to unlock. Please try again or use your nsec manually.");
@@ -137,7 +137,7 @@ export const LoginModal = ({ isOpen, onSuccess }: LoginModalProps) => {
     };
 
     return (
-        <ModalWrapper isOpen={isOpen} onClose={() => {}} fullScreen={true} className="max-w-md">
+        <ModalWrapper isOpen={isOpen} onClose={() => { }} fullScreen={true} className="max-w-md">
             <div className="p-8">
                 {/* Header */}
                 <div className="flex flex-col items-center mb-8">
@@ -210,34 +210,43 @@ export const LoginModal = ({ isOpen, onSuccess }: LoginModalProps) => {
                             animate={{ opacity: 1, x: 0 }}
                             exit={{ opacity: 0, x: -20 }}
                         >
-                            <div className="mb-6">
-                                <label className="text-[10px] text-gray-500 uppercase tracking-widest font-black mb-2 block">
-                                    Enter Secret Key (nsec...)
-                                </label>
-                                <input
-                                    type="password"
-                                    value={nsecInput}
-                                    onChange={(e) => setNsecInput(e.target.value)}
-                                    placeholder="nsec1..."
-                                    className="w-full bg-[#111] border border-white/10 rounded-xl p-4 text-white font-mono text-sm focus:border-vivid-cyan focus:outline-none"
-                                />
-                            </div>
+                            <form
+                                onSubmit={(e) => {
+                                    e.preventDefault();
+                                    handleManualLogin();
+                                }}
+                            >
+                                <div className="mb-6">
+                                    <label className="text-[10px] text-gray-500 uppercase tracking-widest font-black mb-2 block">
+                                        Enter Secret Key (nsec...)
+                                    </label>
+                                    <input
+                                        type="password"
+                                        value={nsecInput}
+                                        onChange={(e) => setNsecInput(e.target.value)}
+                                        placeholder="nsec1..."
+                                        className="w-full bg-[#111] border border-white/10 rounded-xl p-4 text-white font-mono text-sm focus:border-vivid-cyan focus:outline-none"
+                                        autoFocus
+                                    />
+                                </div>
 
-                            <div className="flex flex-col gap-3">
-                                <button
-                                    onClick={handleManualLogin}
-                                    disabled={!nsecInput || isLoading || prfStatus === 'loading'}
-                                    className="w-full p-5 bg-white text-black rounded-2xl font-black uppercase tracking-widest text-sm hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
-                                >
-                                    {prfStatus === 'loading' ? 'Checking Security...' : 'Continue'}
-                                </button>
-                                <button
-                                    onClick={() => setStep('landing')}
-                                    className="w-full p-4 text-gray-500 text-xs uppercase tracking-widest font-black hover:text-white"
-                                >
-                                    Back
-                                </button>
-                            </div>
+                                <div className="flex flex-col gap-3">
+                                    <button
+                                        type="submit"
+                                        disabled={!nsecInput || isLoading || prfStatus === 'loading'}
+                                        className="w-full p-5 bg-white text-black rounded-2xl font-black uppercase tracking-widest text-sm hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
+                                    >
+                                        {prfStatus === 'loading' ? 'Checking Security...' : 'Continue'}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setStep('landing')}
+                                        className="w-full p-4 text-gray-500 text-xs uppercase tracking-widest font-black hover:text-white"
+                                    >
+                                        Back
+                                    </button>
+                                </div>
+                            </form>
                         </motion.div>
                     )}
 
@@ -250,8 +259,8 @@ export const LoginModal = ({ isOpen, onSuccess }: LoginModalProps) => {
                             className="text-center"
                         >
                             <p className="text-sm text-gray-400 mb-6 font-medium leading-relaxed">
-                                We've generated a secure new identity for you. <br/>
-                                <strong className="text-vivid-magenta">Save this key immediately!</strong><br/>
+                                We've generated a secure new identity for you. <br />
+                                <strong className="text-vivid-magenta">Save this key immediately!</strong><br />
                                 You cannot recover it if lost.
                             </p>
 

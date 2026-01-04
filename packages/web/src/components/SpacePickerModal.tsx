@@ -3,6 +3,7 @@ import { X, Database, Plus, Play, Info, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ModalWrapper } from './ModalWrapper';
 import { useSpaces } from '../hooks/useSpaces';
+import { getAppCanonicalId } from '../lib/utils';
 
 import { type AppDefinition } from '@mirage/core';
 
@@ -20,10 +21,12 @@ export const SpacePickerModal = ({ isOpen, onClose, app, onCreateNew }: SpacePic
 
   if (!app) return null;
 
-  const appSpaces = spaces.filter(s => s.appOrigin === app.naddr);
+  // Use canonical ID for matching to handle relay list changes in naddr
+  const canonicalId = getAppCanonicalId(app.naddr);
+  const appSpaces = spaces.filter(s => s.appOrigin === canonicalId);
 
   // Check if a "Default" space already exists for this app
-  const defaultSpace = appSpaces.find(s => s.name === 'Default');
+  const defaultSpace = appSpaces.find(s => s.name === 'Default' || s.name === 'Default Space');
 
   const handleSelectSpace = (spaceId: string, spaceName: string) => {
     navigate(`/run/${app.naddr}?spaceId=${spaceId}&spaceName=${encodeURIComponent(spaceName)}`);
@@ -40,7 +43,7 @@ export const SpacePickerModal = ({ isOpen, onClose, app, onCreateNew }: SpacePic
     // Create a new Default space
     setIsCreatingDefault(true);
     try {
-      const space = await createSpace('Default', app.naddr);
+      const space = await createSpace('Default Space', canonicalId);
       if (space) {
         navigate(`/run/${app.naddr}?spaceId=${space.id}&spaceName=Default`);
         onClose();

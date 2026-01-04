@@ -38,10 +38,24 @@ export async function internalGetStorage<T = unknown>(
     key: string,
     targetPubkey?: string
 ): Promise<T | null> {
+    console.log(`[StorageDebug] GET key="${key}" appOrigin="${ctx.appOrigin}" spaceId="${ctx.currentSpace?.id}" spaceName="${ctx.currentSpace?.name}"`);
+
     if (!ctx.currentPubkey && !targetPubkey) throw new Error('Not authenticated');
 
+    // System storage (keychain, library) uses 'mirage' origin and doesn't require space
+    const isSystemStorage = ctx.appOrigin === 'mirage';
+    if (!isSystemStorage && !ctx.currentSpace?.id) {
+        console.error(`[StorageDebug] FAILED: No space context for app storage. appOrigin=${ctx.appOrigin}`);
+        throw new Error('Space context required for storage operations');
+    }
+
     const author = targetPubkey || ctx.currentPubkey!;
-    const dTag = `${ctx.appOrigin}:${key}`;
+    // App storage is scoped to space, system storage is not
+    const dTag = isSystemStorage
+        ? `${ctx.appOrigin}:${key}`
+        : `${ctx.appOrigin}:${ctx.currentSpace!.id}:${key}`;
+
+    console.log(`[StorageDebug] Querying dTag="${dTag}" author="${author.slice(0, 8)}..."`);
 
     const filter: Filter = {
         kinds: [30078],
@@ -51,6 +65,7 @@ export async function internalGetStorage<T = unknown>(
     };
 
     const event = await ctx.pool.query([filter], 3000);
+    console.log(`[StorageDebug] Query result: ${event ? 'FOUND' : 'NOT FOUND'}`);
 
     if (!event) return null;
     const content = event.content;
@@ -99,7 +114,16 @@ export async function internalPutStorage<T>(
 ): Promise<Event> {
     if (!ctx.currentPubkey) throw new Error('Not authenticated');
 
-    const dTag = `${ctx.appOrigin}:${key}`;
+    // System storage (keychain, library) uses 'mirage' origin and doesn't require space
+    const isSystemStorage = ctx.appOrigin === 'mirage';
+    if (!isSystemStorage && !ctx.currentSpace?.id) {
+        throw new Error('Space context required for storage operations');
+    }
+
+    // App storage is scoped to space, system storage is not
+    const dTag = isSystemStorage
+        ? `${ctx.appOrigin}:${key}`
+        : `${ctx.appOrigin}:${ctx.currentSpace!.id}:${key}`;
     const plaintext = typeof value === 'string' ? value : JSON.stringify(value);
 
     console.log(`[Storage] PUT key="${key}" dTag="${dTag}" public=${isPublic}`);
@@ -208,7 +232,16 @@ export async function deleteStorage(
         return { status: 401, body: { error: 'Not authenticated' } };
     }
 
-    const dTag = `${ctx.appOrigin}:${key}`;
+    // System storage (keychain, library) uses 'mirage' origin and doesn't require space
+    const isSystemStorage = ctx.appOrigin === 'mirage';
+    if (!isSystemStorage && !ctx.currentSpace?.id) {
+        return { status: 400, body: { error: 'Space context required for storage operations' } };
+    }
+
+    // App storage is scoped to space, system storage is not
+    const dTag = isSystemStorage
+        ? `${ctx.appOrigin}:${key}`
+        : `${ctx.appOrigin}:${ctx.currentSpace!.id}:${key}`;
 
     // Encrypt empty content
     let ciphertext: string;

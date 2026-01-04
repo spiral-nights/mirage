@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 
 import { useMirage } from '../hooks/useMirage';
-import { cn } from '../lib/utils';
+import { cn, getAppCanonicalId } from '../lib/utils';
 import {
   LayoutGrid,
   Play,
@@ -15,7 +15,9 @@ import {
   ChevronRight,
   Package,
   Code2,
-  Edit3
+  Edit3,
+  Check,
+  XCircle
 } from 'lucide-react';
 import { type AppDefinition } from '@mirage/core';
 import { PublishModal } from '../components/PublishModal';
@@ -31,23 +33,12 @@ interface SpaceWithApp {
   appOrigin?: string;
 }
 
-function getAppCanonicalId(naddr: string): string {
-  try {
-    const decoded = nip19.decode(naddr);
-    if (decoded.type === 'naddr') {
-      const data = decoded.data as { pubkey: string; identifier: string };
-      return `${data.pubkey}:${data.identifier}`;
-    }
-    return naddr;
-  } catch {
-    return naddr;
-  }
-}
+
 
 export const MyAppsPage = () => {
   const navigate = useNavigate();
   const { apps, isReady, deleteApp, fetchApp, pubkey } = useMirage();
-  const { spaces, deleteSpace } = useSpaces();
+  const { spaces, deleteSpace, renameSpace } = useSpaces();
 
   // Modal State
   const [publishModalOpen, setPublishModalOpen] = useState(false);
@@ -140,6 +131,28 @@ export const MyAppsPage = () => {
         </p>
       </header>
 
+      {/* DEBUG INFO */}
+      <div className="mb-8 p-4 bg-red-500/10 border border-red-500/50 rounded-xl text-xs font-mono text-red-300 overflow-x-auto">
+        <strong>DEBUG DIAGNOSTICS:</strong><br />
+        Total Spaces: {spaces.length} | Apps: {apps.length} | External: {externalSpaces.length} | Orphan: {orphanSpaces.length}<br />
+        <hr className="border-red-500/30 my-2" />
+        <strong>APPS:</strong><br />
+        {apps.map(a => (
+          <div key={a.naddr}>
+            App Naddr: {a.naddr.slice(0, 15)}...<br />
+            Canonical: {getAppCanonicalId(a.naddr)}
+          </div>
+        ))}
+        <hr className="border-red-500/30 my-2" />
+        <strong>SPACES:</strong><br />
+        {spaces.map(s => (
+          <div key={s.id}>
+            Space Origin: {s.appOrigin?.slice(0, 15)}...<br />
+            Space Canonical: {s.appOrigin ? getAppCanonicalId(s.appOrigin) : 'null'}
+          </div>
+        ))}
+      </div>
+
       {/* Main Apps Section */}
       <section className="mb-12 md:mb-20">
         <div className="flex items-center gap-4 mb-8 md:mb-10">
@@ -160,6 +173,7 @@ export const MyAppsPage = () => {
                 spaces={appSpaces.get(getAppCanonicalId(app.naddr)) || []}
                 onDeleteApp={deleteApp}
                 onDeleteSpace={deleteSpace}
+                onRenameSpace={renameSpace} // Added
                 onOpenSource={handleOpenSource}
                 onLaunch={handleLaunch}
                 pubkey={pubkey}
@@ -276,6 +290,7 @@ const AppWithSpaces = ({
   spaces,
   onDeleteApp,
   onDeleteSpace,
+  onRenameSpace,
   onOpenSource,
   onLaunch,
   pubkey
@@ -285,6 +300,7 @@ const AppWithSpaces = ({
   spaces: SpaceWithApp[];
   onDeleteApp: (naddr: string) => Promise<boolean>;
   onDeleteSpace: (spaceId: string) => Promise<boolean>;
+  onRenameSpace: (spaceId: string, name: string) => Promise<boolean>;
   onOpenSource: (app: AppDefinition, mode: 'edit' | 'view') => void;
   onLaunch: (app: AppDefinition) => void;
   pubkey: string | null;
@@ -445,7 +461,7 @@ const AppWithSpaces = ({
                     Encrypted Data Clusters
                   </p>
                   {spaces.map((space, i) => (
-                    <SpaceRow key={space.id} space={space} index={i} onDelete={onDeleteSpace} />
+                    <SpaceRow key={space.id} space={space} index={i} onDelete={onDeleteSpace} onRename={onRenameSpace} />
                   ))}
                 </div>
               ) : (
@@ -459,27 +475,51 @@ const AppWithSpaces = ({
           </motion.div>
         )}
       </AnimatePresence>
-    </motion.div>
+    </motion.div >
   );
 };
 
 
 const SpaceRow = ({
   space,
-  onDelete
+  onDelete,
+  onRename
 }: {
   space: SpaceWithApp;
   index: number;
   onDelete: (spaceId: string) => Promise<boolean>;
+  onRename: (spaceId: string, name: string) => Promise<boolean>;
 }) => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState(space.name);
+  const [isSaving, setIsSaving] = useState(false);
 
   const handleDelete = async () => {
     setIsDeleting(true);
     await onDelete(space.id);
     setIsDeleting(false);
     setShowConfirm(false);
+  };
+
+  const handleSave = async () => {
+    if (!editName.trim() || editName === space.name) {
+      setIsEditing(false);
+      return;
+    }
+    setIsSaving(true);
+    await onRename(space.id, editName);
+    setIsSaving(false);
+    setIsEditing(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') handleSave();
+    if (e.key === 'Escape') {
+      setEditName(space.name);
+      setIsEditing(false);
+    }
   };
 
   const isUnnamed = !space.name || space.name.startsWith('Space ');
@@ -505,7 +545,7 @@ const SpaceRow = ({
                 No
               </button>
               <button
-                onClick={handleDelete}
+                onClick={() => handleDelete}
                 className="px-3 py-1.5 text-[10px] font-black uppercase rounded-lg bg-red-600 text-white flex items-center gap-2"
                 disabled={isDeleting}
               >
@@ -524,24 +564,57 @@ const SpaceRow = ({
       </div>
 
       <div className="flex-1 min-w-0">
-        <span className={cn(
-          "text-sm font-semibold transition-colors group-hover:text-vivid-yellow truncate block",
-          isUnnamed ? 'text-gray-700 italic font-light' : 'text-gray-300'
-        )}>
-          {space.name}
-        </span>
+        {isEditing ? (
+          <div className="flex items-center gap-2">
+            <input
+              autoFocus
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              onKeyDown={handleKeyDown}
+              className="bg-black/40 border border-white/10 rounded-lg px-2 py-1 text-sm text-white w-full outline-none focus:border-vivid-yellow/50"
+            />
+          </div>
+        ) : (
+          <span className={cn(
+            "text-sm font-semibold transition-colors group-hover:text-vivid-yellow truncate block cursor-pointer",
+            isUnnamed ? 'text-gray-700 italic font-light' : 'text-gray-300'
+          )} onClick={() => setIsEditing(true)}>
+            {space.name}
+          </span>
+        )}
       </div>
 
-      <span className="px-2 py-0.5 rounded-md bg-white/5 text-[9px] text-gray-700 font-mono tracking-wider uppercase">
-        #{space.id.slice(0, 6)}
-      </span>
+      {!isEditing && (
+        <span className="px-2 py-0.5 rounded-md bg-white/5 text-[9px] text-gray-700 font-mono tracking-wider uppercase">
+          #{space.id.slice(0, 6)}
+        </span>
+      )}
 
-      <button
-        onClick={() => setShowConfirm(true)}
-        className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-gray-700 hover:text-red-500 transition-all opacity-0 group-hover:opacity-100 shrink-0"
-      >
-        <Trash2 size={14} />
-      </button>
+      {isEditing ? (
+        <div className="flex items-center gap-1">
+          <button onClick={() => setIsEditing(false)} disabled={isSaving} className="p-1.5 rounded-lg hover:bg-white/10 text-gray-500 disabled:opacity-50">
+            <XCircle size={14} />
+          </button>
+          <button onClick={handleSave} disabled={isSaving} className="p-1.5 rounded-lg hover:bg-vivid-yellow/20 text-vivid-yellow disabled:opacity-50">
+            {isSaving ? <div className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" /> : <Check size={14} />}
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={() => { setEditName(space.name); setIsEditing(true); }}
+            className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-gray-700 hover:text-white transition-all shrink-0 mr-1"
+          >
+            <Edit3 size={14} />
+          </button>
+          <button
+            onClick={() => setShowConfirm(true)}
+            className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-gray-700 hover:text-red-500 transition-all shrink-0"
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
+      )}
     </div>
   );
 };

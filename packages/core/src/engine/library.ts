@@ -5,6 +5,7 @@
  */
 
 import { AppDefinition } from '../types';
+import { nip19 } from 'nostr-tools';
 import { StorageRouteContext, internalGetStorage, internalPutStorage } from './routes/storage';
 
 const APP_LIST_ID = 'mirage:app_list';
@@ -51,8 +52,39 @@ export async function addAppToLibrary(
     console.log('[Library] Adding app to library:', app.name, app.naddr?.slice(0, 20) + '...');
     const library = await loadAppLibrary(ctx);
 
-    // Deduplicate by naddr
-    const filtered = library.filter(a => a.naddr !== app.naddr);
+    let newIdentifier: string | undefined;
+    let newPubkey: string | undefined;
+
+    try {
+        const decoded = nip19.decode(app.naddr);
+        if (decoded.type === 'naddr') {
+            newIdentifier = decoded.data.identifier;
+            newPubkey = decoded.data.pubkey;
+        }
+    } catch (e) {
+        console.warn('[Library] Failed to decode new app naddr:', e);
+    }
+
+    // Deduplicate by d-tag/pubkey if available, otherwise fallback to naddr string equality
+    const filtered = library.filter(existing => {
+        if (existing.naddr === app.naddr) return false; // Exact string match
+
+        if (newIdentifier && newPubkey) {
+            try {
+                const decoded = nip19.decode(existing.naddr);
+                if (decoded.type === 'naddr') {
+                    // If same d-tag AND same author, it's the same app (updated version)
+                    if (decoded.data.identifier === newIdentifier && decoded.data.pubkey === newPubkey) {
+                        return false;
+                    }
+                }
+            } catch (e) {
+                // If existing is invalid, keep it (or maybe remove it? safer to keep for now)
+            }
+        }
+        return true;
+    });
+
     const updated = [app, ...filtered];
 
     console.log('[Library] Library size: before=', library.length, ', after=', updated.length);

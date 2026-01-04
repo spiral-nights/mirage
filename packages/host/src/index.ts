@@ -13,8 +13,25 @@ import type {
     Nip07Signer,
     AppPermissions,
 } from "@mirage/core";
+import { nip19 } from "nostr-tools";
 import { Signer } from "./signer";
 import { parsePermissions, isPathAllowed } from "./permissions";
+
+/**
+ * Convert an naddr to a shorter canonical ID (kind:pubkey:identifier)
+ * This is used for storage d-tags to keep them at a reasonable length
+ */
+function getCanonicalAppId(naddr: string): string {
+    try {
+        const decoded = nip19.decode(naddr);
+        if (decoded.type === 'naddr') {
+            return `${decoded.data.kind}:${decoded.data.pubkey}:${decoded.data.identifier}`;
+        }
+    } catch (e) {
+        console.warn('[Host] Failed to decode naddr for canonical ID:', e);
+    }
+    return naddr; // Fallback to original if decode fails
+}
 
 // ============================================================================
 // Allowed External URLs for CSP
@@ -228,25 +245,26 @@ export class MirageHost {
                     window.removeEventListener("message", handleReady);
                     console.log("[Host] Bridge ready");
 
-                    // Set app origin for space scoping
+                    // Set app origin for space scoping (use canonical ID for shorter d-tags)
                     if (appId) {
+                        const canonicalOrigin = getCanonicalAppId(appId);
                         console.log(
                             "[Host] Setting app origin:",
-                            appId.slice(0, 20) + "...",
+                            canonicalOrigin,
                         );
 
                         // Send to Engine (for relay operations)
                         this.engineWorker.postMessage({
                             type: "SET_APP_ORIGIN",
                             id: crypto.randomUUID(),
-                            origin: appId,
+                            origin: canonicalOrigin,
                         });
 
                         // Send to Bridge/Iframe (for preview mode detection)
                         this.iframe?.contentWindow?.postMessage(
                             {
                                 type: "SET_APP_ORIGIN",
-                                origin: appId,
+                                origin: canonicalOrigin,
                             },
                             "*",
                         );
@@ -295,6 +313,13 @@ export class MirageHost {
      */
     async createSpace(name: string, appId?: string): Promise<any> {
         return this.request("POST", "/mirage/v1/spaces", { name, appOrigin: appId });
+    }
+
+    /**
+     * Rename a space
+     */
+    async renameSpace(id: string, name: string): Promise<any> {
+        return this.request("PUT", `/mirage/v1/spaces/${id}`, { name });
     }
 
     /**

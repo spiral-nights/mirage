@@ -3,7 +3,7 @@ import { X, Database, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useMirage } from '../hooks/useMirage';
 import { useSpaces } from '../hooks/useSpaces';
-import { cn } from '../lib/utils';
+import { cn, getAppCanonicalId } from '../lib/utils';
 import { ModalWrapper } from './ModalWrapper';
 
 interface CreateSpaceModalProps {
@@ -36,7 +36,9 @@ export const CreateSpaceModal = ({ isOpen, onClose, onSuccess, initialAppId }: C
 
     setIsCreating(true);
     try {
-      const space = await createSpace(name, selectedAppId);
+      // Use Canonical ID as the app origin to ensure spaces stick even if app naddr (relays) changes
+      const canonicalId = getAppCanonicalId(selectedAppId);
+      const space = await createSpace(name, canonicalId);
       if (space) {
         onSuccess?.(space.id);
         navigate(`/run/${selectedAppId}?spaceId=${space.id}&spaceName=${encodeURIComponent(name)}`);
@@ -70,7 +72,13 @@ export const CreateSpaceModal = ({ isOpen, onClose, onSuccess, initialAppId }: C
         </button>
       </div>
 
-      <div className="p-10 pt-6 space-y-8">
+      <form
+        className="p-10 pt-6 space-y-8"
+        onSubmit={(e) => {
+          e.preventDefault();
+          handleCreate();
+        }}
+      >
         {/* Space Name */}
         <div>
           <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-gray-600 mb-3">
@@ -96,6 +104,7 @@ export const CreateSpaceModal = ({ isOpen, onClose, onSuccess, initialAppId }: C
                 apps.map((app) => (
                   <button
                     key={app.naddr}
+                    type="button"
                     onClick={() => setSelectedAppId(app.naddr)}
                     className={cn(
                       "flex items-center gap-4 p-4 rounded-2xl border transition-all text-left group",
@@ -145,7 +154,7 @@ export const CreateSpaceModal = ({ isOpen, onClose, onSuccess, initialAppId }: C
 
         <div className="flex items-center gap-4 mt-4">
           <button
-            onClick={handleCreate}
+            type="submit"
             disabled={isCreating || !name.trim() || !selectedAppId}
             className={cn(
               "flex-1 py-4 rounded-2xl font-black transition-all relative overflow-hidden text-sm uppercase tracking-widest flex items-center justify-center gap-3",
@@ -164,13 +173,14 @@ export const CreateSpaceModal = ({ isOpen, onClose, onSuccess, initialAppId }: C
             )}
           </button>
           <button
+            type="button"
             onClick={onClose}
             className="px-8 py-4 bg-white/5 border border-white/5 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-white/10 transition-all text-gray-400"
           >
             Cancel
           </button>
         </div>
-      </div>
+      </form>
     </ModalWrapper>
   );
 };
