@@ -52,9 +52,13 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
     }
 
     try {
+      console.log('[useMirage] Refreshing apps from engine...');
       const library = await currentHost.request('GET', '/mirage/v1/admin/apps');
+      console.log('[useMirage] Apps received:', typeof library, Array.isArray(library) ? `Array(${library.length})` : library);
       if (Array.isArray(library)) {
         setApps(library);
+      } else {
+        console.warn('[useMirage] Received non-array apps response');
       }
     } catch (e) {
       console.error('[useMirage] Failed to refresh apps:', e);
@@ -154,6 +158,7 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
 
           globalHost = mirageHost;
           setHost(mirageHost);
+          (window as any).mirageHost = mirageHost;
 
           if ((window as any).nostr) {
             const pk = await (window as any).nostr.getPublicKey();

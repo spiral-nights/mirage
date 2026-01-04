@@ -337,10 +337,10 @@ async function handleApiRequest(message: ApiRequestMessage): Promise<void> {
   // Track original sender
   const sender = (message as any)._sender;
 
-  // Wait for keys to be loaded before handling any spaces or library requests
+  // Wait for keys to be loaded before handling any spaces or admin requests
   if (
-    path.startsWith("/mirage/v1/spaces") ||
-    path.startsWith("/mirage/v1/library")
+    path.startsWith("/mirage/v1/space") ||
+    path.startsWith("/mirage/v1/admin")
   ) {
     const keysReady = await waitForKeysReady();
     if (!keysReady) {
@@ -587,6 +587,70 @@ async function matchRoute(
         params: { key },
       };
     }
+  }
+
+  // Admin Reset Route (Wipe everything)
+  if (method === "DELETE" && path === "/mirage/v1/admin/reset") {
+    if (!isAdminOrigin) {
+      return { handler: async () => ({ status: 403, body: { error: "Admin access required" } }), params: {} };
+    }
+
+    return {
+      handler: async () => {
+        if (!pool || !currentPubkey) {
+          return { status: 401, body: { error: "Not authenticated" } };
+        }
+
+        console.log("[Admin] Wiping all Mirage data...");
+        // 1. Scan for all 30078 events related to Mirage
+        const events = await pool.queryAll([{
+          kinds: [30078],
+          authors: [currentPubkey],
+          limit: 200
+        }], 5000);
+
+        const toDelete: string[] = [];
+
+        for (const ev of events) {
+          const dTag = ev.tags.find(t => t[0] === 'd')?.[1];
+          // Match any mirage-prefixed data or app storage with appOrigin
+          if (dTag && (
+            dTag.startsWith("mirage:") ||
+            dTag.startsWith("mirage-app:") ||
+            dTag.startsWith("mirage-studio:") ||
+            dTag.includes(":mirage:") // Double-prefix legacy
+          )) {
+            console.log(`[Admin] Marking for deletion: ${dTag}`);
+            toDelete.push(dTag);
+          }
+        }
+
+        // 2. Delete them
+        if (toDelete.length > 0) {
+          for (const dTag of toDelete) {
+            // We reuse deleteStorage logic but bypass the context checks since we are admin
+            // Manually constructing deletion event
+            try {
+              console.log(`[Admin] Deleting ${dTag}...`);
+              const unsigned = {
+                kind: 30078,
+                created_at: Math.floor(Date.now() / 1000),
+                tags: [['d', dTag], ['deleted', 'true']],
+                content: '',
+                pubkey: currentPubkey
+              };
+              const signed = await requestSign(unsigned);
+              await pool.publish(signed);
+            } catch (e) {
+              console.error(`[Admin] Failed to delete ${dTag}:`, e);
+            }
+          }
+        }
+
+        return { status: 200, body: { deletedCount: toDelete.length, keys: toDelete } };
+      },
+      params: {},
+    };
   }
 
   // =========================================================================

@@ -17,7 +17,7 @@ import { internalGetStorage, internalPutStorage } from "./routes/storage";
  */
 export const SYSTEM_APP_ORIGIN = "mirage";
 
-const KEY_STORAGE_ID = "mirage:space_keys";
+const KEY_STORAGE_ID = "space_keys";
 
 interface KeyMap {
   [spaceId: string]: SpaceKey;

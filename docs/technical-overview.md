@@ -103,13 +103,50 @@ Use these endpoints to build open social features like global feeds, user discov
 | `GET` | `/feed` | **Yes** | Public timeline (Alias) |
 | `POST` | `/feed` | No | Publish a note (Alias) |
 
-### User Personal Storage (`/space/me`)
+### Storage Key Format (D-Tags)
 
-Use these endpoints for **personal, user-only data** within the current Space. This data is private to you and isolated per app. Even other members of the Space cannot see this data unless you explicitly opt-in.
+To maintain data isolation and prevent collisions, Mirage constructs NIP-78 `d` tags using a specific schema. 
 
-- **Isolation**: Scoped to (App + Space + User).
-- **Encryption**: Data is encrypted (NIP-44) by default, meaning ONLY you can read it.
-- **Why use this?**: For app settings, personal drafts, or bookmarks that don't belong in the shared team database.
+#### Structure
+
+The format is hierarchical: `[Origin] : [SpaceScope] : [Key]`
+
+1.  **Origin** (`appOrigin`): The unique identifier of the application writing the data.
+    *   For System/Admin actions, this is heavily forced to `mirage`.
+    *   For 3rd party apps, this is their canonical ID (e.g., `kind:pubkey:identifier` or custom string).
+2.  **SpaceScope** (`spaceId`): The UUID of the Space the data belongs to.
+    *   If the data is **System Level** (Global), this part is omitted.
+3.  **Key**: The specific identifier for the data item (e.g., `settings`, `bookmarks`).
+
+#### Why "mirage:mirage:keys"? (The Double Prefix)
+
+You might see legacy data like `mirage:mirage:app_list`. This happened because:
+1.  **Origin** was set to `mirage`.
+2.  The **Key** passed to the storage engine was *already* named `mirage:app_list`.
+3.  The Engine combined them: `mirage` + `:` + `mirage:app_list`.
+
+**Fixed Standard:**
+Going forward, internal keys are named cleanly (e.g., `app_list`), so the result is simply `mirage:app_list`.
+
+#### Schema Table
+
+| Scope | Constructed D-Tag | Example |
+|-------|-------------------|---------|
+| **System Global** | `{Origin}:{Key}` | `mirage:app_list` |
+| **Space Data** | `{Origin}:{SpaceId}:{Key}` | `mirage:7a8b...2c:settings` |
+| **App in Space** | `{AppId}:{SpaceId}:{Key}` | `my-chat-app:7a8b...2c:preferences` |
+
+> [!IMPORTANT]
+> The Engine *automatically* applies these prefixes. Apps only provide the `Key`.
+> - If an app calls `PUT /space/me/config` -> Engine writes `my-app:space-id:config`.
+
+### App Storage (User Personal Data)
+
+Use these endpoints for **personal, user-only data** like app settings, drafts, or bookmarks within a specific space. This data is private to you and isolated per app. Even other members of the Space cannot see this data unless you explicitly opt-in.
+
+-   **Isolation**: Scoped to (App + Space + User).
+-   **Encryption**: Data is encrypted (NIP-44) by default, meaning ONLY you can read it.
+-   **Why use this?**: For app settings, personal drafts, or bookmarks that don't belong in the shared team database.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -122,7 +159,6 @@ Use these endpoints for **personal, user-only data** within the current Space. T
 
 Use these endpoints for **multi-user collaboration** within a private group. This acts as the **Shared Database** for everyone in the Space.
 
-- **Symmetry**: 
     - `/space/me`: **My** eyes only (Personal Storage).
     - `/space/store`: **Our** eyes only (Shared Space Database).
 - **Implicit Context**: Apps automatically operate on the user's active Space. Ensure you've checked `/mirage/v1/space` to see if a context is active.

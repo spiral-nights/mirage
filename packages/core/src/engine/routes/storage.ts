@@ -62,6 +62,8 @@ export async function internalGetStorage<T = unknown>(
 
     const event = await ctx.pool.query([filter], 3000);
 
+    console.log(`[Storage_DEBUG] GET ${key}`, { dTag, author, found: !!event, id: event?.id });
+
     if (!event) return null;
     const content = event.content;
 
@@ -79,22 +81,27 @@ export async function internalGetStorage<T = unknown>(
     }
 
     // 2. Try to Decrypt (Private Data)
-    // Only possible if we are the author (self-encrypted) OR it was encrypted for us (NIP-04/44/17).
-    // Standard Storage is Self-Encrypted.
     if (ctx.currentPubkey === author) {
         try {
+            console.log(`[Storage_DEBUG] Decrypting content (len=${content.length})...`);
             const plaintext = await ctx.requestDecrypt(ctx.currentPubkey, content);
+            console.log(`[Storage_DEBUG] Decrypted successfully (len=${plaintext.length})`);
             try {
                 return JSON.parse(plaintext);
-            } catch {
+            } catch (e) {
+                console.warn(`[Storage_DEBUG] Decrypted content is not JSON:`, e);
                 return plaintext as unknown as T;
             }
         } catch (e) {
+            console.error(`[Storage_DEBUG] Decryption failed:`, e);
             // Decryption failed
         }
+    } else {
+        console.warn(`[Storage_DEBUG] Skipping decryption: author mismatch (me=${ctx.currentPubkey}, author=${author})`);
     }
 
     // 3. Return Raw (If public string)
+    console.warn(`[Storage_DEBUG] Returning RAW ciphertext for ${key}`);
     return content as unknown as T;
 }
 
