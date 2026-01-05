@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, Database, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useMirage } from '../hooks/useMirage';
-import { useSpaces } from '../hooks/useSpaces';
+import { type Space } from '../hooks/useSpaces';
 import { cn, getAppCanonicalId } from '../lib/utils';
 import { ModalWrapper } from './ModalWrapper';
 
@@ -11,11 +11,11 @@ interface CreateSpaceModalProps {
   onClose: () => void;
   onSuccess?: (spaceId: string) => void;
   initialAppId?: string; // Pre-select an app (e.g., when opened from SpacePickerModal)
+  createSpace: (name: string, appId: string) => Promise<Space | null>;
 }
 
-export const CreateSpaceModal = ({ isOpen, onClose, onSuccess, initialAppId }: CreateSpaceModalProps) => {
+export const CreateSpaceModal = ({ isOpen, onClose, onSuccess, initialAppId, createSpace }: CreateSpaceModalProps) => {
   const { apps } = useMirage();
-  const { createSpace } = useSpaces();
   const [name, setName] = useState('');
   const [selectedAppId, setSelectedAppId] = useState<string | null>(initialAppId || null);
   const [isCreating, setIsCreating] = useState(false);

@@ -38,7 +38,7 @@ interface SpaceWithApp {
 export const MyAppsPage = () => {
   const navigate = useNavigate();
   const { apps, isReady, deleteApp, fetchApp, pubkey } = useMirage();
-  const { spaces, deleteSpace, renameSpace } = useSpaces();
+  const { spaces, deleteSpace, renameSpace, createSpace } = useSpaces();
 
   // Modal State
   const [publishModalOpen, setPublishModalOpen] = useState(false);
@@ -251,12 +251,15 @@ export const MyAppsPage = () => {
           setPickerModalOpen(false);
           setCreateSpaceOpen(true);
         }}
+        spaces={spaces}
+        createSpace={createSpace}
       />
 
       <CreateSpaceModal
         isOpen={createSpaceOpen}
         onClose={() => setCreateSpaceOpen(false)}
         initialAppId={selectedApp?.naddr}
+        createSpace={createSpace}
       />
     </div>
   );

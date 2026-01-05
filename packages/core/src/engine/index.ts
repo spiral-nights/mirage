@@ -332,7 +332,7 @@ async function handleApiRequest(message: ApiRequestMessage): Promise<void> {
   }
 
   const { method, path, body } = message;
-  console.log(`[API] ${method} ${path}`, body ? { body } : '');
+  console.log(`[API] ${method} ${path}`, body ? { body } : "");
 
   // Track original sender
   const sender = (message as any)._sender;
@@ -358,11 +358,6 @@ async function handleApiRequest(message: ApiRequestMessage): Promise<void> {
   try {
     const result = await route.handler(body, route.params);
     const duration = performance.now() - start;
-    if (duration > 100) {
-      console.log(
-        `[Engine] SLOW API: ${method} ${path} took ${duration.toFixed(2)}ms`,
-      );
-    }
     sendResponse(message.id, result.status, result.body);
   } catch (err: any) {
     console.error(`[Engine] API Error: ${method} ${path}`, err);
@@ -480,7 +475,13 @@ async function matchRoute(
   // App Library Routes (Admin Only)
   if (path.startsWith("/mirage/v1/admin/apps")) {
     if (!isAdminOrigin) {
-      return { handler: async () => ({ status: 403, body: { error: "Admin access required" } }), params: {} };
+      return {
+        handler: async () => ({
+          status: 403,
+          body: { error: "Admin access required" },
+        }),
+        params: {},
+      };
     }
 
     const storageCtx: StorageRouteContext = {
@@ -592,7 +593,13 @@ async function matchRoute(
   // Admin Reset Route (Wipe everything)
   if (method === "DELETE" && path === "/mirage/v1/admin/reset") {
     if (!isAdminOrigin) {
-      return { handler: async () => ({ status: 403, body: { error: "Admin access required" } }), params: {} };
+      return {
+        handler: async () => ({
+          status: 403,
+          body: { error: "Admin access required" },
+        }),
+        params: {},
+      };
     }
 
     return {
@@ -603,23 +610,29 @@ async function matchRoute(
 
         console.log("[Admin] Wiping all Mirage data...");
         // 1. Scan for all 30078 events related to Mirage
-        const events = await pool.queryAll([{
-          kinds: [30078],
-          authors: [currentPubkey],
-          limit: 200
-        }], 5000);
+        const events = await pool.queryAll(
+          [
+            {
+              kinds: [30078],
+              authors: [currentPubkey],
+              limit: 200,
+            },
+          ],
+          5000,
+        );
 
         const toDelete: string[] = [];
 
         for (const ev of events) {
-          const dTag = ev.tags.find(t => t[0] === 'd')?.[1];
+          const dTag = ev.tags.find((t) => t[0] === "d")?.[1];
           // Match any mirage-prefixed data or app storage with appOrigin
-          if (dTag && (
-            dTag.startsWith("mirage:") ||
-            dTag.startsWith("mirage-app:") ||
-            dTag.startsWith("mirage-studio:") ||
-            dTag.includes(":mirage:") // Double-prefix legacy
-          )) {
+          if (
+            dTag &&
+            (dTag.startsWith("mirage:") ||
+              dTag.startsWith("mirage-app:") ||
+              dTag.startsWith("mirage-studio:") ||
+              dTag.includes(":mirage:")) // Double-prefix legacy
+          ) {
             console.log(`[Admin] Marking for deletion: ${dTag}`);
             toDelete.push(dTag);
           }
@@ -635,9 +648,12 @@ async function matchRoute(
               const unsigned = {
                 kind: 30078,
                 created_at: Math.floor(Date.now() / 1000),
-                tags: [['d', dTag], ['deleted', 'true']],
-                content: '',
-                pubkey: currentPubkey
+                tags: [
+                  ["d", dTag],
+                  ["deleted", "true"],
+                ],
+                content: "",
+                pubkey: currentPubkey,
               };
               const signed = await requestSign(unsigned);
               await pool.publish(signed);
@@ -647,7 +663,10 @@ async function matchRoute(
           }
         }
 
-        return { status: 200, body: { deletedCount: toDelete.length, keys: toDelete } };
+        return {
+          status: 200,
+          body: { deletedCount: toDelete.length, keys: toDelete },
+        };
       },
       params: {},
     };
@@ -679,7 +698,10 @@ async function matchRoute(
   if (method === "PUT" && path === "/mirage/v1/space") {
     return {
       handler: async (body) => {
-        const { spaceId, spaceName } = body as { spaceId: string; spaceName?: string };
+        const { spaceId, spaceName } = body as {
+          spaceId: string;
+          spaceName?: string;
+        };
         if (!spaceId) {
           return { status: 400, body: { error: "spaceId required" } };
         }
@@ -699,7 +721,13 @@ async function matchRoute(
   // GET /mirage/v1/space/store - Get shared KV store for current space
   if (method === "GET" && path === "/mirage/v1/space/store") {
     if (!currentSpace?.id) {
-      return { handler: async () => ({ status: 400, body: { error: "No space context set. Use PUT /space first." } }), params: {} };
+      return {
+        handler: async () => ({
+          status: 400,
+          body: { error: "No space context set. Use PUT /space first." },
+        }),
+        params: {},
+      };
     }
     return {
       handler: async () => getSpaceStore(spaceCtx, currentSpace!.id),
@@ -711,11 +739,18 @@ async function matchRoute(
   const implicitStoreMatch = path.match(/^\/mirage\/v1\/space\/store\/(.+)$/);
   if (method === "PUT" && implicitStoreMatch) {
     if (!currentSpace?.id) {
-      return { handler: async () => ({ status: 400, body: { error: "No space context set. Use PUT /space first." } }), params: {} };
+      return {
+        handler: async () => ({
+          status: 400,
+          body: { error: "No space context set. Use PUT /space first." },
+        }),
+        params: {},
+      };
     }
     const key = decodeURIComponent(implicitStoreMatch[1]);
     return {
-      handler: async (body) => updateSpaceStore(spaceCtx, currentSpace!.id, key, body),
+      handler: async (body) =>
+        updateSpaceStore(spaceCtx, currentSpace!.id, key, body),
       params: { key },
     };
   }
@@ -723,10 +758,17 @@ async function matchRoute(
   // GET /mirage/v1/space/messages - Get messages for current space
   if (method === "GET" && path === "/mirage/v1/space/messages") {
     if (!currentSpace?.id) {
-      return { handler: async () => ({ status: 400, body: { error: "No space context set. Use PUT /space first." } }), params: {} };
+      return {
+        handler: async () => ({
+          status: 400,
+          body: { error: "No space context set. Use PUT /space first." },
+        }),
+        params: {},
+      };
     }
-    const getIntParam = (p: string | string[] | undefined): number | undefined =>
-      p ? parseInt(String(p), 10) : undefined;
+    const getIntParam = (
+      p: string | string[] | undefined,
+    ): number | undefined => (p ? parseInt(String(p), 10) : undefined);
     return {
       handler: async () =>
         getSpaceMessages(spaceCtx, currentSpace!.id, {
@@ -740,11 +782,21 @@ async function matchRoute(
   // POST /mirage/v1/space/messages - Post message to current space
   if (method === "POST" && path === "/mirage/v1/space/messages") {
     if (!currentSpace?.id) {
-      return { handler: async () => ({ status: 400, body: { error: "No space context set. Use PUT /space first." } }), params: {} };
+      return {
+        handler: async () => ({
+          status: 400,
+          body: { error: "No space context set. Use PUT /space first." },
+        }),
+        params: {},
+      };
     }
     return {
       handler: async (body) =>
-        postSpaceMessage(spaceCtx, currentSpace!.id, body as { content: string }),
+        postSpaceMessage(
+          spaceCtx,
+          currentSpace!.id,
+          body as { content: string },
+        ),
       params: {},
     };
   }
@@ -752,7 +804,13 @@ async function matchRoute(
   // POST /mirage/v1/space/invite - Invite member to current space
   if (method === "POST" && path === "/mirage/v1/space/invite") {
     if (!currentSpace?.id) {
-      return { handler: async () => ({ status: 400, body: { error: "No space context set. Use PUT /space first." } }), params: {} };
+      return {
+        handler: async () => ({
+          status: 400,
+          body: { error: "No space context set. Use PUT /space first." },
+        }),
+        params: {},
+      };
     }
     return {
       handler: async (body) =>
@@ -768,7 +826,13 @@ async function matchRoute(
   // GET /mirage/v1/admin/spaces - List spaces for current app origin
   if (method === "GET" && path === "/mirage/v1/admin/spaces") {
     if (!isAdminOrigin) {
-      return { handler: async () => ({ status: 403, body: { error: "Admin access required" } }), params: {} };
+      return {
+        handler: async () => ({
+          status: 403,
+          body: { error: "Admin access required" },
+        }),
+        params: {},
+      };
     }
     await syncInvites(spaceCtx);
     return {
@@ -780,7 +844,13 @@ async function matchRoute(
   // GET /mirage/v1/admin/spaces/all - List ALL spaces across all apps
   if (method === "GET" && path === "/mirage/v1/admin/spaces/all") {
     if (!isAdminOrigin) {
-      return { handler: async () => ({ status: 403, body: { error: "Admin access required" } }), params: {} };
+      return {
+        handler: async () => ({
+          status: 403,
+          body: { error: "Admin access required" },
+        }),
+        params: {},
+      };
     }
     await syncInvites(spaceCtx);
     return {
@@ -792,7 +862,13 @@ async function matchRoute(
   // POST /mirage/v1/admin/spaces - Create a new space
   if (method === "POST" && path === "/mirage/v1/admin/spaces") {
     if (!isAdminOrigin) {
-      return { handler: async () => ({ status: 403, body: { error: "Admin access required" } }), params: {} };
+      return {
+        handler: async () => ({
+          status: 403,
+          body: { error: "Admin access required" },
+        }),
+        params: {},
+      };
     }
     return {
       handler: async (body) => createSpace(spaceCtx, body as { name: string }),
@@ -801,16 +877,25 @@ async function matchRoute(
   }
 
   // Admin space-specific routes: /mirage/v1/admin/spaces/:spaceId/...
-  const adminSpaceMatch = path.match(/^\/mirage\/v1\/admin\/spaces\/([a-zA-Z0-9_-]+)(.*)$/);
+  const adminSpaceMatch = path.match(
+    /^\/mirage\/v1\/admin\/spaces\/([a-zA-Z0-9_-]+)(.*)$/,
+  );
   if (adminSpaceMatch) {
     if (!isAdminOrigin) {
-      return { handler: async () => ({ status: 403, body: { error: "Admin access required" } }), params: {} };
+      return {
+        handler: async () => ({
+          status: 403,
+          body: { error: "Admin access required" },
+        }),
+        params: {},
+      };
     }
     const spaceId = adminSpaceMatch[1];
     const subPath = adminSpaceMatch[2];
 
-    const getIntParam = (p: string | string[] | undefined): number | undefined =>
-      p ? parseInt(String(p), 10) : undefined;
+    const getIntParam = (
+      p: string | string[] | undefined,
+    ): number | undefined => (p ? parseInt(String(p), 10) : undefined);
 
     // DELETE /mirage/v1/admin/spaces/:id
     if (method === "DELETE" && (subPath === "" || subPath === "/")) {
@@ -823,7 +908,8 @@ async function matchRoute(
     // PUT /mirage/v1/admin/spaces/:id (rename)
     if (method === "PUT" && (subPath === "" || subPath === "/")) {
       return {
-        handler: async (body) => updateSpace(spaceCtx, spaceId, body as { name: string }),
+        handler: async (body) =>
+          updateSpace(spaceCtx, spaceId, body as { name: string }),
         params: { spaceId },
       };
     }
@@ -884,7 +970,9 @@ async function matchRoute(
 
   // GET /mirage/v1/spaces - DEPRECATED, use /admin/spaces
   if (method === "GET" && path === "/mirage/v1/spaces") {
-    console.warn("[Engine] DEPRECATED: GET /spaces - use GET /admin/spaces instead");
+    console.warn(
+      "[Engine] DEPRECATED: GET /spaces - use GET /admin/spaces instead",
+    );
     await syncInvites(spaceCtx);
     return {
       handler: async () => listSpaces(spaceCtx),
@@ -894,7 +982,9 @@ async function matchRoute(
 
   // POST /mirage/v1/spaces - DEPRECATED, use /admin/spaces
   if (method === "POST" && path === "/mirage/v1/spaces") {
-    console.warn("[Engine] DEPRECATED: POST /spaces - use POST /admin/spaces instead");
+    console.warn(
+      "[Engine] DEPRECATED: POST /spaces - use POST /admin/spaces instead",
+    );
     return {
       handler: async (body) => createSpace(spaceCtx, body as { name: string }),
       params: {},
@@ -923,7 +1013,8 @@ async function matchRoute(
     // PUT /mirage/v1/spaces/:id (update space details e.g. rename)
     if (method === "PUT" && (subPath === "" || subPath === "/")) {
       return {
-        handler: async (body) => updateSpace(spaceCtx, spaceId, body as { name: string }),
+        handler: async (body) =>
+          updateSpace(spaceCtx, spaceId, body as { name: string }),
         params: { spaceId },
       };
     }

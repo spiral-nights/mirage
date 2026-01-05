@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { X, Database, Plus, Play, Info, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ModalWrapper } from './ModalWrapper';
-import { useSpaces } from '../hooks/useSpaces';
+import { type Space } from '../hooks/useSpaces';
 import { getAppCanonicalId } from '../lib/utils';
 
 import { type AppDefinition } from '@mirage/core';
@@ -12,10 +12,11 @@ interface SpacePickerModalProps {
   onClose: () => void;
   app: AppDefinition | null;
   onCreateNew: () => void;
+  spaces: Space[];
+  createSpace: (name: string, appId: string) => Promise<Space | null>;
 }
 
-export const SpacePickerModal = ({ isOpen, onClose, app, onCreateNew }: SpacePickerModalProps) => {
-  const { spaces, createSpace } = useSpaces();
+export const SpacePickerModal = ({ isOpen, onClose, app, onCreateNew, spaces, createSpace }: SpacePickerModalProps) => {
   const navigate = useNavigate();
   const [isCreatingDefault, setIsCreatingDefault] = useState(false);
 
