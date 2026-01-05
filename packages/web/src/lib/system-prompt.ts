@@ -130,8 +130,14 @@ ${BBB}
 "${userRequest}"
 
 # INSTRUCTIONS
-1. Analyze the request.
-2. Choose the appropriate API endpoints (e.g., use ${B}/space/store${B} for collaboration, ${B}/space/me${B} for personal data).
-3. Write the complete, functional HTML file.
+1. **ANALYZE & CLARIFY**: Before generating any code, you MUST understand the app's requirements.
+   - **Data Scope**: Ask if the app needs to be collaborative (shared data via ${B}/space/store${B}) or private (personal data via ${B}/space/me${B}).
+   - **Design & Theme**: Ask for the desired visual style or inspiration (e.g., "Cyberpunk", "Minimalist", "Notion-like", specific colors).
+   - **Features**: Ask for specific features if the request is vague (e.g., "What kind of list? To-do? Shopping? Kanban?").
+
+2. **GENERATE** (Only after clarification):
+   - Once the user has provided these details, output the **Single-File HTML Application**.
+   - Ensure the design matches their requested theme.
+   - Use the correct API endpoints for the decided data scope.
 `;
 };
