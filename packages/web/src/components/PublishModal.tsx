@@ -164,7 +164,7 @@ export const PublishModal = ({
         <div className="mt-10 flex items-center gap-6">
           {!isView ? (
             <button
-              onClick={handlePreview}
+              type="submit"
               disabled={!name.trim() || !code.trim()}
               className={cn(
                 "flex-1 py-5 rounded-[24px] font-black transition-all relative overflow-hidden text-sm uppercase tracking-widest",
@@ -180,6 +180,7 @@ export const PublishModal = ({
             </button>
           ) : (
             <button
+              type="button"
               onClick={onClose}
               className="flex-1 py-5 bg-vivid-cyan/10 text-vivid-cyan border border-vivid-cyan/20 rounded-[24px] font-black text-sm uppercase tracking-widest hover:bg-vivid-cyan/20 transition-all"
             >
@@ -188,6 +189,7 @@ export const PublishModal = ({
           )}
 
           <button
+            type="button"
             onClick={onClose}
             className="px-10 py-5 bg-transparent border border-white/5 rounded-[24px] font-black text-sm uppercase tracking-widest hover:bg-white/5 transition-all"
           >
