@@ -286,6 +286,8 @@ const AppWithSpaces = ({
   onLaunch: (app: AppDefinition) => void;
   pubkey: string | null;
 }) => {
+  const navigate = useNavigate();
+
   const [isExpanded, setIsExpanded] = useState(spaces.length > 0);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -295,6 +297,10 @@ const AppWithSpaces = ({
     await onDeleteApp(app.naddr);
     setIsDeleting(false);
     setShowConfirm(false);
+  };
+
+  const handleLaunchSpace = (space: SpaceWithApp) => {
+    navigate(`/run/${app.naddr}?spaceId=${space.id}&spaceName=${encodeURIComponent(space.name)}`);
   };
 
   const isAuthor = useMemo(() => {
@@ -439,10 +445,17 @@ const AppWithSpaces = ({
                 <div className="space-y-2.5 p-4 bg-background/50 rounded-[24px] border border-white/5">
                   <p className="text-[10px] font-black text-gray-700 uppercase tracking-[0.2em] mb-4 px-2 flex items-center gap-2">
                     <Database size={12} className="text-vivid-yellow" />
-                    Encrypted Data Clusters
+                    App Spaces
                   </p>
                   {spaces.map((space, i) => (
-                    <SpaceRow key={space.id} space={space} index={i} onDelete={onDeleteSpace} onRename={onRenameSpace} />
+                    <SpaceRow
+                      key={space.id}
+                      space={space}
+                      index={i}
+                      onDelete={onDeleteSpace}
+                      onRename={onRenameSpace}
+                      onLaunch={() => handleLaunchSpace(space)}
+                    />
                   ))}
                 </div>
               ) : (
@@ -464,12 +477,14 @@ const AppWithSpaces = ({
 const SpaceRow = ({
   space,
   onDelete,
-  onRename
+  onRename,
+  onLaunch
 }: {
   space: SpaceWithApp;
   index: number;
   onDelete: (spaceId: string) => Promise<boolean>;
   onRename: (spaceId: string, name: string) => Promise<boolean>;
+  onLaunch: () => void;
 }) => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -540,7 +555,13 @@ const SpaceRow = ({
         )}
       </AnimatePresence>
 
-      <div className="w-8 h-8 rounded-xl bg-vivid-yellow/10 border border-vivid-yellow/20 flex items-center justify-center text-vivid-yellow shrink-0 transition-transform group-hover:scale-110">
+      <div
+        onClick={!isEditing ? onLaunch : undefined}
+        className={cn(
+          "w-8 h-8 rounded-xl bg-vivid-yellow/10 border border-vivid-yellow/20 flex items-center justify-center text-vivid-yellow shrink-0 transition-transform group-hover:scale-110",
+          !isEditing && "cursor-pointer hover:bg-vivid-yellow/20"
+        )}
+      >
         <Database size={14} />
       </div>
 
@@ -559,7 +580,7 @@ const SpaceRow = ({
           <span className={cn(
             "text-sm font-semibold transition-colors group-hover:text-vivid-yellow truncate block cursor-pointer",
             isUnnamed ? 'text-gray-700 italic font-light' : 'text-gray-300'
-          )} onClick={() => setIsEditing(true)}>
+          )} onClick={onLaunch}>
             {space.name}
           </span>
         )}
