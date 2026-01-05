@@ -324,6 +324,7 @@ export interface SpaceKey {
     createdAt?: number;  // When the space was created
     deleted?: boolean; // If true, ignore this space (tombstone)
     deletedAt?: number; // Timestamp of deletion
+    latestInviteTimestamp?: number; // Timestamp of the last accepted invite (for handling backdated invites)
 }
 
 // ============================================================================

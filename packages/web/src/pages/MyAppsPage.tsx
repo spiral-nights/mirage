@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 
@@ -35,6 +35,67 @@ interface SpaceWithApp {
 
 
 
+const ResolvedAppName = ({ naddr, className }: { naddr: string; className?: string }) => {
+  const { host, apps } = useMirage();
+  const [name, setName] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    const resolve = async () => {
+      // 1. Check verified apps first
+      const existing = apps.find(a => getAppCanonicalId(a.naddr) === getAppCanonicalId(naddr));
+      if (existing) {
+        if (mounted) setName(existing.name);
+        return;
+      }
+
+      // 2. Fetch from network
+      try {
+        if (host) {
+          console.log(`[AppName] Fetching for ${naddr}...`);
+
+          let fetchNaddr = naddr;
+          // Convert colon-separated coordinate to naddr if needed
+          if (naddr.includes(':')) {
+            try {
+              const parts = naddr.split(':');
+              if (parts.length >= 3) {
+                const kind = parseInt(parts[0]);
+                const pubkey = parts[1];
+                const identifier = parts.slice(2).join(':');
+                fetchNaddr = nip19.naddrEncode({ kind, pubkey, identifier });
+                console.log(`[AppName] Converted ${naddr} to ${fetchNaddr}`);
+              }
+            } catch (err) {
+              console.warn("[AppName] Failed to convert coordinate to naddr", err);
+            }
+          }
+
+          const code = await host.fetchApp(fetchNaddr);
+          console.log(`[AppName] Fetch result length: ${code?.length}`);
+          if (code && mounted) {
+            const match = code.match(/<title>(.*?)<\/title>/i);
+            console.log(`[AppName] Match:`, match);
+            if (match && match[1]) {
+              setName(match[1].trim());
+            } else {
+              console.warn(`[AppName] No title tag found in code.`);
+            }
+          }
+        }
+      } catch (e) {
+        console.error(`[AppName] Fetch error:`, e);
+        // ignore
+      }
+    };
+    resolve();
+    return () => { mounted = false; };
+  }, [naddr, host, apps]);
+
+  if (name) return <span className={className}>{name}</span>;
+  return <span className={className}>App: {naddr.slice(0, 12)}...{naddr.slice(-4)}</span>;
+};
+
 export const MyAppsPage = () => {
   const navigate = useNavigate();
   const { apps, isReady, deleteApp, fetchApp, pubkey } = useMirage();
@@ -51,6 +112,7 @@ export const MyAppsPage = () => {
     initialName: string;
     initialCode: string;
     existingDTag?: string;
+    authorPubkey?: string;
   }>({ mode: 'view', initialName: '', initialCode: '' });
 
   // Group spaces by their parent app using canonical ID
@@ -95,14 +157,15 @@ export const MyAppsPage = () => {
       if (!code) throw new Error("Could not fetch app source");
 
       // 2. Extract dTag from naddr
-      const { data } = nip19.decode(app.naddr) as { data: { identifier: string } };
+      const { data } = nip19.decode(app.naddr) as { data: { identifier: string; pubkey: string } };
 
       // 3. Open modal
       setModalProps({
         mode,
         initialName: app.name,
         initialCode: code,
-        existingDTag: data.identifier
+        existingDTag: data.identifier,
+        authorPubkey: data.pubkey
       });
       setPublishModalOpen(true);
     } catch (e) {
@@ -111,8 +174,62 @@ export const MyAppsPage = () => {
     }
   };
 
-  const handleLaunchExternalApp = (naddr: string) => {
-    navigate(`/run/${naddr}`);
+  const handleLaunchExternalApp = (space: SpaceWithApp) => {
+    const naddr = space.appOrigin!;
+    console.log("Launching external app:", naddr);
+    let target = naddr;
+    if (naddr.includes(':')) {
+      try {
+        const parts = naddr.split(':');
+        if (parts.length >= 3) {
+          const kind = parseInt(parts[0]);
+          const pubkey = parts[1];
+          const identifier = parts.slice(2).join(':');
+          target = nip19.naddrEncode({ kind, pubkey, identifier });
+        }
+      } catch (e) {
+        console.error("Failed to encode naddr", e);
+      }
+    }
+    navigate(`/run/${target}?spaceId=${space.id}&spaceName=${encodeURIComponent(space.name)}`);
+  };
+
+  const handleLaunchExternalSource = async (space: SpaceWithApp) => {
+    const naddr = space.appOrigin!;
+    let target = naddr;
+    // 1. Convert to naddr if needed
+    if (naddr.includes(':')) {
+      try {
+        const parts = naddr.split(':');
+        if (parts.length >= 3) {
+          const kind = parseInt(parts[0]);
+          const pubkey = parts[1];
+          const identifier = parts.slice(2).join(':');
+          target = nip19.naddrEncode({ kind, pubkey, identifier });
+        }
+      } catch (e) {
+        console.error("Failed to encode naddr", e);
+      }
+    }
+
+    try {
+      const code = await fetchApp(target);
+      if (!code) throw new Error("Could not fetch app source");
+
+      const { data } = nip19.decode(target) as { data: { identifier: string; pubkey: string } };
+
+      setModalProps({
+        mode: 'view',
+        initialName: space.name || 'External App',
+        initialCode: code,
+        existingDTag: data.identifier,
+        authorPubkey: data.pubkey
+      });
+      setPublishModalOpen(true);
+    } catch (e) {
+      console.error("Failed to fetch external app source:", e);
+      alert("Failed to load application source.");
+    }
   };
 
   const handleLaunch = (app: AppDefinition) => {
@@ -186,18 +303,32 @@ export const MyAppsPage = () => {
                     </div>
                     <div>
                       <h3 className="font-bold text-white">{space.name}</h3>
-                      <p className="text-xs text-gray-500 font-mono">App: {space.appOrigin?.slice(0, 16)}...</p>
+                      {space.appOrigin && (
+                        <ResolvedAppName
+                          naddr={space.appOrigin}
+                          className="text-xs text-gray-500 font-mono"
+                        />
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     {space.appOrigin && (
-                      <button
-                        onClick={() => handleLaunchExternalApp(space.appOrigin!)}
-                        className="p-2 hover:bg-white/10 rounded-lg text-gray-500 hover:text-vivid-cyan transition-colors"
-                        title="Launch App"
-                      >
-                        <Play size={16} />
-                      </button>
+                      <>
+                        <button
+                          onClick={() => handleLaunchExternalApp(space)}
+                          className="p-2 hover:bg-white/10 rounded-lg text-gray-500 hover:text-vivid-cyan transition-colors"
+                          title="Launch App"
+                        >
+                          <Play size={16} />
+                        </button>
+                        <button
+                          onClick={() => handleLaunchExternalSource(space)}
+                          className="p-2 hover:bg-white/10 rounded-lg text-gray-500 hover:text-white transition-colors"
+                          title="View App Info"
+                        >
+                          <Code2 size={16} />
+                        </button>
+                      </>
                     )}
                     <button
                       onClick={() => deleteSpace(space.id)}
@@ -394,7 +525,7 @@ const AppWithSpaces = ({
             <div className="flex items-center bg-white/5 rounded-2xl p-0.5 md:p-1 md:opacity-0 md:group-hover/card:opacity-100 transition-opacity duration-300">
               <button
                 onClick={() => onOpenSource(app, isAuthor ? 'edit' : 'view')}
-                title={isAuthor ? "Edit Source" : "View Source"}
+                title={isAuthor ? "Edit Source" : "View App Info"}
                 className="w-10 h-10 rounded-xl flex items-center justify-center text-gray-500 hover:text-white hover:bg-white/5 transition-all"
               >
                 {isAuthor ? <Edit3 size={18} /> : <Code2 size={18} />}

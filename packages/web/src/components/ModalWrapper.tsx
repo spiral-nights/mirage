@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { type ReactNode } from 'react';
+import { type ReactNode, useEffect } from 'react';
 
 interface ModalWrapperProps {
     isOpen: boolean;
@@ -15,6 +15,16 @@ interface ModalWrapperProps {
  * unless fullScreen is true.
  */
 export const ModalWrapper = ({ isOpen, onClose, children, className = '', fullScreen = false }: ModalWrapperProps) => {
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && isOpen) {
+                onClose();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isOpen, onClose]);
+
     return (
         <AnimatePresence>
             {isOpen && (

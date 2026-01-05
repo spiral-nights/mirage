@@ -883,7 +883,10 @@ async function matchRoute(
     /^\/mirage\/v1\/admin\/spaces\/([a-zA-Z0-9_-]+)(.*)$/,
   );
   if (adminSpaceMatch) {
-    if (!isAdminOrigin) {
+    const subPath = adminSpaceMatch[2];
+    // Allow /invite for non-admin origins because inviteMember enforces appOrigin scoping (safe).
+    // Other routes like DELETE/UPDATE have fallbacks that might be unsafe for cross-app access.
+    if (!isAdminOrigin && subPath !== "/invite") {
       return {
         handler: async () => ({
           status: 403,
@@ -893,7 +896,6 @@ async function matchRoute(
       };
     }
     const spaceId = adminSpaceMatch[1];
-    const subPath = adminSpaceMatch[2];
 
     const getIntParam = (
       p: string | string[] | undefined,
@@ -957,6 +959,7 @@ async function matchRoute(
 
     // POST /mirage/v1/admin/spaces/:id/invite
     if (method === "POST" && subPath === "/invite") {
+      console.log(`[InviteDebug] Engine routing invite for space ${spaceId}`);
       return {
         handler: async (body) =>
           inviteMember(spaceCtx, spaceId, body as { pubkey: string }),

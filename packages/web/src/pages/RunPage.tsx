@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useMirage } from '../hooks/useMirage';
 import { useAppActions } from '../contexts/AppActionsContext';
+import type { AppDefinition } from '@mirage/core';
 import { XCircle } from 'lucide-react';
 import { PublishModal } from '../components/PublishModal';
 import { InviteModal } from '../components/InviteModal';
@@ -29,6 +30,7 @@ export const RunPage = () => {
     initialName: string;
     initialCode: string;
     existingDTag?: string;
+    authorPubkey?: string;
   }>({ mode: 'view', initialName: '', initialCode: '' });
 
   // Track if we've already loaded this app to prevent re-mounting
@@ -46,12 +48,28 @@ export const RunPage = () => {
     }
   }, [naddr, pubkey]);
 
+  // State for external app name resolution
+  const [resolvedAppName, setResolvedAppName] = useState<string | null>(null);
+
   // Find app from library
   const currentApp = useMemo(() => {
     return apps.find(a => a.naddr === naddr) || null;
   }, [apps, naddr]);
 
-  const appName = currentApp?.name || 'Mirage App';
+  // Construct effective app definition (library app or external fallback)
+  const activeApp = useMemo<AppDefinition | null>(() => {
+    if (currentApp) return currentApp;
+    if (naddr) {
+      return {
+        naddr,
+        name: resolvedAppName || 'External App',
+        createdAt: 0
+      };
+    }
+    return null;
+  }, [currentApp, naddr, resolvedAppName]);
+
+  const appName = activeApp?.name || 'Mirage App';
 
   useEffect(() => {
     // Skip if no naddr or host
@@ -75,6 +93,14 @@ export const RunPage = () => {
 
         if (!html) {
           throw new Error('App not found on relays');
+        }
+
+        // Try to resolve name from HTML title if external
+        if (!currentApp) {
+          const match = html.match(/<title>(.*?)<\/title>/i);
+          if (match && match[1]) {
+            setResolvedAppName(match[1].trim());
+          }
         }
 
         // 3. Mount the app with its naddr for space scoping
@@ -125,13 +151,14 @@ export const RunPage = () => {
       const code = await fetchApp(naddr);
       if (!code) throw new Error("Could not fetch app source");
 
-      const { data } = nip19.decode(naddr) as { data: { identifier: string } };
+      const { data } = nip19.decode(naddr) as { data: { identifier: string; pubkey: string } };
 
       setModalProps({
         mode: isAuthor ? 'edit' : 'view',
         initialName: appName,
         initialCode: code,
-        existingDTag: data.identifier
+        existingDTag: data.identifier,
+        authorPubkey: data.pubkey
       });
       setModalOpen(true);
     } catch (e) {
@@ -146,9 +173,9 @@ export const RunPage = () => {
 
   // Update context whenever app data changes
   useEffect(() => {
-    if (currentApp) {
+    if (activeApp) {
       setAppActions({
-        app: currentApp,
+        app: activeApp,
         space: spaceId ? { id: spaceId, name: spaceName || 'Unnamed Space' } : null,
         isAuthor,
         onViewEditSource: handleOpenSource,

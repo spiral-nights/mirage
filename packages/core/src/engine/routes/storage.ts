@@ -53,6 +53,10 @@ export async function internalGetStorage<T = unknown>(
         ? `${ctx.appOrigin}:${key}`
         : `${ctx.appOrigin}:${ctx.currentSpace!.id}:${key}`;
 
+    console.log(`[Storage_DEBUG] GET key="${key}"`);
+    console.log(`[Storage_DEBUG] Context: origin="${ctx.appOrigin}" space="${ctx.currentSpace?.id}" user="${ctx.currentPubkey}"`);
+    console.log(`[Storage_DEBUG] Calculated dTag: "${dTag}"`);
+
     const filter: Filter = {
         kinds: [30078],
         authors: [author],
@@ -60,9 +64,14 @@ export async function internalGetStorage<T = unknown>(
         limit: 1,
     };
 
+    console.log(`[Storage_DEBUG] Querying Filter:`, JSON.stringify(filter));
     const event = await ctx.pool.query([filter], 3000);
 
-    console.log(`[Storage_DEBUG] GET ${key}`, { dTag, author, found: !!event, id: event?.id });
+    if (event) {
+        console.log(`[Storage_DEBUG] Found Event: id=${event.id} created_at=${event.created_at}`);
+    } else {
+        console.warn(`[Storage_DEBUG] No event found for dTag="${dTag}"`);
+    }
 
     if (!event) return null;
     const content = event.content;
@@ -128,7 +137,9 @@ export async function internalPutStorage<T>(
         : `${ctx.appOrigin}:${ctx.currentSpace!.id}:${key}`;
     const plaintext = typeof value === 'string' ? value : JSON.stringify(value);
 
-    console.log(`[Storage] PUT key="${key}" dTag="${dTag}" public=${isPublic}`);
+    console.log(`[Storage_DEBUG] PUT key="${key}" public=${isPublic}`);
+    console.log(`[Storage_DEBUG] Context: origin="${ctx.appOrigin}" space="${ctx.currentSpace?.id}"`);
+    console.log(`[Storage_DEBUG] dTag="${dTag}"`);
 
     let content = plaintext;
     if (!isPublic) {
@@ -136,7 +147,7 @@ export async function internalPutStorage<T>(
     }
 
     const created_at = Math.floor(Date.now() / 1000);
-    console.log(`[Storage] Creating event with created_at=${created_at}`);
+    // console.log(`[Storage] Creating event with created_at=${created_at}`);
 
     const unsignedEvent: UnsignedNostrEvent = {
         kind: 30078,
@@ -146,10 +157,10 @@ export async function internalPutStorage<T>(
     };
 
     const signedEvent = await ctx.requestSign(unsignedEvent);
-    console.log(`[Storage] Event signed: id=${signedEvent.id?.slice(0, 8)}... pubkey=${signedEvent.pubkey?.slice(0, 8)}...`);
+    console.log(`[Storage_DEBUG] Signed Event: id=${signedEvent.id} pubkey=${signedEvent.pubkey} kind=${signedEvent.kind}`);
 
     await ctx.pool.publish(signedEvent);
-    console.log(`[Storage] Event published successfully`);
+    console.log(`[Storage_DEBUG] Publish complete for ${signedEvent.id}`);
 
     return signedEvent;
 }

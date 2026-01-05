@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { cn } from '../lib/utils';
 import { ModalWrapper } from './ModalWrapper';
 import { useState, useEffect } from 'react';
+import { useMirage } from '../hooks/useMirage';
 
 interface PublishModalProps {
   isOpen: boolean;
@@ -12,6 +13,7 @@ interface PublishModalProps {
   initialCode?: string;
   existingDTag?: string;
   returnTo?: string; // Where to return on preview cancel (e.g., /create or /run/naddr...)
+  authorPubkey?: string;
 }
 
 export const PublishModal = ({
@@ -22,12 +24,15 @@ export const PublishModal = ({
   initialCode = '',
   existingDTag,
   returnTo = '/create',
+  authorPubkey,
 }: PublishModalProps) => {
   const [name, setName] = useState(initialName);
   const [code, setCode] = useState(initialCode);
   const [copied, setCopied] = useState(false);
+  const [authorProfile, setAuthorProfile] = useState<{ name?: string; picture?: string; nip05?: string } | null>(null);
 
   const navigate = useNavigate();
+  const { host } = useMirage();
 
   // Reset fields when opening/mode changes
   useEffect(() => {
@@ -36,6 +41,18 @@ export const PublishModal = ({
       setCode(initialCode);
     }
   }, [isOpen, initialName, initialCode]);
+
+  // Fetch author profile
+  useEffect(() => {
+    if (isOpen && authorPubkey && host) {
+      setAuthorProfile(null);
+      host.request('GET', `/mirage/v1/profiles/${authorPubkey}`)
+        .then((res: any) => {
+          if (res && res.profile) setAuthorProfile(res.profile);
+        })
+        .catch((err: any) => console.warn("Failed to fetch author profile", err));
+    }
+  }, [isOpen, authorPubkey, host]);
 
   const handlePreview = () => {
     if (!code.trim()) return;
@@ -89,11 +106,26 @@ export const PublishModal = ({
               <>Sign & <span className="serif-italic px-1">Publish</span></>
             )}
           </h2>
-          <p className="text-gray-500 text-lg font-light italic">
-            {isView
-              ? "Viewing raw application protocol."
-              : "Configure and deploy your application cluster."}
-          </p>
+          <div className="flex flex-col gap-1">
+            <p className="text-gray-500 text-lg font-light italic">
+              {isView
+                ? "Viewing raw application protocol."
+                : "Configure and deploy your application cluster."}
+            </p>
+            {authorPubkey && (
+              <div className="flex items-center gap-2 mt-2 bg-white/5 rounded-full pr-4 w-fit md:p-1 md:pr-4">
+                {authorProfile?.picture ? (
+                  <img src={authorProfile.picture} className="w-6 h-6 rounded-full object-cover" />
+                ) : (
+                  <div className="w-6 h-6 rounded-full bg-vivid-cyan/20" />
+                )}
+                <span className="text-xs text-gray-400">
+                  <span className="font-bold text-gray-300">{authorProfile?.name || 'Unknown'}</span>
+                  <span className="opacity-50 ml-2 font-mono">{authorPubkey.slice(0, 6)}...{authorPubkey.slice(-4)}</span>
+                </span>
+              </div>
+            )}
+          </div>
         </div>
         <button
           onClick={onClose}

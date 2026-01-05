@@ -160,7 +160,7 @@ export const Sidebar = ({ onNavItemClick, collapsed = false, onToggle }: Sidebar
                 <div className="space-y-1">
                   <ActionButton
                     icon={isAuthor ? Edit3 : Code2}
-                    label={app.naddr === '__preview__' ? "Edit Source" : (isAuthor ? "Edit Source" : "View Source")}
+                    label={app.naddr === '__preview__' ? "Edit Source" : (isAuthor ? "Edit Source" : "View App Info")}
                     onClick={() => handleAppAction(onViewEditSource)}
                     collapsed={collapsed}
                   />

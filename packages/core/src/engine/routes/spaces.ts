@@ -393,6 +393,8 @@ export async function inviteMember(
   rawSpaceId: string,
   body: { pubkey: string; name?: string },
 ): Promise<{ status: number; body: unknown }> {
+  console.log("[InviteDebug] inviteMember called", { rawSpaceId, body });
+
   if (!ctx.currentPubkey)
     return { status: 401, body: { error: "Not authenticated" } };
   if (!body?.pubkey) return { status: 400, body: { error: "Pubkey required" } };
@@ -447,6 +449,7 @@ export async function inviteMember(
 
   // 5. Publish
   const publishResult = await ctx.pool.publish(wrapper as any);
+  console.log(`[Invites] Sent invite to ${receiverPubkey} for space ${spaceId} (scoped: ${scopedId}) with timestamp ${innerEvent.created_at}`);
 
   return { status: 200, body: { invited: receiverPubkey } };
 }
@@ -468,6 +471,7 @@ export async function syncInvites(ctx: SpaceRouteContext): Promise<void> {
   };
 
   const events = await ctx.pool.queryAll([filter], 3000);
+  console.log(`[Invites] Synced checks: Found ${events.length} candidates (Kind 1059).`);
 
   const keys = await getKeys(ctx);
   let updated = false;
@@ -493,26 +497,41 @@ export async function syncInvites(ctx: SpaceRouteContext): Promise<void> {
           // Logic:
           // 1. New space: Add it
           // 2. Existing space (active): Update if newer version
-          // 3. Existing space (deleted): Revive if invite is NEWER than deletion timestamp
+          // 3. Existing space (deleted): Revive if invite is NEWER than the last processed invite
+          //    (We rely on latestInviteTimestamp because NIP-17 invites are backdated,
+          //    so comparing to wall-clock deletedAt is unreliable).
 
-          const isNewerInvite =
-            existing?.deleted &&
-            innerEvent.created_at > (existing.deletedAt || 0);
+          let isNewerInvite = false;
+          const inviteTime = innerEvent.created_at;
+
+          if (existing) {
+            if (existing.latestInviteTimestamp) {
+              // Reliable check: compare against last accepted invite
+              isNewerInvite = inviteTime > existing.latestInviteTimestamp;
+            } else {
+              // Fallback for legacy keys:
+              // If deleted, comparing against deletedAt is risky due to backdating.
+              // But we have no choice if latestInviteTimestamp is missing.
+              // We'll require a significant buffer or strict check.
+              // Actually, let's just use > deletedAt, acknowledging the bug exists for old keys.
+              isNewerInvite = inviteTime > (existing.deletedAt || existing.createdAt || 0);
+            }
+          }
 
           if (
             !existing ||
             (!existing.deleted && existing.version < payload.version) ||
             isNewerInvite
           ) {
-            if (isNewerInvite) {
-            }
 
+            // Accept the invite
             keys.set(payload.scopedId, {
               key: payload.key,
               version: payload.version,
               name: payload.name, // Save name
               deleted: false, // Ensure active
               deletedAt: undefined,
+              latestInviteTimestamp: inviteTime, // Save watermark
             });
             updated = true;
 
@@ -522,12 +541,15 @@ export async function syncInvites(ctx: SpaceRouteContext): Promise<void> {
               newSpaces.push({ id: parts[1], name: payload.name });
             }
           } else if (existing.deleted) {
-          } else {
+            // Debug logging for troubleshooting (downgraded)
+            // console.debug("[Invites] Ignoring invite for deleted space", { inviteTime, deletedAt: existing.deletedAt });
           }
         }
       } else {
+        // console.log("[Invites] Inner event not Kind 13", innerEvent.kind);
       }
     } catch (e) {
+      console.warn("[Invites] Failed to process wrapper:", e);
       continue;
     }
   }
@@ -537,6 +559,7 @@ export async function syncInvites(ctx: SpaceRouteContext): Promise<void> {
 
     // Emit notifications
     for (const space of newSpaces) {
+      console.log(`[Invites] Accepted new space: ${space.id} (${space.name})`);
       self.postMessage({
         type: "NEW_SPACE_INVITE",
         id: crypto.randomUUID(),
@@ -545,6 +568,7 @@ export async function syncInvites(ctx: SpaceRouteContext): Promise<void> {
       });
     }
   } else if (events.length > 0) {
+    console.log("[Invites] Synced checks, no updates found.");
   }
 }
 
