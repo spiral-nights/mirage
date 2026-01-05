@@ -72,7 +72,11 @@ export const Sidebar = ({ onNavItemClick, collapsed = false, onToggle }: Sidebar
       {/* Header: Logo & Toggle */}
       <div className={cn("flex items-center p-6 h-20", collapsed ? "justify-center" : "justify-between")}>
         {!collapsed && (
-          <Link to="/" className="text-2xl font-black text-transparent bg-clip-text bg-brand-gradient tracking-tighter hover:opacity-80 transition-opacity">
+          <Link
+            to="/"
+            onClick={onNavItemClick}
+            className="text-2xl font-black text-transparent bg-clip-text bg-brand-gradient tracking-tighter hover:opacity-80 transition-opacity"
+          >
             Mirage
           </Link>
         )}
@@ -187,7 +191,12 @@ export const Sidebar = ({ onNavItemClick, collapsed = false, onToggle }: Sidebar
 
       {/* User Footer */}
       <div className="p-4 border-t border-white/5 mt-auto">
-        <UserProfile compact={collapsed} direction="up" align="left" />
+        <UserProfile
+          compact={collapsed}
+          direction="up"
+          align="left"
+          onSettingsClick={onNavItemClick}
+        />
       </div>
     </aside>
   );

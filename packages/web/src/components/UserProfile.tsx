@@ -9,9 +9,15 @@ interface UserProfileProps {
   compact?: boolean;
   direction?: 'up' | 'down';
   align?: 'left' | 'right';
+  onSettingsClick?: () => void;
 }
 
-export const UserProfile = ({ compact = false, direction = 'down', align = 'right' }: UserProfileProps) => {
+export const UserProfile = ({
+  compact = false,
+  direction = 'down',
+  align = 'right',
+  onSettingsClick
+}: UserProfileProps) => {
   const { pubkey, logout, profile } = useMirage();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
@@ -84,6 +90,7 @@ export const UserProfile = ({ compact = false, direction = 'down', align = 'righ
               onClick={() => {
                 navigate('/settings');
                 setIsOpen(false);
+                onSettingsClick?.();
               }}
               className="flex items-center gap-3 w-full px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors text-left outline-none"
             >
