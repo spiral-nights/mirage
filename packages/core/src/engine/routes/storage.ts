@@ -261,10 +261,25 @@ export async function deleteStorage(
     };
 
     try {
-        const signedEvent = await ctx.requestSign(unsignedEvent);
-        await ctx.pool.publish(signedEvent);
+        // 1. Overwrite with tombstone (fast update for clients)
+        const signedTombstone = await ctx.requestSign(unsignedEvent);
+        await ctx.pool.publish(signedTombstone);
+
+        // 2. Send Kind 5 Deletion Request (NIP-09 standard cleanup)
+        // This tells relays to actually delete the old versions
+        const deletionEvent: UnsignedNostrEvent = {
+            kind: 5,
+            created_at: Math.floor(Date.now() / 1000) + 5, // Slightly after tombstone
+            content: 'Deleted by Mirage',
+            tags: [['a', `30078:${ctx.currentPubkey}:${dTag}`]],
+        };
+
+        const signedDeletion = await ctx.requestSign(deletionEvent);
+        await ctx.pool.publish(signedDeletion);
+
         return { status: 200, body: { deleted: true, key } };
     } catch (error) {
+        console.error('[Storage] Delete failed:', error);
         return { status: 500, body: { error: 'Failed to delete value' } };
     }
 }

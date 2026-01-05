@@ -49,6 +49,7 @@ function createMockContext(overrides?: Partial<StorageRouteContext>): StorageRou
         requestDecrypt: mockDecrypt,
         currentPubkey: 'test-pubkey-abc123def456',
         appOrigin: 'test-app',
+        currentSpace: { id: 'test-space', name: 'Test Space' }, // Required for non-system apps
         ...overrides,
     };
 }
@@ -83,7 +84,7 @@ describe('getStorage', () => {
             pubkey: 'test-pubkey-abc123def456',
             created_at: 1703203200,
             kind: 30078,
-            tags: [['d', 'test-app:my-key']],
+            tags: [['d', 'test-app:test-space:my-key']], // Updated d-tag format
             content: encryptedContent,
             sig: 'sig-xyz',
         };
@@ -102,13 +103,13 @@ describe('getStorage', () => {
     test('Foreign Access: Reads unencrypted public data', async () => {
         const publicContent = JSON.stringify({ publicInfo: 'hello' });
         const foreignPubkey = 'foreign-pubkey-123';
-        
+
         const storedEvent: Event = {
             id: 'event-public',
             pubkey: foreignPubkey,
             created_at: 1703203200,
             kind: 30078,
-            tags: [['d', 'test-app:public-key']],
+            tags: [['d', 'test-app:test-space:public-key']], // Updated d-tag format
             content: publicContent,
             sig: 'sig-abc',
         };
@@ -127,7 +128,7 @@ describe('getStorage', () => {
 
         expect(result.status).toBe(200);
         expect((result.body as any).value).toEqual({ publicInfo: 'hello' });
-        
+
         // Ensure NO decryption was attempted on foreign data
         expect(ctx.requestDecrypt).not.toHaveBeenCalled();
     });
@@ -150,7 +151,7 @@ describe('putStorage', () => {
         const publicData = { visible: "everyone" };
 
         const result = await putStorage(ctx, 'profile', publicData, { public: 'true' });
-        
+
         expect(result.status).toBe(200);
         expect((result.body as any).public).toBe(true);
 
