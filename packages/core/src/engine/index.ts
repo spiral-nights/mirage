@@ -474,7 +474,9 @@ async function matchRoute(
 
   // App Library Routes (Admin Only)
   if (path.startsWith("/mirage/v1/admin/apps")) {
+    console.log(`[API_DEBUG] Handling /admin/apps request. Method=${method} IsAdmin=${isAdminOrigin}`);
     if (!isAdminOrigin) {
+      console.warn(`[API_DEBUG] Admin access denied for ${path}`);
       return {
         handler: async () => ({
           status: 403,

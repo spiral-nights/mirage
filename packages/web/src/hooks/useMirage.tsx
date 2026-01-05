@@ -266,8 +266,22 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
 
     const appDef: AppDefinition = { naddr, name, createdAt: Date.now() };
 
-    // 3. Save to Library
-    await currentHost.request('POST', '/mirage/v1/admin/apps', appDef);
+    console.log('[useMirage] Saving to library via API:', appDef);
+
+    // 3. Ensure we are in Admin Mode (System Origin) before saving
+    // This is necessary if we are running an app (e.g. "RunPage") which sets the origin to the app's ID.
+    // We must temporarily switch back to 'mirage' to access /admin/ endpoints.
+    // Cast to any because the updated type definition might not be picked up by the frontend build yet.
+    (currentHost as any).setAppOrigin('mirage');
+
+    // 4. Save to Library
+    const libResult = await currentHost.request('POST', '/mirage/v1/admin/apps', appDef);
+    console.log('[useMirage] Library save result:', libResult);
+
+    if (libResult.error) {
+      console.error('[useMirage] Failed to save app to library:', libResult.error);
+      throw new Error(libResult.error);
+    }
 
     // Update local state
     setApps(prevApps => {

@@ -16,9 +16,16 @@ const APP_LIST_ID = 'app_list';
 export async function loadAppLibrary(ctx: StorageRouteContext): Promise<AppDefinition[]> {
     console.log('[Library] Loading app library...');
 
-    // Discovery Load:
     try {
-        const list = await internalGetStorage<AppDefinition[]>(ctx, APP_LIST_ID);
+        console.log(`[Library_DEBUG] Fetching APP_LIST_ID="${APP_LIST_ID}"...`);
+        const result = await internalGetStorage<AppDefinition[]>(ctx, APP_LIST_ID);
+
+        let list = Array.isArray(result) ? result : null;
+        if (result && !Array.isArray(result)) {
+            console.warn('[Library_DEBUG] Fetched data is corrupted (not an array). Triggering self-healing.');
+        }
+
+        console.log(`[Library_DEBUG] Fetched list:`, list ? `${list.length} items` : 'NULL');
 
         // Self-Healing: If list is empty/missing, rebuild it from raw app events
         if (!list || list.length === 0) {
@@ -95,7 +102,9 @@ export async function saveAppLibrary(
         APP_LIST_ID
     });
     try {
-        await internalPutStorage(ctx, APP_LIST_ID, apps);
+        console.log(`[Library_DEBUG] Writing to key="${APP_LIST_ID}"...`);
+        const event = await internalPutStorage(ctx, APP_LIST_ID, apps);
+        console.log(`[Library_DEBUG] Saved successfully. D-Tag="${event.tags.find(t => t[0] === 'd')?.[1]}" ID=${event.id?.slice(0, 8)}`);
         console.log('[Library] Saved app list to NIP-78');
     } catch (error) {
         console.error('[Library] Failed to save apps:', error);

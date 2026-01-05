@@ -177,6 +177,19 @@ export class MirageHost {
   }
 
   /**
+   * Set the current app origin on the Engine.
+   * Useful for switching between Admin and App contexts.
+   */
+  setAppOrigin(origin: string): void {
+    console.log("[Host] Setting app origin:", origin);
+    this.engineWorker.postMessage({
+      type: "SET_APP_ORIGIN",
+      id: crypto.randomUUID(),
+      origin,
+    });
+  }
+
+  /**
    * Update the signer used by the host.
    */
   setSigner(signer: Nip07Signer): void {
