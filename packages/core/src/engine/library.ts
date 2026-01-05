@@ -27,62 +27,10 @@ export async function loadAppLibrary(ctx: StorageRouteContext): Promise<AppDefin
 
         console.log(`[Library_DEBUG] Fetched list:`, list ? `${list.length} items` : 'NULL');
 
-        // Self-Healing: If list is empty/missing, rebuild it from raw app events
-        if (!list || list.length === 0) {
-            console.log('[Library] App list empty, scanning for orphaned apps...');
-            const events = await ctx.pool.queryAll([{
-                kinds: [30078],
-                authors: [ctx.currentPubkey!],
-                limit: 100 // Cap to prevent massive loads
-            }], 3000);
-
-            const recoveredApps: AppDefinition[] = [];
-            const seenNaddrs = new Set<string>();
-
-            for (const ev of events) {
-                const dTag = ev.tags.find(t => t[0] === 'd')?.[1];
-                // Check if this is an app definition (mirage:app:UUID)
-                if (dTag && dTag.startsWith('mirage:app:')) {
-                    // Generate naddr
-                    const naddr = nip19.naddrEncode({
-                        identifier: dTag,
-                        pubkey: ev.pubkey,
-                        kind: 30078,
-                        relays: ctx.pool.getRelays() // Use current relays as hint
-                    });
-
-                    if (seenNaddrs.has(naddr)) continue;
-                    seenNaddrs.add(naddr);
-
-                    // Try to get name from tags or content
-                    let name = ev.tags.find(t => t[0] === 'name')?.[1];
-                    if (!name) {
-                        // Fallback: try parsing content title if possible, or use ID
-                        name = `Recovered App ${dTag.split(':').pop()?.slice(0, 8)}`;
-                    }
-
-                    recoveredApps.push({
-                        naddr,
-                        name,
-                        createdAt: ev.created_at * 1000
-                    });
-                }
-            }
-
-            if (recoveredApps.length > 0) {
-                console.log(`[Library] Recovered ${recoveredApps.length} apps. Saving to index...`);
-                // Save back to index to fix the issue permanently
-                try {
-                    await internalPutStorage(ctx, APP_LIST_ID, recoveredApps);
-                } catch (e) {
-                    console.warn('[Library] Failed to save recovered index:', e);
-                }
-                return recoveredApps;
-            }
-        }
-
         console.log('[Library] Loaded apps from NIP-78:', list?.length ?? 0, 'apps');
         return list || [];
+
+
     } catch (error) {
         console.error('[Library] Failed to load apps:', error);
         return [];
@@ -180,5 +128,33 @@ export async function removeAppFromLibrary(
 
     console.log('[Library] Library size: before=', library.length, ', after=', filtered.length);
     await saveAppLibrary(ctx, filtered);
+
+    // 2. Publish deletion request (Kind 5) to relays
+    try {
+        const decoded = nip19.decode(naddr);
+        if (decoded.type === 'naddr') {
+            const { identifier } = decoded.data;
+            console.log(`[Library] Publishing deletion for d-tag="${identifier}"...`);
+
+            const unsigned = {
+                kind: 5,
+                pubkey: ctx.currentPubkey!,
+                created_at: Math.floor(Date.now() / 1000),
+                tags: [
+                    ['e', ''], // Kind 5 usually expects e/a tags, but for addressable we use 'a'
+                    ['a', `30078:${ctx.currentPubkey}:${identifier}`]
+                ],
+                content: 'App deleted by user'
+            };
+
+            const signed = await ctx.requestSign(unsigned);
+            await ctx.pool.publish(signed);
+            console.log('[Library] Deletion request published.');
+        }
+    } catch (e) {
+        console.error('[Library] Failed to publish deletion request:', e);
+        // We don't fail the operation if this part fails, as the local delete is more important for UX
+    }
+
     return true;
 }
