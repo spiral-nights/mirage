@@ -139,9 +139,14 @@ export const Sidebar = ({ onNavItemClick, collapsed = false, onToggle }: Sidebar
                   <div className={cn(
                     "flex items-center gap-3 rounded-xl bg-white/5 text-white border border-white/10 overflow-hidden",
                     collapsed ? "justify-center p-2" : "px-4 py-3"
-                  )} title={collapsed ? space.name : undefined}>
+                  )} title={collapsed ? `${app.name} (${space.name})` : undefined}>
                     <Database size={16} className="text-vivid-yellow shrink-0" />
-                    {!collapsed && <span className="text-sm font-bold truncate">{space.name}</span>}
+                    {!collapsed && (
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider truncate leading-tight">{app.name}</span>
+                        <span className="text-sm font-bold truncate leading-tight">{space.name}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
