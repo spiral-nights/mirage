@@ -12,69 +12,78 @@
  * You need a hardware security key (YubiKey, etc.) that supports hmac-secret.
  * macOS Touch ID and Chrome on Android DO support PRF.
  */
-export async function isPrfSupported(): Promise<boolean> {
-  console.log("[WebAuthn PRF] Starting PRF support check...");
-  console.warn(
-    "[WebAuthn PRF] ⚠️ NOTE: Windows Hello does NOT support PRF. You need a hardware security key (YubiKey) or use macOS/Chrome Android.",
-  );
+// Cache the PRF support check result to avoid repeated logging and checks
+let prfSupportPromise: Promise<boolean> | null = null;
 
-  // 1. Basic WebAuthn support check
-  if (!window.PublicKeyCredential) {
-    console.warn("[WebAuthn PRF] PublicKeyCredential API not available");
-    return false;
-  }
+export function isPrfSupported(): Promise<boolean> {
+  if (prfSupportPromise) return prfSupportPromise;
 
-  if (!navigator.credentials?.create || !navigator.credentials?.get) {
+  prfSupportPromise = (async () => {
+    console.log("[WebAuthn PRF] Starting PRF support check...");
     console.warn(
-      "[WebAuthn PRF] navigator.credentials.create/get not available",
+      "[WebAuthn PRF] ⚠️ NOTE: Windows Hello does NOT support PRF. You need a hardware security key (YubiKey, etc.) that supports hmac-secret. macOS Touch ID and Chrome on Android DO support PRF.",
     );
-    return false;
-  }
 
-  // 2. Secure Context check (required for WebAuthn)
-  if (!window.isSecureContext) {
-    console.warn("[WebAuthn PRF] Not in a secure context (HTTPS required)");
-    return false;
-  }
-  console.log("[WebAuthn PRF] ✓ Secure context and WebAuthn API available");
+    // 1. Basic WebAuthn support check
+    if (!window.PublicKeyCredential) {
+      console.warn("[WebAuthn PRF] PublicKeyCredential API not available");
+      return false;
+    }
 
-  // 3. PRF Extension check via getClientCapabilities (Chrome 128+, Edge 128+)
-  try {
-    if (
-      typeof window.PublicKeyCredential.getClientCapabilities === "function"
-    ) {
-      const capabilities =
-        await window.PublicKeyCredential.getClientCapabilities();
-
-      // Standard key is 'prf', some implementations use 'extension:prf'
-      const prfSupported =
-        !!(capabilities as any).prf || !!(capabilities as any)["extension:prf"];
-      console.log(
-        `[WebAuthn PRF] PRF via getClientCapabilities: ${prfSupported}`,
+    if (!navigator.credentials?.create || !navigator.credentials?.get) {
+      console.warn(
+        "[WebAuthn PRF] navigator.credentials.create/get not available",
       );
+      return false;
+    }
 
-      if (!prfSupported) {
-        console.warn(
-          "[WebAuthn PRF] ⚠️ PRF not supported by current authenticator. If on Windows, Windows Hello doesn't support PRF - use a YubiKey or other security key.",
+    // 2. Secure Context check (required for WebAuthn)
+    if (!window.isSecureContext) {
+      console.warn("[WebAuthn PRF] Not in a secure context (HTTPS required)");
+      return false;
+    }
+    console.log("[WebAuthn PRF] ✓ Secure context and WebAuthn API available");
+
+    // 3. PRF Extension check via getClientCapabilities (Chrome 128+, Edge 128+)
+    try {
+      if (
+        typeof window.PublicKeyCredential.getClientCapabilities === "function"
+      ) {
+        const capabilities =
+          await window.PublicKeyCredential.getClientCapabilities();
+
+        // Standard key is 'prf', some implementations use 'extension:prf'
+        const prfSupported =
+          !!(capabilities as any).prf || !!(capabilities as any)["extension:prf"];
+        console.log(
+          `[WebAuthn PRF] PRF via getClientCapabilities: ${prfSupported}`,
+        );
+
+        if (!prfSupported) {
+          console.warn(
+            "[WebAuthn PRF] ⚠️ PRF not supported by current authenticator. If on Windows, Windows Hello doesn't support PRF - use a YubiKey or other security key.",
+          );
+        }
+
+        return prfSupported;
+      } else {
+        console.log(
+          "[WebAuthn PRF] getClientCapabilities not available, cannot determine PRF support without trying",
         );
       }
-
-      return prfSupported;
-    } else {
-      console.log(
-        "[WebAuthn PRF] getClientCapabilities not available, cannot determine PRF support without trying",
-      );
+    } catch (e) {
+      console.warn("[WebAuthn PRF] getClientCapabilities threw:", e);
     }
-  } catch (e) {
-    console.warn("[WebAuthn PRF] getClientCapabilities threw:", e);
-  }
 
-  // 4. We can't reliably detect PRF support without actually trying
-  // Return true but warn that it might fail
-  console.warn(
-    "[WebAuthn PRF] Cannot detect PRF support. Will attempt registration, but note: Windows Hello does NOT support PRF.",
-  );
-  return true;
+    // 4. We can't reliably detect PRF support without actually trying
+    // Return true but warn that it might fail
+    console.warn(
+      "[WebAuthn PRF] Cannot detect PRF support. Will attempt registration, but note: Windows Hello does NOT support PRF.",
+    );
+    return true;
+  })();
+
+  return prfSupportPromise;
 }
 
 /**

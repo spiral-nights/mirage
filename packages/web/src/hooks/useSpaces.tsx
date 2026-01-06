@@ -9,12 +9,12 @@ export interface Space {
 }
 
 export function useSpaces() {
-  const { host, isReady } = useMirage();
+  const { host, isReady, pubkey } = useMirage();
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [loading, setLoading] = useState(false);
 
   const refreshSpaces = useCallback(async () => {
-    if (!host || !isReady) return;
+    if (!host || !isReady || !pubkey) return;
     setLoading(true);
     try {
       // Use listAllSpaces to get spaces for all apps
@@ -27,7 +27,7 @@ export function useSpaces() {
     } finally {
       setLoading(false);
     }
-  }, [host, isReady]);
+  }, [host, isReady, pubkey]);
 
   const createSpace = useCallback(async (name: string, appId: string) => {
     if (!host) return null;
