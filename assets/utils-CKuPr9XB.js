@@ -1,0 +1,1 @@
+import{b as e,y as t}from"./index-R_yT516k.js";export{e as getAppCanonicalId};
