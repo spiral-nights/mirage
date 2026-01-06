@@ -713,7 +713,7 @@ const SpaceRow = ({
       </div>
 
       {!isEditing && (
-        <span className="px-2 py-0.5 rounded-md bg-white/5 text-[9px] text-gray-700 font-mono tracking-wider uppercase">
+        <span className="px-2 py-0.5 rounded-md bg-white/5 text-[9px] text-gray-700 font-mono tracking-wider uppercase shrink-0 hidden md:block">
           #{space.id.slice(0, 6)}
         </span>
       )}
@@ -728,7 +728,7 @@ const SpaceRow = ({
           </button>
         </div>
       ) : (
-        <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex items-center md:opacity-0 md:group-hover:opacity-100 transition-opacity">
           <button
             onClick={() => { setEditName(space.name); setIsEditing(true); }}
             className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-gray-700 hover:text-white transition-all shrink-0 mr-1"
@@ -737,7 +737,7 @@ const SpaceRow = ({
           </button>
           <button
             onClick={() => setShowConfirm(true)}
-            className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-gray-700 hover:text-red-500 transition-all shrink-0"
+            className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-gray-700 hover:text-red-500 transition-all md:opacity-0 md:group-hover:opacity-100 shrink-0"
           >
             <Trash2 size={14} />
           </button>
@@ -810,13 +810,13 @@ const OrphanSpaceRow = ({
         </span>
       </div>
 
-      <span className="text-[9px] text-gray-700 font-mono tracking-widest uppercase">
+      <span className="text-[9px] text-gray-700 font-mono tracking-widest uppercase hidden md:block">
         #{space.id.slice(0, 6)}
       </span>
 
       <button
         onClick={() => setShowConfirm(true)}
-        className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-gray-700 hover:text-red-500 transition-all opacity-0 group-hover:opacity-100 shrink-0"
+        className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-gray-700 hover:text-red-500 transition-all md:opacity-0 md:group-hover:opacity-100 shrink-0"
       >
         <Trash2 size={14} />
       </button>
