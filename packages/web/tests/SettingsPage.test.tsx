@@ -16,6 +16,19 @@ mock.module('../src/hooks/useRelaySettings', () => ({
     })
 }));
 
+mock.module('../src/hooks/useAppSettings', () => ({
+    useAppSettings: () => ({
+        settings: { wakeLockEnabled: false },
+        updateSettings: mock()
+    })
+}));
+
+mock.module('../src/hooks/useMirage', () => ({
+    useMirage: () => ({
+        pubkey: '0000000000000000000000000000000000000000000000000000000000000001'
+    })
+}));
+
 describe('SettingsPage', () => {
     beforeEach(() => {
         mockToggle.mockClear();

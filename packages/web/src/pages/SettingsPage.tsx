@@ -2,12 +2,15 @@ import { motion } from 'framer-motion';
 import { useRelaySettings } from '../hooks/useRelaySettings';
 import { useAppSettings } from '../hooks/useAppSettings';
 import { cn } from '../lib/utils';
-import { Smartphone, Monitor } from 'lucide-react';
+import { Smartphone, Monitor, User, Copy } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { useMirage } from '../hooks/useMirage';
+import { nip19 } from 'nostr-tools';
 
 export const SettingsPage = () => {
   const { relayList, toggleRelay } = useRelaySettings();
   const { settings, updateSettings } = useAppSettings();
+  const { pubkey } = useMirage();
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -34,6 +37,40 @@ export const SettingsPage = () => {
           Configure your device and network preferences.
         </p>
       </header>
+
+      {/* Identity Section */}
+      <div className="bg-card/40 border border-white/5 rounded-[32px] overflow-hidden backdrop-blur-xl mb-8">
+        <div className="p-8 border-b border-white/5">
+          <h2 className="text-sm font-black text-gray-400 uppercase tracking-[0.2em] flex items-center gap-2">
+            <User size={16} />
+            Identity
+          </h2>
+        </div>
+        <div className="p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4 overflow-hidden">
+              <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-vivid-cyan shrink-0">
+                <User size={20} />
+              </div>
+              <div className="overflow-hidden">
+                <div className="font-bold text-white mb-1">Public Key</div>
+                <div className="text-xs text-gray-500 font-mono truncate max-w-[200px] md:max-w-md">
+                  {pubkey ? nip19.npubEncode(pubkey) : 'Not logged in'}
+                </div>
+              </div>
+            </div>
+            {pubkey && (
+              <button
+                onClick={() => navigator.clipboard.writeText(nip19.npubEncode(pubkey))}
+                className="p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors text-gray-400 hover:text-white"
+                title="Copy npub"
+              >
+                <Copy size={18} />
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* Device Settings - Mobile Only */}
       {isMobile && (

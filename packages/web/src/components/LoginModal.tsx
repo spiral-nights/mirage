@@ -8,8 +8,10 @@ import {
     ArrowRight,
     Check,
     AlertCircle,
-    Loader2
+    Loader2,
+    Copy
 } from 'lucide-react';
+import { nip19, getPublicKey } from 'nostr-tools';
 import { ModalWrapper } from './ModalWrapper';
 import {
     createNewSecretKey,
@@ -264,10 +266,42 @@ export const LoginModal = ({ isOpen, onSuccess }: LoginModalProps) => {
                                 You cannot recover it if lost.
                             </p>
 
-                            <div className="bg-[#111] border border-vivid-magenta/20 rounded-xl p-4 mb-8 relative group overflow-hidden">
-                                <p className="font-mono text-[10px] break-all text-gray-300">
-                                    {generatedKey ? encodeNsec(generatedKey) : ''}
-                                </p>
+                            <div className="bg-[#111] border border-vivid-magenta/20 rounded-xl p-4 mb-4 relative group overflow-hidden">
+                                <label className="text-[10px] text-gray-500 uppercase tracking-widest font-black mb-1 block">Private Key (Keep Secret)</label>
+                                <div className="flex items-center justify-between gap-2">
+                                    <p className="font-mono text-[10px] break-all text-gray-300">
+                                        {generatedKey ? encodeNsec(generatedKey) : ''}
+                                    </p>
+                                    <button
+                                        onClick={() => {
+                                            if (generatedKey) {
+                                                navigator.clipboard.writeText(encodeNsec(generatedKey));
+                                            }
+                                        }}
+                                        className="p-1.5 bg-white/10 rounded-md hover:bg-white/20 transition-colors"
+                                    >
+                                        <Copy size={12} />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="bg-[#111] border border-white/10 rounded-xl p-4 mb-8 relative group overflow-hidden">
+                                <label className="text-[10px] text-gray-500 uppercase tracking-widest font-black mb-1 block">Public Key (Shareable)</label>
+                                <div className="flex items-center justify-between gap-2">
+                                    <p className="font-mono text-[10px] break-all text-gray-300">
+                                        {generatedKey ? nip19.npubEncode(getPublicKey(generatedKey)) : ''}
+                                    </p>
+                                    <button
+                                        onClick={() => {
+                                            if (generatedKey) {
+                                                navigator.clipboard.writeText(nip19.npubEncode(getPublicKey(generatedKey)));
+                                            }
+                                        }}
+                                        className="p-1.5 bg-white/10 rounded-md hover:bg-white/20 transition-colors"
+                                    >
+                                        <Copy size={12} />
+                                    </button>
+                                </div>
                             </div>
 
                             <button
