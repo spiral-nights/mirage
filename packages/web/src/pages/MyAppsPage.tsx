@@ -448,7 +448,7 @@ const AppWithSpaces = ({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05, ease: "easeOut" }}
-      className="bg-surface border border-white/5 rounded-[32px] overflow-hidden group/card hover:border-white/10 transition-all duration-500 shadow-xl hover:shadow-2xl"
+      className="bg-surface border border-white/5 rounded-[32px] overflow-hidden group/card hover:border-white/10 hover:bg-white/[0.02] transition-all duration-500 shadow-xl hover:shadow-2xl"
     >
       {/* App Header */}
       <div className="p-6 relative">
@@ -491,11 +491,6 @@ const AppWithSpaces = ({
         </AnimatePresence>
 
         <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
-          {/* Icon */}
-          <div className="w-14 h-14 md:w-16 md:h-16 bg-background border border-white/5 rounded-2xl flex items-center justify-center text-xl md:text-2xl shadow-inner group-hover/card:border-vivid-cyan/30 transition-all duration-500">
-            {app.name.charAt(0) || '🚀'}
-          </div>
-
           {/* Info */}
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-2">

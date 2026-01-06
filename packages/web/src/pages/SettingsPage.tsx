@@ -84,13 +84,13 @@ export const SettingsPage = () => {
 
           <div className="divide-y divide-white/5">
             <div className="p-6 flex items-center justify-between hover:bg-white/5 transition-colors">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-vivid-magenta">
+              <div className="flex-1 min-w-0 flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-vivid-magenta shrink-0">
                   <Monitor size={20} />
                 </div>
-                <div>
-                  <div className="font-bold text-white mb-1">Prevent Screen Sleep</div>
-                  <div className="text-xs text-gray-500">Keep the screen awake while using Mirage</div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-white mb-1 truncate">Prevent Screen Sleep</div>
+                  <div className="text-xs text-gray-500 truncate">Keep the screen awake while using Mirage</div>
                 </div>
               </div>
 
@@ -99,7 +99,7 @@ export const SettingsPage = () => {
                 role="switch"
                 aria-checked={settings.wakeLockEnabled}
                 className={cn(
-                  "w-14 h-8 rounded-full p-1 transition-colors duration-300 relative focus:outline-none focus:ring-2 focus:ring-vivid-magenta/50",
+                  "w-14 h-8 rounded-full p-1 transition-colors duration-300 relative focus:outline-none focus:ring-2 focus:ring-vivid-magenta/50 shrink-0 ml-4",
                   settings.wakeLockEnabled ? "bg-vivid-magenta/20" : "bg-white/5"
                 )}
               >
@@ -127,8 +127,8 @@ export const SettingsPage = () => {
         <div className="divide-y divide-white/5">
           {relayList.map((relay) => (
             <div key={relay.url} className="p-6 flex items-center justify-between hover:bg-white/5 transition-colors">
-              <div className="flex items-center gap-4">
-                <div className="relative">
+              <div className="flex-1 min-w-0 flex items-center gap-4">
+                <div className="relative shrink-0">
                   <div className={cn(
                     "w-3 h-3 rounded-full",
                     relay.status === 'connected' ? "bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]" :
@@ -137,14 +137,14 @@ export const SettingsPage = () => {
                           "bg-gray-600"
                   )} />
                 </div>
-                <div>
-                  <div className="font-bold text-white mb-1">{relay.name}</div>
-                  <div className="text-xs text-gray-500 font-mono">{relay.url}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-white mb-1 truncate">{relay.name}</div>
+                  <div className="text-xs text-gray-500 font-mono truncate">{relay.url}</div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-6">
-                <div className="text-xs font-medium uppercase tracking-wider text-gray-600 w-24 text-right">
+              <div className="flex items-center gap-4 md:gap-6 shrink-0 ml-2">
+                <div className="text-xs font-medium uppercase tracking-wider text-gray-600 hidden md:block w-24 text-right">
                   {relay.status}
                 </div>
 
@@ -154,7 +154,7 @@ export const SettingsPage = () => {
                   aria-checked={relay.enabled}
                   aria-label={`Toggle ${relay.name}`}
                   className={cn(
-                    "w-14 h-8 rounded-full p-1 transition-colors duration-300 relative focus:outline-none focus:ring-2 focus:ring-vivid-cyan/50",
+                    "w-14 h-8 rounded-full p-1 transition-colors duration-300 relative focus:outline-none focus:ring-2 focus:ring-vivid-cyan/50 shrink-0",
                     relay.enabled ? "bg-vivid-cyan/20" : "bg-white/5"
                   )}
                 >
