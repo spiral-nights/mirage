@@ -4,6 +4,8 @@ import { UserProfile } from '../components/UserProfile';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
 import { useMirage } from '../hooks/useMirage';
+import { useWakeLock } from '../hooks/useWakeLock';
+import { useAppSettings } from '../hooks/useAppSettings';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../lib/utils';
 
@@ -12,6 +14,10 @@ export const RootLayout = () => {
   const [collapsed, setCollapsed] = useState(false);
   const { notification } = useMirage();
   const location = useLocation();
+  const { settings } = useAppSettings();
+
+  // Enable wake lock if setting is true
+  useWakeLock(settings.wakeLockEnabled);
 
   const isFullWidthPage = location.pathname.startsWith('/run/') || location.pathname === '/preview';
 
