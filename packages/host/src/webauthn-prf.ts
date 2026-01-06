@@ -112,14 +112,20 @@ export async function derivePrfKey(options: PrfOptions = {}): Promise<{ key: Uin
             saltBuffer instanceof ArrayBuffer ? "✓ ArrayBuffer" : "✗ Not ArrayBuffer");
 
         try {
+            const rpId = window.location.hostname;
+            console.log(`[WebAuthn PRF] Assertion RP ID: ${rpId}`);
+
             const publicKeyOptions: PublicKeyCredentialRequestOptions = {
                 challenge: challenge.buffer.slice(challenge.byteOffset, challenge.byteOffset + challenge.byteLength) as ArrayBuffer,
+                rpId: rpId,  // Required for Google Password Manager on Android
+                timeout: 120000,  // 2 minutes
                 allowCredentials: [{
                     id: options.credentialId.buffer.slice(
                         options.credentialId.byteOffset,
                         options.credentialId.byteOffset + options.credentialId.byteLength
                     ) as ArrayBuffer,
-                    type: 'public-key'
+                    type: 'public-key',
+                    transports: ['internal', 'hybrid']  // Platform + sync passkeys
                 }],
                 userVerification: "required",
                 extensions: prfExtension as any
@@ -144,7 +150,7 @@ export async function derivePrfKey(options: PrfOptions = {}): Promise<{ key: Uin
 
             if (!prfResult) {
                 console.error("[WebAuthn PRF] No PRF in results. Full results:", results);
-                throw new Error("WebAuthn PRF: No prf extension in results. Windows Hello does NOT support PRF. Use a hardware security key (YubiKey) or macOS TouchID/Chrome Android.");
+                throw new Error("WebAuthn PRF: No prf extension in results. Your passkey provider may not support PRF. Google Password Manager has limited PRF support.");
             }
 
             if (!prfResult.results) {
@@ -159,8 +165,14 @@ export async function derivePrfKey(options: PrfOptions = {}): Promise<{ key: Uin
             console.log(`[WebAuthn PRF] ✓ Key derived successfully (${key.length} bytes)`);
             return { key, credentialId: new Uint8Array(assertion.rawId) };
 
-        } catch (err) {
+        } catch (err: any) {
             console.error("[WebAuthn PRF] Assertion failed:", err);
+            if (err.name === 'NotAllowedError') {
+                console.error("[WebAuthn PRF] NotAllowedError during assertion - Possible causes:");
+                console.error("  1. User canceled or timed out");
+                console.error("  2. Credential not found for this RP");
+                console.error("  3. Google Password Manager may not support PRF");
+            }
             throw err;
         }
 
@@ -173,7 +185,14 @@ export async function derivePrfKey(options: PrfOptions = {}): Promise<{ key: Uin
         console.log("[WebAuthn PRF] Starting Attestation (create) to register new credential...");
 
         const userId = crypto.getRandomValues(new Uint8Array(16));
+        const rpId = window.location.hostname;
         console.log("[WebAuthn PRF] Generated user ID for credential");
+        console.log(`[WebAuthn PRF] RP ID: ${rpId}`);
+        console.log(`[WebAuthn PRF] Full origin: ${window.location.origin}`);
+
+        // PRF extension with eval - derive key during creation
+        // This avoids the user gesture expiration issue with follow-up get()
+        const saltBuffer = salt.buffer.slice(salt.byteOffset, salt.byteOffset + salt.byteLength);
 
         try {
             const credential = await navigator.credentials.create({
@@ -181,7 +200,7 @@ export async function derivePrfKey(options: PrfOptions = {}): Promise<{ key: Uin
                     challenge,
                     rp: {
                         name: "Mirage",
-                        id: window.location.hostname
+                        id: rpId
                     },
                     user: {
                         id: userId,
@@ -192,16 +211,20 @@ export async function derivePrfKey(options: PrfOptions = {}): Promise<{ key: Uin
                         { alg: -7, type: "public-key" },   // ES256 (ECDSA P-256)
                         { alg: -257, type: "public-key" }  // RS256 (RSASSA-PKCS1-v1_5)
                     ],
+                    timeout: 120000,  // 2 minutes - gives mobile users more time
                     authenticatorSelection: {
                         authenticatorAttachment: "platform",  // Use platform authenticator (Touch ID, Windows Hello, etc.)
                         residentKey: "required",
                         userVerification: "required"
                     },
-                    // Request PRF enablement during creation
-                    // Note: During 'create', we just enable PRF, we don't eval yet
-                    // Some browsers support eval during create, so we try it
+                    // Request PRF AND evaluate it during creation
+                    // This avoids needing a follow-up get() which can fail due to user gesture expiration
                     extensions: {
-                        prf: {}  // Request PRF capability (empty object to enable)
+                        prf: {
+                            eval: {
+                                first: saltBuffer  // Evaluate PRF during create
+                            }
+                        }
                     } as any
                 }
             }) as PublicKeyCredential | null;
@@ -219,26 +242,47 @@ export async function derivePrfKey(options: PrfOptions = {}): Promise<{ key: Uin
 
             const prfResult = results.prf || results['extension:prf'];
 
-            // Check PRF extension result
-            // Note: Some authenticators/browsers don't return prf in attestation results
-            // even when they support it. We'll try the follow-up get anyway.
+            // Check if PRF was evaluated during creation
             if (prfResult) {
-                if (prfResult.enabled === false) {
-                    throw new Error("WebAuthn PRF: Extension explicitly disabled by authenticator.");
-                }
                 console.log(`[WebAuthn PRF] PRF enabled: ${prfResult.enabled}`);
-            } else {
-                console.warn("[WebAuthn PRF] PRF extension not in attestation results.");
-                console.log("[WebAuthn PRF] Will attempt assertion anyway (some authenticators don't advertise PRF during create)...");
+
+                // Check if PRF results are available from create()
+                if (prfResult.results && prfResult.results.first) {
+                    console.log("[WebAuthn PRF] ✓ PRF key derived during creation!");
+                    const key = new Uint8Array(prfResult.results.first);
+                    console.log(`[WebAuthn PRF] ✓ Key derived successfully (${key.length} bytes)`);
+                    return { key, credentialId };
+                }
+
+                if (prfResult.enabled === false) {
+                    console.error("[WebAuthn PRF] PRF explicitly disabled by authenticator");
+                    throw new Error("WebAuthn PRF: Your device created a passkey but does not support PRF encryption. This feature requires a hardware security key or compatible platform authenticator.");
+                }
             }
 
-            // Now perform a 'get' to actually derive the key
-            // This is the real test of PRF support
-            console.log("[WebAuthn PRF] Performing follow-up assertion to derive key...");
+            // PRF wasn't evaluated during create - need follow-up get()
+            // This will likely fail on mobile due to user gesture expiration
+            console.warn("[WebAuthn PRF] PRF not evaluated during create, attempting follow-up get()...");
+            console.warn("[WebAuthn PRF] Note: This may fail on mobile due to user gesture expiration");
+
+            // Try anyway, but this is expected to fail on mobile
             return derivePrfKey({ ...options, credentialId });
 
-        } catch (err) {
+        } catch (err: any) {
             console.error("[WebAuthn PRF] Attestation failed:", err);
+            // Provide more specific error messages
+            if (err.name === 'NotAllowedError') {
+                console.error("[WebAuthn PRF] NotAllowedError - Possible causes:");
+                console.error("  1. User canceled the operation");
+                console.error("  2. User took too long (timeout)");
+                console.error("  3. RP ID mismatch with current domain");
+                console.error("  4. WebAuthn not triggered by user gesture");
+                console.error(`  Current RP ID: ${rpId}`);
+            } else if (err.name === 'InvalidStateError') {
+                console.error("[WebAuthn PRF] InvalidStateError - Credential already exists for this user");
+            } else if (err.name === 'SecurityError') {
+                console.error("[WebAuthn PRF] SecurityError - RP ID is not valid for this origin");
+            }
             throw err;
         }
     }

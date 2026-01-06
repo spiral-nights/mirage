@@ -42,10 +42,10 @@ export const LoginModal = ({ isOpen, onSuccess }: LoginModalProps) => {
 
     useEffect(() => {
         setHasExtension(!!(window as any).nostr);
-        console.log("[LoginModal] Checking PRF support...");
         isPrfSupported().then(supported => {
-            console.log("[LoginModal] PRF Status settled:", supported ? 'supported' : 'unsupported');
             setPrfStatus(supported ? 'supported' : 'unsupported');
+        }).catch(() => {
+            setPrfStatus('unsupported');
         });
     }, []);
 
