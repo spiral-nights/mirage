@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Sidebar } from '../components/Sidebar';
 import { UserProfile } from '../components/UserProfile';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet, useLocation, Link } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
 import { useMirage } from '../hooks/useMirage';
 import { useWakeLock } from '../hooks/useWakeLock';
@@ -51,7 +51,9 @@ export const RootLayout = () => {
 
         {/* Center: Logo */}
         <div className="flex justify-center">
-          <span className="text-xl font-black text-transparent bg-clip-text bg-brand-gradient tracking-tighter">Mirage</span>
+          <Link to="/" className="text-xl font-black text-transparent bg-clip-text bg-brand-gradient tracking-tighter">
+            Mirage
+          </Link>
         </div>
 
         {/* Right: Profile */}
