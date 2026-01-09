@@ -1,12 +1,12 @@
 import openApiSpec from "../assets/openapi.yaml?raw";
 
 export const generateSystemPrompt = (
-  userRequest: string = "A new app",
+   userRequest: string = "A new app",
 ): string => {
-  const B = String.fromCharCode(96); // Backtick
-  const BBB = B + B + B; // Triple backtick
+   const B = String.fromCharCode(96); // Backtick
+   const BBB = B + B + B; // Triple backtick
 
-  return `
+   return `
 You are an expert app builder designed to help non-technical users create beautiful, functional software.
 
   Your goal is to build a single-file HTML/JS application based on the user's request.
@@ -42,7 +42,6 @@ You are an expert app builder designed to help non-technical users create beauti
   1. **Get Context:** ${B}GET /mirage/v1/space${B} returns the space info.
   2. **Shared Data:** Access shared data via ${B}/mirage/v1/space/store${B}.
   3. **Private Data:** Access private data via ${B}/mirage/v1/space/me${B}.
-  4. **Standalone:** If ${B}GET /mirage/v1/space${B} returns ${B}{ standalone: true }${B}, show a friendly "Please launch from a Space" message.
 
   # EXAMPLE CODE (Do not copy blindly, adapt to user request)
   ${BBB}html
