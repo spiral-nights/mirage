@@ -10,7 +10,7 @@ import { nip19 } from 'nostr-tools';
 export const SettingsPage = () => {
   const { relayList, toggleRelay } = useRelaySettings();
   const { settings, updateSettings } = useAppSettings();
-  const { pubkey } = useMirage();
+  const { pubkey, profile } = useMirage();
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -53,7 +53,9 @@ export const SettingsPage = () => {
                 <User size={20} />
               </div>
               <div className="overflow-hidden">
-                <div className="font-bold text-white mb-1">Public Key</div>
+                <div className="font-bold text-white mb-1">
+                  {profile?.displayName || profile?.name || 'Public Key'}
+                </div>
                 <div className="text-xs text-gray-500 font-mono truncate max-w-[200px] md:max-w-md">
                   {pubkey ? nip19.npubEncode(pubkey) : 'Not logged in'}
                 </div>
