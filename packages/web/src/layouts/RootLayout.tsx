@@ -1,6 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Sidebar } from '../components/Sidebar';
-import { UserProfile } from '../components/UserProfile';
 import { Outlet, useLocation, Link } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
 import { useMirage } from '../hooks/useMirage';
@@ -14,10 +13,17 @@ export const RootLayout = () => {
   const [collapsed, setCollapsed] = useState(false);
   const { notification } = useMirage();
   const location = useLocation();
-  const { settings } = useAppSettings();
+  const { settings, updateSettings } = useAppSettings();
 
   // Enable wake lock if setting is true
   useWakeLock(settings.wakeLockEnabled);
+
+  // Automatically enable wake lock when opening an app
+  useEffect(() => {
+    if (location.pathname.startsWith('/run/') && !settings.wakeLockEnabled) {
+      updateSettings({ wakeLockEnabled: true });
+    }
+  }, [location.pathname, settings.wakeLockEnabled, updateSettings]);
 
   const isFullWidthPage = location.pathname.startsWith('/run/') || location.pathname === '/preview';
 
@@ -54,11 +60,6 @@ export const RootLayout = () => {
           <Link to="/" className="text-xl font-black text-transparent bg-clip-text bg-brand-gradient tracking-tighter">
             Mirage
           </Link>
-        </div>
-
-        {/* Right: Profile */}
-        <div className="flex justify-end">
-          <UserProfile />
         </div>
       </div>
 
