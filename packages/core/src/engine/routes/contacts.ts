@@ -1,3 +1,4 @@
+
 /**
  * Contact List Routes (NIP-02)
  * 
@@ -37,7 +38,7 @@ async function fetchContactList(ctx: ContactsRouteContext, pubkey: string): Prom
         limit: 1
     };
 
-    const event = await ctx.pool.query([filter], 3000);
+    const event = await ctx.pool.get(ctx.relays, filter);
 
     if (!event) return [];
     const latest = event;
@@ -113,7 +114,7 @@ export async function updateContacts(
     };
 
     const signed = await ctx.requestSign(event);
-    await ctx.pool.publish(signed);
+    await Promise.any(ctx.pool.publish(ctx.relays, signed));
 
     return { status: 200, body: { success: true } };
 }

@@ -5,9 +5,9 @@ import type { Event, UnsignedEvent } from 'nostr-tools';
 // Mock dependencies
 const mockPool = {
     subscribe: mock(),
-    publish: mock(),
-    query: mock(),
-    queryAll: mock(),
+    publish: mock((relays: string[], event: Event) => [Promise.resolve()]),
+    get: mock(async (relays: string[], filter: any): Promise<Event | null> => null),
+    querySync: mock(),
 };
 
 const mockSign = mock(async (e: UnsignedEvent) => {
@@ -16,6 +16,7 @@ const mockSign = mock(async (e: UnsignedEvent) => {
 
 const ctx: ContactsRouteContext = {
     pool: mockPool as any,
+    relays: ['wss://relay.test.com'],
     requestSign: mockSign as any,
     requestEncrypt: mock(),
     requestDecrypt: mock(),
@@ -26,10 +27,10 @@ const ctx: ContactsRouteContext = {
 describe('Contacts Routes (NIP-02)', () => {
 
     beforeEach(() => {
-        mockPool.subscribe.mockReset();
-        mockPool.publish.mockReset();
-        mockPool.query.mockReset();
-        mockPool.queryAll.mockReset();
+        mockPool.subscribe.mockClear();
+        mockPool.publish.mockClear();
+        mockPool.get.mockClear();
+        mockPool.querySync.mockClear();
         mockSign.mockClear();
     });
 
@@ -48,7 +49,7 @@ describe('Contacts Routes (NIP-02)', () => {
             sig: 'sig'
         };
 
-        mockPool.query.mockResolvedValue(mockEvent);
+        mockPool.get = mock(async (relays: string[], filter: any) => mockEvent);
 
         const res = await listContacts(ctx) as { status: number, body: any };
 

@@ -32,24 +32,25 @@ describe("Direct Messages (NIP-17)", () => {
         publishedEvents.length = 0;
         ctx = {
             pool: {
-                publish: async (e: any) => { publishedEvents.push(e); },
+                publish: (relays: string[], e: any) => { publishedEvents.push(e); return [Promise.resolve()]; },
                 subscribe: (filters: any[], onevent: any, oneose: any) => {
                     // Legacy support just in case, but queryAll handles it now
                     return () => { };
                 },
-                query: mock(async () => null),
-                queryAll: async (filters: any[], timeout: number) => {
+                get: mock(async () => null),
+                querySync: (relays: string[], filter: any) => {
                     // Mock Inbox: Bob sent message to Alice
-                    if (filters[0].kinds?.includes(1059)) {
+                    if (filter.kinds?.includes(1059)) {
                         return [{
                             kind: 1059,
-                            tags: [['p', alicePub]], 
+                            tags: [['p', alicePub]],
                             content: "encrypted_gift",
                             pubkey: "random_ephemeral"
                         }];
                     }
                     return [];
-                }
+                },
+                getRelays: mock(() => []),
             } as any,
             requestSign: async (e: any) => ({ ...e, id: "sig_mock", sig: "sig_mock" }),
             requestEncrypt: async (pk: string, txt: string) => `encrypted_${txt}_for_${pk}`,
@@ -68,7 +69,8 @@ describe("Direct Messages (NIP-17)", () => {
                 return `decrypted_${txt}`;
             },
             currentPubkey: alicePub,
-            appOrigin: "test"
+            appOrigin: "test",
+            relays: ['wss://relay.example.com']
         };
     });
 

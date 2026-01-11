@@ -20,14 +20,16 @@
     },
     "scripts": {
         "build": "tsc --emitDeclarationOnly --outDir ./dist && bun build ./src/index.ts --outfile ./dist/index.js --target browser && bun build ./src/engine/index.ts --outfile ./dist/engine.js --target browser --format iife && bun build ./src/bridge/index.ts --outfile ./dist/bridge.js --target browser",
-        "test": "bun test",
+        "test": "bun run typecheck && bun test",
         "typecheck": "tsc --noEmit"
     },
     "dependencies": {
         "@noble/ciphers": "^2.1.1",
+        "dexie": "^4.2.1",
         "nostr-tools": "^2.19.3"
     },
     "devDependencies": {
+        "fake-indexeddb": "^6.2.5",
         "typescript": "^5.3.0"
     }
 }

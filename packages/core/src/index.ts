@@ -13,4 +13,4 @@ export * from './types';
 export { initBridge, destroyBridge, type BridgeOptions } from './bridge/index';
 
 // Engine components (for advanced usage)
-export { RelayPool, type RelayPoolOptions } from './engine/relay-pool';
+

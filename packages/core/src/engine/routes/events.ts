@@ -1,16 +1,18 @@
+
 /**
  * Mirage Engine - Event Routes
  *
  * Handles /mirage/v1/events endpoints for raw Nostr event access.
  */
 
-import type { Filter, Event } from 'nostr-tools';
-import type { RelayPool } from '../relay-pool';
+import type { Filter, Event, SimplePool } from 'nostr-tools';
 import type { UnsignedNostrEvent } from '../../types';
 
 export interface EventsRouteContext {
-    pool: RelayPool;
+    pool: SimplePool;
+    relays: string[];
     requestSign: (event: UnsignedNostrEvent) => Promise<Event>;
+    targetRelays?: string[]; // Legacy/Compat: Can be passed to limit scope
 }
 
 /**
@@ -60,7 +62,7 @@ export async function getEvents(
         });
     }
 
-    const events = await ctx.pool.queryAll([filter], 5000);
+    const events = await ctx.pool.querySync(ctx.relays, filter);
     return { status: 200, body: events };
 }
 
@@ -69,7 +71,7 @@ export async function getEvents(
  */
 export async function postEvents(
     ctx: EventsRouteContext,
-    body: { kind: number; content: string; tags?: string[][] }
+    body: { kind: number; content: string; tags?: string[][]; targetRelays?: string[] }
 ): Promise<{ status: number; body: Event | { error: string } }> {
     if (body.kind === undefined || body.content === undefined) {
         return { status: 400, body: { error: 'Missing kind or content' } };
@@ -84,7 +86,14 @@ export async function postEvents(
 
     try {
         const signedEvent = await ctx.requestSign(unsignedEvent);
-        await ctx.pool.publish(signedEvent);
+
+        // Determine target relays: Body > Context > All Active
+        // If context passed explicit targetRelays (e.g. offline mode enforcement), it should probably win?
+        // Or we treat it as default?
+        // In the new architecture, logic in index.ts prepares ctx.targetRelays based on App Mode.
+        const targets = body.targetRelays || ctx.targetRelays || ctx.relays;
+
+        await Promise.any(ctx.pool.publish(targets, signedEvent));
 
         return {
             status: 201,

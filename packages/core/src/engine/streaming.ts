@@ -1,11 +1,11 @@
+
 /**
  * Mirage Engine - Streaming Handlers
  *
  * Manages real-time subscriptions and event streaming.
  */
 
-import type { Event } from 'nostr-tools';
-import type { RelayPool } from './relay-pool';
+import type { Event, SimplePool } from 'nostr-tools';
 
 // ============================================================================
 // Types
@@ -30,7 +30,8 @@ export const activeSubscriptions = new Map<string, ActiveSubscription>();
 
 export async function handleStreamOpen(
     message: { type: 'STREAM_OPEN'; id: string; method: string; path: string; headers?: Record<string, string> },
-    pool: RelayPool,
+    pool: SimplePool,
+    relays: string[],
     currentPubkey: string | null
 ): Promise<void> {
     const { id, path } = message;
@@ -81,14 +82,16 @@ export async function handleStreamOpen(
 
         // Start Subscription
         console.log('[Engine] Starting stream:', id, path, filter);
-        const unsubscribe = pool.subscribe([filter], (event) => {
-            sendStreamChunk(id, `data: ${JSON.stringify(event)}\n\n`);
+        const sub = pool.subscribe(relays, filter, {
+            onevent: (event: Event) => {
+                sendStreamChunk(id, `data: ${JSON.stringify(event)}\n\n`);
+            }
         });
 
         // Track Subscription
         activeSubscriptions.set(id, {
             id,
-            unsubscribe,
+            unsubscribe: () => sub.close(),
             filter,
             buffer: [],
         });

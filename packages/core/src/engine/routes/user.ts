@@ -1,15 +1,16 @@
+
 /**
  * Mirage Engine - User Routes
  *
  * Handles /mirage/v1/user endpoints for user profile data.
  */
 
-import type { Filter, Event } from 'nostr-tools';
-import type { RelayPool } from '../relay-pool';
+import type { Filter, SimplePool } from 'nostr-tools';
 import type { UserProfile } from '../../types';
 
 export interface UserRouteContext {
-    pool: RelayPool;
+    pool: SimplePool;
+    relays: string[];
     currentPubkey: string | null;
 }
 
@@ -39,7 +40,7 @@ export async function getUserByPubkey(
         limit: 1,
     };
 
-    const event = await ctx.pool.query([filter], 3000);
+    const event = await ctx.pool.get(ctx.relays, filter);
 
     if (!event) {
         return { status: 404, body: { error: 'User not found' } };

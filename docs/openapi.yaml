@@ -201,32 +201,11 @@ paths:
   /users/{pubkey}:
     get:
       tags: [Users]
-      summary: Get user profile (Alias)
-      description: Alias for /profiles/{pubkey}
-      operationId: getUser
-      parameters:
-        - name: pubkey
-          in: path
-          required: true
-          description: Hex public key or npub
-          schema:
-            type: string
-      responses:
-        '200':
-          description: User profile found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ProfileContent'
-
-  /profiles/{pubkey}:
-    get:
-      tags: [Users]
       summary: Get user profile
       description: |
         Fetch a user's profile metadata (Kind 0).
         This includes name, bio, avatar, and other NIP-01 fields.
-      operationId: getProfile
+      operationId: getUser
       parameters:
         - name: pubkey
           in: path
@@ -585,99 +564,34 @@ paths:
         '201':
           description: Message sent
 
-  /admin/spaces:
-    get:
-      tags: [Admin]
-      summary: List all my spaces (Admin Only)
-      description: Restricted to system origin. Returns all spaces you're a member of.
-      operationId: adminListSpaces
-      security:
-        - nip07: []
-      responses:
-        '200':
-          description: All spaces
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Space'
-        '403':
-          description: Access restricted to system origin
-
+  /space/invitations:
     post:
-      tags: [Admin]
-      summary: Create a space (Admin Only)
-      operationId: adminCreateSpace
-      security:
-        - nip07: []
+      tags: [Spaces]
+      summary: Invite user to current space (system message)
+      operationId: postImplicitSpaceInvitation
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [name]
+              required: [pubkey]
               properties:
+                pubkey:
+                  type: string
+                  description: Public key to invite
                 name:
                   type: string
+                  description: Optional name for the user
       responses:
         '201':
-          description: Space created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Space'
+          description: Invitation sent
 
-  /admin/spaces/all:
-    get:
-      tags: [Admin]
-      summary: List ALL spaces across all apps (Admin Only)
-      operationId: adminListAllSpaces
-      responses:
-        '200':
-          description: All spaces
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Space'
 
-  /admin/spaces/{spaceId}:
-    put:
-      tags: [Admin]
-      summary: Rename space (Admin Only)
-      operationId: adminRenameSpace
-      parameters:
-        - name: spaceId
-          in: path
-          required: true
-          schema: { type: string }
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                name: { type: string }
-      responses:
-        '200':
-          description: Space renamed
 
-    delete:
-      tags: [Admin]
-      summary: Delete space (Admin Only)
-      operationId: adminDeleteSpace
-      parameters:
-        - name: spaceId
-          in: path
-          required: true
-          schema: { type: string }
-      responses:
-        '200':
-          description: Space deleted
+
+
+
 
   /spaces:
     get:
@@ -730,26 +644,6 @@ paths:
                 $ref: '#/components/schemas/Space'
 
   /spaces/{spaceId}:
-    get:
-      tags: [Spaces]
-      summary: Get space details
-      operationId: getSpace
-      security:
-        - nip07: []
-      parameters:
-        - name: spaceId
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Space details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Space'
-
     delete:
       tags: [Spaces]
       summary: Delete or leave a space
@@ -774,270 +668,9 @@ paths:
                   deleted:
                     type: boolean
 
-  /spaces/{spaceId}/store:
-    get:
-      tags: [Spaces]
-      summary: Get shared data (Shared KV)
-      description: |
-        Get the current state of the shared database.
 
-        **Magic 'current' ID:**
-        If you use `current` as the `spaceId` (e.g., `/spaces/current/store`),
-        the API will automatically target the space the app is running in.
-        If the app is standalone, it targets the app's private default space.
-      operationId: getSpaceStore
-      security:
-        - nip07: []
-      parameters:
-        - name: spaceId
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Space ID or "current"
-      responses:
-        '200':
-          description: Current state
-          content:
-            application/json:
-              schema:
-                type: object
-                description: Key-Value map of current state
-                example: {"milk": true, "eggs": false}
-            text/event-stream:
-              schema:
-                $ref: '#/components/schemas/StoreUpdate'
 
-  /spaces/{spaceId}/store/{key}:
-    put:
-      tags: [Spaces]
-      summary: Update shared data
-      description: |
-        Update a single key in the shared database.
-        Uses "Last-Write-Wins" logic.
-      operationId: putSpaceStore
-      security:
-        - nip07: []
-      parameters:
-        - name: spaceId
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: key
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              description: Any JSON value
-              example: true
-      responses:
-        '200':
-          description: Updated
 
-  /spaces/{spaceId}/messages:
-    get:
-      tags: [Spaces]
-      summary: Get raw messages
-      description: |
-        Get raw event log from the space. Useful for chat apps or custom logic.
-
-        **Magic 'current' ID:**
-        Supports using `current` as the `spaceId`.
-      operationId: getSpaceMessages
-      security:
-        - nip07: []
-      parameters:
-        - name: spaceId
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Space ID or "current"
-        - name: since
-          in: query
-          description: Unix timestamp
-          schema:
-            type: integer
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            default: 50
-      responses:
-        '200':
-          description: List of messages
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/SpaceMessage'
-
-    post:
-      tags: [Spaces]
-      summary: Send a raw message
-      operationId: sendSpaceMessage
-      security:
-        - nip07: []
-      parameters:
-        - name: spaceId
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [content]
-              properties:
-                content:
-                  type: string
-      responses:
-        '201':
-          description: Message sent
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SpaceMessage'
-
-  /spaces/{spaceId}/invite:
-    post:
-      tags: [Spaces]
-      summary: Invite someone to the space
-      description: |
-        Add a person to your space. They'll receive an invitation
-        containing the symmetric encryption key, wrapped in a NIP-17 Gift Wrap.
-
-        **Note:** This is a privileged Host-only operation.
-      operationId: inviteToSpace
-      security:
-        - nip07: []
-      parameters:
-        - name: spaceId
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [pubkey]
-              properties:
-                pubkey:
-                  type: string
-                  description: The user's ID (Hex public key or npub)
-      responses:
-        '200':
-          description: Invitation sent
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  invited:
-                    type: string
-                    description: The pubkey of the invited user
-
-  /spaces/all:
-    get:
-      tags: [Spaces]
-      summary: List all spaces
-      description: Returns all spaces across all applications, including invitations.
-      operationId: listAllSpaces
-      security:
-        - nip07: []
-      responses:
-        '200':
-          description: All spaces
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Space'
-
-  /admin/apps:
-    get:
-      tags: [Admin]
-      summary: List my applications
-      description: Returns all Mirage applications you've published or added to your library.
-      operationId: listAdminApps
-      security:
-        - nip07: []
-      responses:
-        '200':
-          description: Your applications
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/AppDefinition'
-
-    post:
-      tags: [Admin]
-      summary: Add app to library
-      description: Save an application to your personal library.
-      operationId: addAdminApp
-      security:
-        - nip07: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AppDefinition'
-      responses:
-        '201':
-          description: App added
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-
-    delete:
-      tags: [Admin]
-      summary: Remove app from library
-      description: Deletes an application from your library.
-      operationId: deleteAdminApp
-      security:
-        - nip07: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [naddr]
-              properties:
-                naddr:
-                  type: string
-                  description: The unique identifier (naddr) of the app
-      responses:
-        '200':
-          description: App removed
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  deleted:
-                    type: string
 
   # ===========================================================================
   # Direct Messages (NIP-17)
@@ -1061,7 +694,7 @@ paths:
                 items:
                   $ref: '#/components/schemas/Conversation'
 
-  /dms/{pubkey}:
+  /dms/{pubkey}/messages:
     get:
       tags: [DirectMessages]
       summary: Get messages with someone
@@ -1136,6 +769,211 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DirectMessage'
+
+  # ===========================================================================
+  # Admin (Mirage Management)
+  # ===========================================================================
+
+  /admin/apps:
+    get:
+      tags: [Admin]
+      summary: List apps in library (Admin Only)
+      description: |
+        Returns the list of installed apps.
+        This is used by the Mirage launcher to show available apps.
+      operationId: adminListApps
+      security:
+        - nip07: []
+      responses:
+        '200':
+          description: List of apps
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AppDefinition'
+
+    post:
+      tags: [Admin]
+      summary: Add app to library (Admin Only)
+      description: |
+        Installs a new app into the Mirage library.
+        The app must have a valid NIP-19 `naddr`.
+      operationId: adminAddApp
+      security:
+        - nip07: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [naddr]
+              properties:
+                naddr:
+                  type: string
+                  description: NIP-19 address code
+      responses:
+        '201':
+          description: App installed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppDefinition'
+
+  /admin/apps/{naddr}:
+    delete:
+      tags: [Admin]
+      summary: Remove app from library (Admin Only)
+      operationId: adminRemoveApp
+      security:
+        - nip07: []
+      parameters:
+        - name: naddr
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: App removed
+
+  /admin/spaces:
+    get:
+      tags: [Admin]
+      summary: List ALL spaces across all apps (Admin Only)
+      operationId: adminListAllSpaces
+      responses:
+        '200':
+          description: All spaces
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Space'
+    post:
+      tags: [Admin]
+      summary: Create a space (Admin Only)
+      operationId: adminCreateSpace
+      security:
+        - nip07: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+       responses:
+        '201':
+          description: Space created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Space'
+
+  /admin/spaces/{spaceId}:
+    put:
+      tags: [Admin]
+      summary: Update space details (Admin Only)
+      operationId: adminUpdateSpace
+      parameters:
+        - name: spaceId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                icon:
+                  type: string
+                description:
+                  type: string
+      responses:
+        '200':
+          description: Space updated
+
+    delete:
+      tags: [Admin]
+      summary: Force delete a space (Admin Only)
+      description: |
+        Deletes the space and all associated data.
+        As admin, this bypasses some checks but is still destructive.
+      operationId: adminDeleteSpace
+      parameters:
+        - name: spaceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Space deleted
+
+  /admin/spaces/{spaceId}/invitations:
+    post:
+      tags: [Admin]
+      summary: Invite user to space (Admin Only)
+      operationId: adminInviteMember
+      parameters:
+        - name: spaceId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pubkey]
+              properties:
+                pubkey:
+                  type: string
+                name:
+                  type: string
+      responses:
+        '201':
+          description: Invitation sent
+
+  /admin/state:
+    delete:
+      tags: [Admin]
+      summary: Reset all Mirage data (Admin Only)
+      description: |
+        **DANGEROUS:** Wipes all Mirage-related data stored in Nostr relays,
+        including app library, space keys, and personal storage.
+        This action is irreversible.
+      operationId: adminResetState
+      security:
+        - nip07: []
+      responses:
+        '200':
+          description: System reset complete
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deletedCount:
+                    type: integer
+                  keys:
+                    type: array
+                    items:
+                      type: string
 
 components:
   securitySchemes:

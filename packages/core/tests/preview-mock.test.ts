@@ -59,8 +59,8 @@ describe('Preview Mock', () => {
             expect(data.name).toBe('Preview User');
         });
 
-        test('GET /profiles/:pubkey returns mock profile', async () => {
-            const res = await handlePreviewRequest('GET', '/mirage/v1/profiles/abc123');
+        test('GET /users/:pubkey returns mock profile', async () => {
+            const res = await handlePreviewRequest('GET', '/mirage/v1/users/abc123');
             const data = await res.json();
             expect(data.pubkey).toBe('abc123');
             expect(data.name).toContain('User');

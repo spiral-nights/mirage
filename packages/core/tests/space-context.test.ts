@@ -1,17 +1,17 @@
 import { describe, test, expect, mock, beforeEach } from "bun:test";
-import { 
-    getSpaceContext, 
-    getSpaceStore, 
-    type SpaceRouteContext 
+import {
+    getSpaceContext,
+    getSpaceStore,
+    type SpaceRouteContext
 } from "../src/engine/routes/spaces";
-import { RelayPool } from "../src/engine/relay-pool";
+import type { IMiragePool } from "../src/engine/mirage-pool";
 
 describe("Space Context", () => {
     let ctx: SpaceRouteContext;
-    
+
     beforeEach(() => {
         ctx = {
-            pool: {} as RelayPool,
+            pool: {} as IMiragePool,
             requestSign: mock(async (e: any) => e),
             requestEncrypt: mock(async (_: string, p: string) => p),
             requestDecrypt: mock(async (_: string, c: string) => c),

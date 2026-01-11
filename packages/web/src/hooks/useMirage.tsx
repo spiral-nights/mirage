@@ -242,14 +242,16 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
     const dTag = existingDTag || `mirage:app:${crypto.randomUUID()}`;
 
     // 1. Publish to Nostr via Engine API
+    const tags = [
+      ['d', dTag],
+      ['name', name],
+      ['t', 'mirage_app']
+    ];
+
     const result = await currentHost.request('POST', '/mirage/v1/events', {
       kind: 30078,
       content: html,
-      tags: [
-        ['d', dTag],
-        ['name', name],
-        ['t', 'mirage_app']
-      ]
+      tags
     });
 
     if (result.error) {

@@ -107,7 +107,7 @@ export async function listSpaces(
 }
 
 /**
- * GET /mirage/v1/spaces/all
+ * GET /mirage/v1/admin/spaces
  * List ALL spaces across all apps (for library/management UI)
  */
 export async function listAllSpaces(
@@ -143,7 +143,7 @@ export async function listAllSpaces(
 }
 
 /**
- * POST /mirage/v1/spaces
+ * POST /mirage/v1/admin/spaces
  * Create a new encrypted space
  */
 export async function createSpace(
@@ -229,7 +229,7 @@ export async function deleteSpace(
 }
 
 /**
- * PUT /mirage/v1/spaces/:id
+ * PUT /mirage/v1/admin/spaces/:id
  * Update space details (e.g. rename)
  */
 export async function updateSpace(
@@ -300,7 +300,7 @@ export async function getSpaceMessages(
   if (params.since) filter.since = params.since;
 
   // 2. Fetch messages
-  const events = await ctx.pool.queryAll([filter], 3000);
+  const events = await ctx.pool.querySync(ctx.relays, filter);
 
   // Decrypt
   const messages: SpaceMessage[] = [];
@@ -370,7 +370,7 @@ export async function postSpaceMessage(
   };
 
   const signed = await ctx.requestSign(unsigned);
-  await ctx.pool.publish(signed);
+  await Promise.any(ctx.pool.publish(ctx.relays, signed));
 
   const msg: SpaceMessage = {
     id: signed.id,
@@ -385,7 +385,7 @@ export async function postSpaceMessage(
 }
 
 /**
- * POST /mirage/v1/spaces/:id/invite
+ * POST /mirage/v1/admin/spaces/:id/invitations
  * Invite Member via NIP-17 Gift Wrap
  */
 export async function inviteMember(
@@ -393,8 +393,6 @@ export async function inviteMember(
   rawSpaceId: string,
   body: { pubkey: string; name?: string },
 ): Promise<{ status: number; body: unknown }> {
-  console.log("[InviteDebug] inviteMember called", { rawSpaceId, body });
-
   if (!ctx.currentPubkey)
     return { status: 401, body: { error: "Not authenticated" } };
   if (!body?.pubkey) return { status: 400, body: { error: "Pubkey required" } };
@@ -448,8 +446,15 @@ export async function inviteMember(
   const wrapper = wrapEvent(signedInner, receiverPubkey);
 
   // 5. Publish
-  const publishResult = await ctx.pool.publish(wrapper as any);
-  console.log(`[Invites] Sent invite to ${receiverPubkey} for space ${spaceId} (scoped: ${scopedId}) with timestamp ${innerEvent.created_at}`);
+  try {
+    await Promise.any(ctx.pool.publish(ctx.relays, wrapper as any));
+    console.log(
+      `[Invites] Sent invite to ${receiverPubkey} for space ${spaceId} (scoped: ${scopedId})`
+    );
+  } catch (e) {
+    console.error(`[Invites] Failed to publish invite:`, e);
+    return { status: 500, body: { error: "Failed to publish invite" } };
+  }
 
   return { status: 200, body: { invited: receiverPubkey } };
 }
@@ -470,8 +475,10 @@ export async function syncInvites(ctx: SpaceRouteContext): Promise<void> {
     since: Math.floor(Date.now() / 1000) - 7 * 24 * 60 * 60,
   };
 
-  const events = await ctx.pool.queryAll([filter], 3000);
-  console.log(`[Invites] Synced checks: Found ${events.length} candidates (Kind 1059).`);
+  const events = await ctx.pool.querySync(ctx.relays, filter);
+  if (events.length > 0) {
+    console.log(`[Invites] Syncing... Found ${events.length} potential invites.`);
+  }
 
   const keys = await getKeys(ctx);
   let updated = false;
@@ -492,6 +499,7 @@ export async function syncInvites(ctx: SpaceRouteContext): Promise<void> {
           payload.key &&
           payload.scopedId
         ) {
+          console.log(`[Invites] Processing invite for ${payload.scopedId} (v${payload.version}) from ${innerEvent.pubkey}`);
           const existing = keys.get(payload.scopedId);
 
           // Logic:
@@ -514,7 +522,8 @@ export async function syncInvites(ctx: SpaceRouteContext): Promise<void> {
               // But we have no choice if latestInviteTimestamp is missing.
               // We'll require a significant buffer or strict check.
               // Actually, let's just use > deletedAt, acknowledging the bug exists for old keys.
-              isNewerInvite = inviteTime > (existing.deletedAt || existing.createdAt || 0);
+              isNewerInvite =
+                inviteTime > (existing.deletedAt || existing.createdAt || 0);
             }
           }
 
@@ -523,7 +532,7 @@ export async function syncInvites(ctx: SpaceRouteContext): Promise<void> {
             (!existing.deleted && existing.version < payload.version) ||
             isNewerInvite
           ) {
-
+            console.log(`[Invites] Accepting invite for ${payload.scopedId}. Updated: ${updated}`);
             // Accept the invite
             keys.set(payload.scopedId, {
               key: payload.key,
@@ -609,7 +618,7 @@ export async function getSpaceStore(
     since: cache.latestTimestamp + 1,
   };
 
-  const events = await ctx.pool.queryAll([filter], 3000);
+  const events = await ctx.pool.querySync(ctx.relays, filter);
 
   // 3. Merge Events (Last-Write-Wins)
   let hasUpdates = false;
@@ -633,7 +642,10 @@ export async function getSpaceStore(
         payload.ciphertext,
         payload.nonce,
       );
-      if (!plaintext) continue;
+      if (!plaintext) {
+        console.warn(`[SpaceStore] Decryption failed for event ${ev.id}`);
+        continue;
+      }
 
       // Parse: ["store_put", key, value]
       const data = JSON.parse(plaintext);
@@ -702,7 +714,7 @@ export async function updateSpaceStore(
   };
 
   const signed = await ctx.requestSign(unsigned);
-  await ctx.pool.publish(signed);
+  await Promise.any(ctx.pool.publish(ctx.relays, signed));
 
   // Update Local Cache Immediately (Optimistic Update)
   let cache = storeCache.get(scopedId);

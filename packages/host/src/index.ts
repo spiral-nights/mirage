@@ -229,7 +229,6 @@ export class MirageHost {
 
     // Parse permissions from app HTML
     this.appPermissions = parsePermissions(appHtml);
-    console.log("[Host] App permissions:", this.appPermissions.permissions);
 
     // Create sandboxed iframe
     this.iframe = document.createElement("iframe");
@@ -263,7 +262,10 @@ export class MirageHost {
           // Set app origin for space scoping (use canonical ID for shorter d-tags)
           if (appId) {
             const canonicalOrigin = getCanonicalAppId(appId);
-            console.log("[Host] Setting app origin:", canonicalOrigin);
+            console.log(
+              "[Host] Setting app origin:",
+              canonicalOrigin,
+            );
 
             // Send to Engine (for relay operations)
             this.engineWorker.postMessage({
@@ -378,10 +380,7 @@ export class MirageHost {
     pubkey: string,
     spaceName?: string,
   ): Promise<void> {
-    console.log(
-      `[InviteDebug] host.inviteToSpace(spaceId=${spaceId}, pubkey=${pubkey.slice(0, 10)}..., name=${spaceName})`,
-    );
-    return this.request("POST", `/mirage/v1/admin/spaces/${spaceId}/invite`, {
+    return this.request("POST", `/mirage/v1/admin/spaces/${spaceId}/invitations`, {
       pubkey,
       name: spaceName,
     });
@@ -406,9 +405,6 @@ export class MirageHost {
     path: string,
     body?: unknown,
   ): Promise<any> {
-    if (path.includes("/invite")) {
-      console.log(`[InviteDebug] host.request: ${method} ${path}`);
-    }
     return this.sendToEngine({
       type: "API_REQUEST",
       id: crypto.randomUUID(),
@@ -664,9 +660,6 @@ export class MirageHost {
     }
     // Route: New Space Invite Notification
     else if (message.type === "NEW_SPACE_INVITE") {
-      console.log(
-        `[InviteDebug] Host received NEW_SPACE_INVITE for: ${(message as any).spaceName || (message as any).spaceId}`,
-      );
       this.emit("new_space_invite", message);
     }
   }

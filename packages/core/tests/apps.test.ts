@@ -1,7 +1,6 @@
-import { describe, expect, test, mock, beforeAll } from "bun:test";
+import { describe, expect, test, mock } from "bun:test";
 import { fetchAppCode } from "../src/engine/routes/apps";
-import { nip19 } from "nostr-tools";
-import { RelayPool } from "../src/engine/relay-pool";
+import { nip19, type SimplePool } from "nostr-tools";
 
 describe("Apps Route", () => {
     test("fetchAppCode decodes naddr and queries pool", async () => {
@@ -24,23 +23,25 @@ describe("Apps Route", () => {
         };
 
         const mockPool = {
-            query: mock(async () => mockEvent)
-        } as unknown as RelayPool;
+            get: mock(async (relays: string[], filter: any) => mockEvent)
+        } as unknown as SimplePool;
 
-        const result = await fetchAppCode(mockPool, naddr);
+        const relays = ['wss://relay.test.com'];
+        const result = await fetchAppCode(mockPool, relays, naddr);
 
         expect(result.html).toBe("<html>Test App</html>");
-        expect(mockPool.query).toHaveBeenCalled();
-        
-        const filter = (mockPool.query as any).mock.calls[0][0][0];
+        expect(mockPool.get).toHaveBeenCalled();
+
+        const [callRelays, filter] = (mockPool.get as any).mock.calls[0];
         expect(filter.kinds).toContain(30078);
         expect(filter.authors).toContain(pubkey);
         expect(filter["#d"]).toContain(identifier);
     });
 
     test("fetchAppCode returns error for invalid naddr", async () => {
-        const mockPool = {} as RelayPool;
-        const result = await fetchAppCode(mockPool, "invalid-naddr");
+        const mockPool = {} as SimplePool;
+        const relays = ['wss://relay.test.com'];
+        const result = await fetchAppCode(mockPool, relays, "invalid-naddr");
         expect(result.error).toBeDefined();
     });
 });

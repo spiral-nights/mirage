@@ -1,17 +1,18 @@
+
 /**
  * Mirage Apps - Route Handlers
  * 
  * Logic for fetching and publishing Mirage apps (Kind 30078).
  */
 
-import { nip19, type Filter } from 'nostr-tools';
-import { RelayPool } from '../relay-pool';
+import { nip19, type Filter, type SimplePool } from 'nostr-tools';
 
 /**
  * Fetch an app's HTML code from Nostr relays using naddr.
  */
 export async function fetchAppCode(
-    pool: RelayPool,
+    pool: SimplePool,
+    relays: string[],
     naddr: string
 ): Promise<{ html?: string; error?: string }> {
     try {
@@ -35,8 +36,8 @@ export async function fetchAppCode(
             limit: 1
         };
 
-        const event = await pool.query([filter]);
-        
+        const event = await pool.get(relays, filter);
+
         if (!event) {
             return { error: 'App not found on relays' };
         }

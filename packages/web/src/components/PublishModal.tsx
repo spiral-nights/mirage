@@ -46,7 +46,7 @@ export const PublishModal = ({
   useEffect(() => {
     if (isOpen && authorPubkey && host) {
       setAuthorProfile(null);
-      host.request('GET', `/mirage/v1/profiles/${authorPubkey}`)
+      host.request('GET', `/mirage/v1/users/${authorPubkey}`)
         .then((res: any) => {
           if (res && res.profile) setAuthorProfile(res.profile);
         })

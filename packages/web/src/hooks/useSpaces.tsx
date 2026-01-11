@@ -18,7 +18,7 @@ export function useSpaces() {
     setLoading(true);
     try {
       // Use listAllSpaces to get spaces for all apps
-      const data = await host.request('GET', '/mirage/v1/admin/spaces/all');
+      const data = await host.request('GET', '/mirage/v1/admin/spaces');
       if (Array.isArray(data)) {
         setSpaces(data);
       }

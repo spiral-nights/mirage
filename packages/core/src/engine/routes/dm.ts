@@ -1,3 +1,4 @@
+
 /**
  * Direct Message Routes (NIP-17)
  * 
@@ -50,7 +51,7 @@ export async function listDMs(
     };
 
     // 1. Fetch recent Gift Wraps
-    const events = await ctx.pool.queryAll([filter], 3000);
+    const events = await ctx.pool.querySync(ctx.relays, filter);
 
 
     // 2. Unwrap and Aggregate
@@ -144,7 +145,7 @@ export async function getDMMessages(
     };
 
     // 1. Fetch Gift Wraps
-    const events = await ctx.pool.queryAll([filter], 3000);
+    const events = await ctx.pool.querySync(ctx.relays, filter);
 
 
     const messages: DMMessage[] = [];
@@ -262,7 +263,7 @@ export async function sendDM(
     // 4a. Wrap Gift for Recipient (Kind 1059)
     const giftForRecipient = wrapEvent(signedSealForRecipient, hexTarget);
 
-    await ctx.pool.publish(giftForRecipient);
+    await Promise.any(ctx.pool.publish(ctx.relays, giftForRecipient));
 
     // --------------------------------------------------------------------------
     // Path B: Send to Self (History)
@@ -284,7 +285,7 @@ export async function sendDM(
 
         const giftForSelf = wrapEvent(signedSealForSelf, ctx.currentPubkey);
 
-        await ctx.pool.publish(giftForSelf);
+        await Promise.any(ctx.pool.publish(ctx.relays, giftForSelf));
     }
 
     return {

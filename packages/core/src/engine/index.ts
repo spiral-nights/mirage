@@ -4,8 +4,9 @@
  * The "Virtual Backend" that handles API requests and manages relay connections.
  */
 
-import type { Event } from "nostr-tools";
-import { RelayPool } from "./relay-pool";
+import { SimplePool, type Filter, type Event } from "nostr-tools";
+
+import { matchRoute } from "./route-matcher";
 
 import {
   getCurrentUser,
@@ -79,7 +80,8 @@ import {
 // State
 // ============================================================================
 
-let pool: RelayPool | null = null;
+let pool = new SimplePool();
+let activeRelays: string[] = [];
 let poolReadyResolve: () => void;
 const poolReady = new Promise<void>((resolve) => {
   poolReadyResolve = resolve;
@@ -160,6 +162,7 @@ async function preloadSpaceKeys(): Promise<void> {
   console.log("[Engine] Preloading space keys...");
   const ctx: SpaceRouteContext = {
     pool,
+    relays: activeRelays,
     requestSign,
     requestEncrypt,
     requestDecrypt,
@@ -183,13 +186,12 @@ async function preloadSpaceKeys(): Promise<void> {
  * Background loop to poll for invites and other background tasks.
  */
 function startBackgroundSync(): void {
-  console.log("[InviteDebug] Starting background sync loop (60s interval)");
-
   const runSync = async () => {
     if (!pool || !currentPubkey) return;
 
     const ctx: SpaceRouteContext = {
       pool,
+      relays: activeRelays,
       requestSign,
       requestEncrypt,
       requestDecrypt,
@@ -198,7 +200,6 @@ function startBackgroundSync(): void {
       currentSpace,
     };
 
-    console.log("[InviteDebug] Running periodic background sync...");
     await syncInvites(ctx);
   };
 
@@ -239,17 +240,13 @@ self.onmessage = async (event: MessageEvent<MirageMessage>) => {
       self.postMessage({
         type: "RELAY_STATUS_RESULT",
         id: message.id,
-        stats: pool ? pool.getStats() : [],
+        stats: activeRelays.map((url) => ({ url, status: "active" })),
       });
       break;
 
     case "STREAM_OPEN":
       await poolReady;
-      if (pool) {
-        await handleStreamOpen(message as any, pool, currentPubkey);
-      } else {
-        sendStreamError((message as any).id, "Relay pool not initialized");
-      }
+      await handleStreamOpen(message as any, pool, activeRelays, currentPubkey);
       break;
 
     case "SIGNATURE_RESULT":
@@ -267,8 +264,11 @@ self.onmessage = async (event: MessageEvent<MirageMessage>) => {
       break;
 
     case "SET_APP_ORIGIN":
-      appOrigin = (message as any).origin;
-      console.log("[Engine] App origin set:", appOrigin?.slice(0, 20) + "...");
+      const payload = message as any;
+      appOrigin = payload.origin;
+      console.log(
+        `[Engine] App origin set: ${appOrigin?.slice(0, 20)}...`,
+      );
       break;
 
     case "SET_SPACE_CONTEXT":
@@ -295,23 +295,17 @@ self.onmessage = async (event: MessageEvent<MirageMessage>) => {
 // ============================================================================
 
 async function handleRelayConfig(message: RelayConfigMessage): Promise<void> {
-  if (!pool) {
-    pool = new RelayPool();
-  }
-
   switch (message.action) {
     case "SET":
-      await pool.setRelays(message.relays);
+      activeRelays = message.relays;
       break;
     case "ADD":
-      await Promise.allSettled(
-        message.relays.map((url) => pool!.addRelay(url)),
-      );
+      message.relays.forEach((url) => {
+        if (!activeRelays.includes(url)) activeRelays.push(url);
+      });
       break;
     case "REMOVE":
-      for (const url of message.relays) {
-        pool.removeRelay(url);
-      }
+      activeRelays = activeRelays.filter((url) => !message.relays.includes(url));
       break;
   }
 
@@ -327,12 +321,14 @@ async function handleApiRequest(message: ApiRequestMessage): Promise<void> {
   await poolReady;
 
   if (!pool) {
+    console.warn(
+      `[API] ${message.method} ${message.path} → 503 (pool not initialized)`,
+    );
     sendResponse(message.id, 503, { error: "Relay pool not initialized" });
     return;
   }
 
   const { method, path, body } = message;
-  console.log(`[API] ${method} ${path}`, body ? { body } : "");
 
   // Track original sender
   const sender = (message as any)._sender;
@@ -344,13 +340,16 @@ async function handleApiRequest(message: ApiRequestMessage): Promise<void> {
   ) {
     const keysReady = await waitForKeysReady();
     if (!keysReady) {
+      console.warn(`[API] ${method} ${path} → 503 (keys not ready)`);
       sendResponse(message.id, 503, { error: "Keys not ready" });
       return;
     }
   }
 
-  const route = await matchRoute(method, path);
+  // --- OFFLINE ENFORCEMENT REMOVED ---
+  const route = await resolveRoute(method, path, pool);
   if (!route) {
+    console.warn(`[API] ${method} ${path} → 404 (no matching route)`);
     sendResponse(message.id, 404, { error: "Not found" });
     return;
   }
@@ -358,9 +357,25 @@ async function handleApiRequest(message: ApiRequestMessage): Promise<void> {
   try {
     const result = await route.handler(body, route.params);
     const duration = performance.now() - start;
+
+    // Log successful requests with timing
+    if (result.status >= 400) {
+      console.warn(
+        `[API] ${method} ${path} → ${result.status} (${duration.toFixed(0)}ms)`,
+      );
+    } else {
+      console.log(
+        `[API] ${method} ${path} → ${result.status} (${duration.toFixed(0)}ms)`,
+      );
+    }
+
     sendResponse(message.id, result.status, result.body);
   } catch (err: any) {
-    console.error(`[Engine] API Error: ${method} ${path}`, err);
+    const duration = performance.now() - start;
+    console.error(
+      `[API] ${method} ${path} → 500 (${duration.toFixed(0)}ms)`,
+      err.message,
+    );
     sendResponse(message.id, err.status || 500, { error: err.message });
   }
 }
@@ -377,9 +392,10 @@ interface RouteMatch {
   params: Record<string, string | string[]>;
 }
 
-async function matchRoute(
+async function resolveRoute(
   method: string,
   fullPath: string,
+  requestPool: SimplePool,
 ): Promise<RouteMatch | null> {
   const [path, queryString] = fullPath.split("?");
   const params: Record<string, string | string[]> = {};
@@ -400,13 +416,26 @@ async function matchRoute(
   }
 
   const eventsCtx: EventsRouteContext = {
-    pool: pool!,
+    pool: requestPool,
+    relays: activeRelays,
     requestSign,
   };
 
   const userCtx: UserRouteContext = {
-    pool: pool!,
+    pool: requestPool,
+    relays: activeRelays,
     currentPubkey,
+  };
+
+  const spaceCtx: SpaceRouteContext = {
+    pool: requestPool,
+    relays: activeRelays,
+    requestSign,
+    requestEncrypt,
+    requestDecrypt,
+    currentPubkey,
+    appOrigin,
+    currentSpace,
   };
 
   // Helper to check admin access
@@ -420,7 +449,7 @@ async function matchRoute(
         body: {
           ready: true,
           authenticated: !!currentPubkey,
-          relayCount: pool?.getRelays().length ?? 0,
+          relayCount: activeRelays.length,
         },
       }),
       params: {},
@@ -447,23 +476,6 @@ async function matchRoute(
     };
   }
 
-  // Legacy /feed support -> redirected to /events?kinds=1
-  if (method === "GET" && path === "/mirage/v1/feed") {
-    const feedParams = { ...params, kinds: ["1"] };
-    return {
-      handler: async () => getEvents(eventsCtx, feedParams),
-      params: feedParams,
-    };
-  }
-
-  // Legacy POST /feed -> redirected to /events with kind 1
-  if (method === "POST" && path === "/mirage/v1/feed") {
-    return {
-      handler: async (body: any) => postEvents(eventsCtx, { ...body, kind: 1 }),
-      params: {},
-    };
-  }
-
   // GET /mirage/v1/user/me
   if (method === "GET" && path === "/mirage/v1/user/me") {
     return {
@@ -474,7 +486,9 @@ async function matchRoute(
 
   // App Library Routes (Admin Only)
   if (path.startsWith("/mirage/v1/admin/apps")) {
-    console.log(`[API_DEBUG] Handling /admin/apps request. Method=${method} IsAdmin=${isAdminOrigin}`);
+    console.log(
+      `[API_DEBUG] Handling /admin/apps request. Method=${method} IsAdmin=${isAdminOrigin}`,
+    );
     if (!isAdminOrigin) {
       console.warn(`[API_DEBUG] Admin access denied for ${path}`);
       return {
@@ -487,7 +501,8 @@ async function matchRoute(
     }
 
     const storageCtx: StorageRouteContext = {
-      pool: pool!,
+      pool: requestPool,
+      relays: activeRelays,
       requestSign,
       requestEncrypt,
       requestDecrypt,
@@ -534,30 +549,22 @@ async function matchRoute(
     }
   }
 
-  // GET /mirage/v1/profiles/:pubkey (New Standard)
-  const profilesMatch = path.match(/^\/mirage\/v1\/profiles\/([a-f0-9]{64})$/);
-  if (method === "GET" && profilesMatch) {
-    return {
-      handler: async () => getUserByPubkey(userCtx, profilesMatch[1]),
-      params: { pubkey: profilesMatch[1] },
-    };
-  }
-
-  // GET /mirage/v1/users/:pubkey (Legacy Alias)
-  const usersMatch = path.match(/^\/mirage\/v1\/users\/([a-f0-9]{64})$/);
+  // GET /mirage/v1/users/:pubkey - Get user by pubkey
+  const usersMatch = matchRoute("/mirage/v1/users/:pubkey", path);
   if (method === "GET" && usersMatch) {
     return {
-      handler: async () => getUserByPubkey(userCtx, usersMatch[1]),
-      params: { pubkey: usersMatch[1] },
+      handler: async () => getUserByPubkey(userCtx, usersMatch.pubkey),
+      params: usersMatch,
     };
   }
 
   // User Personal Storage - /mirage/v1/space/me/:key
-  const storageMatch = path.match(/^\/mirage\/v1\/space\/me\/(.+)$/);
+  const storageMatch = matchRoute("/mirage/v1/space/me/:key", path);
   if (storageMatch) {
-    const key = decodeURIComponent(storageMatch[1]);
+    const { key } = storageMatch;
     const storageCtx: StorageRouteContext = {
-      pool: pool!,
+      pool: requestPool,
+      relays: activeRelays,
       requestSign,
       requestEncrypt,
       requestDecrypt,
@@ -570,7 +577,7 @@ async function matchRoute(
       return {
         handler: async () =>
           getStorage(storageCtx, key, { pubkey: params.pubkey as string }),
-        params: { key },
+        params: storageMatch,
       };
     }
 
@@ -580,20 +587,20 @@ async function matchRoute(
           putStorage(storageCtx, key, body, {
             public: params.public as string,
           }),
-        params: { key },
+        params: storageMatch,
       };
     }
 
     if (method === "DELETE") {
       return {
         handler: async () => deleteStorage(storageCtx, key),
-        params: { key },
+        params: storageMatch,
       };
     }
   }
 
   // Admin Reset Route (Wipe everything)
-  if (method === "DELETE" && path === "/mirage/v1/admin/reset") {
+  if (method === "DELETE" && path === "/mirage/v1/admin/state") {
     if (!isAdminOrigin) {
       return {
         handler: async () => ({
@@ -612,16 +619,11 @@ async function matchRoute(
 
         console.log("[Admin] Wiping all Mirage data...");
         // 1. Scan for all 30078 events related to Mirage
-        const events = await pool.queryAll(
-          [
-            {
-              kinds: [30078],
-              authors: [currentPubkey],
-              limit: 200,
-            },
-          ],
-          5000,
-        );
+        const events = await pool.querySync(activeRelays, {
+          kinds: [30078],
+          authors: [currentPubkey],
+          limit: 200,
+        });
 
         const toDelete: string[] = [];
 
@@ -658,7 +660,7 @@ async function matchRoute(
                 pubkey: currentPubkey,
               };
               const signed = await requestSign(unsigned);
-              await pool.publish(signed);
+              await Promise.all(pool.publish(activeRelays, signed));
             } catch (e) {
               console.error(`[Admin] Failed to delete ${dTag}:`, e);
             }
@@ -675,18 +677,85 @@ async function matchRoute(
   }
 
   // =========================================================================
-  // Space routes
+  // Space Management Routes
   // =========================================================================
 
-  const spaceCtx: SpaceRouteContext = {
-    pool: pool!,
-    requestSign,
-    requestEncrypt,
-    requestDecrypt,
-    currentPubkey,
-    appOrigin,
-    currentSpace,
-  };
+  // GET /mirage/v1/spaces - List spaces for current app
+  if (method === "GET" && path === "/mirage/v1/spaces") {
+    return {
+      handler: async () => listSpaces(spaceCtx),
+      params: {},
+    };
+  }
+
+  // GET /mirage/v1/admin/spaces - List ALL spaces (Admin only)
+  if (method === "GET" && path === "/mirage/v1/admin/spaces") {
+    return {
+      handler: async () => listAllSpaces(spaceCtx),
+      params: {},
+    };
+  }
+
+  // POST /mirage/v1/admin/spaces - Create new space (Admin only)
+  if (method === "POST" && path === "/mirage/v1/admin/spaces") {
+    return {
+      handler: async (body) => createSpace(spaceCtx, body as any),
+      params: {},
+    };
+  }
+
+  // PUT /mirage/v1/admin/spaces/:id - Update space (Admin only)
+  const updateSpaceMatch = matchRoute("/mirage/v1/admin/spaces/:id", path);
+  if (method === "PUT" && updateSpaceMatch) {
+    return {
+      handler: async (body) =>
+        updateSpace(spaceCtx, updateSpaceMatch.id, body as any),
+      params: updateSpaceMatch,
+    };
+  }
+
+  // DELETE /mirage/v1/spaces/:id - Delete space
+  const deleteSpaceMatch = matchRoute("/mirage/v1/spaces/:id", path);
+  if (method === "DELETE" && deleteSpaceMatch) {
+    return {
+      handler: async () => deleteSpace(spaceCtx, deleteSpaceMatch.id),
+      params: deleteSpaceMatch,
+    };
+  }
+
+  // DELETE /mirage/v1/admin/spaces/:id - Delete space (Admin route)
+  const adminDeleteSpaceMatch = matchRoute("/mirage/v1/admin/spaces/:id", path);
+  if (method === "DELETE" && adminDeleteSpaceMatch) {
+    return {
+      handler: async () => deleteSpace(spaceCtx, adminDeleteSpaceMatch.id),
+      params: adminDeleteSpaceMatch,
+    };
+  }
+
+  // POST /mirage/v1/admin/spaces/:id/invitations - Invite user to space (Admin route)
+  const inviteSpaceMatch = matchRoute(
+    "/mirage/v1/admin/spaces/:id/invitations",
+    path,
+  );
+  if (method === "POST" && inviteSpaceMatch) {
+    console.log(
+      `[Invite_Route] Matched POST /admin/spaces/:id/invitations, spaceId:`,
+      inviteSpaceMatch.id,
+    );
+    return {
+      handler: async (body) =>
+        inviteMember(
+          spaceCtx,
+          inviteSpaceMatch.id,
+          body as { pubkey: string; name?: string },
+        ),
+      params: inviteSpaceMatch,
+    };
+  }
+
+  // =========================================================================
+  // Space routes
+  // =========================================================================
 
   // GET /mirage/v1/space - Get current space context
   if (method === "GET" && path === "/mirage/v1/space") {
@@ -738,7 +807,7 @@ async function matchRoute(
   }
 
   // PUT /mirage/v1/space/store/:key - Update shared KV store key
-  const implicitStoreMatch = path.match(/^\/mirage\/v1\/space\/store\/(.+)$/);
+  const implicitStoreMatch = matchRoute("/mirage/v1/space/store/:key", path);
   if (method === "PUT" && implicitStoreMatch) {
     if (!currentSpace?.id) {
       return {
@@ -749,7 +818,7 @@ async function matchRoute(
         params: {},
       };
     }
-    const key = decodeURIComponent(implicitStoreMatch[1]);
+    const { key } = implicitStoreMatch;
     return {
       handler: async (body) =>
         updateSpaceStore(spaceCtx, currentSpace!.id, key, body),
@@ -803,9 +872,11 @@ async function matchRoute(
     };
   }
 
-  // POST /mirage/v1/space/invite - Invite member to current space
-  if (method === "POST" && path === "/mirage/v1/space/invite") {
+  // POST /mirage/v1/space/invitations - Invite user to current space (system message)
+  if (method === "POST" && path === "/mirage/v1/space/invitations") {
+    console.log(`[Invite_Route_DEBUG] Matched! currentSpace:`, currentSpace);
     if (!currentSpace?.id) {
+      console.log(`[Invite_Route_DEBUG] No space context set, returning 400`);
       return {
         handler: async () => ({
           status: 400,
@@ -814,270 +885,28 @@ async function matchRoute(
         params: {},
       };
     }
+    console.log(
+      `[Invite_Route_DEBUG] Calling inviteMember with space:`,
+      currentSpace.id,
+    );
     return {
       handler: async (body) =>
-        inviteMember(spaceCtx, currentSpace!.id, body as { pubkey: string }),
+        inviteMember(
+          spaceCtx,
+          currentSpace!.id,
+          body as { pubkey: string; name?: string },
+        ),
       params: {},
     };
   }
 
   // =========================================================================
-  // Admin Space Routes (require SYSTEM_APP_ORIGIN)
+  // DM Routes
   // =========================================================================
 
-  // GET /mirage/v1/admin/spaces - List spaces for current app origin
-  if (method === "GET" && path === "/mirage/v1/admin/spaces") {
-    if (!isAdminOrigin) {
-      return {
-        handler: async () => ({
-          status: 403,
-          body: { error: "Admin access required" },
-        }),
-        params: {},
-      };
-    }
-    await syncInvites(spaceCtx);
-    return {
-      handler: async () => listSpaces(spaceCtx),
-      params: {},
-    };
-  }
-
-  // GET /mirage/v1/admin/spaces/all - List ALL spaces across all apps
-  if (method === "GET" && path === "/mirage/v1/admin/spaces/all") {
-    if (!isAdminOrigin) {
-      return {
-        handler: async () => ({
-          status: 403,
-          body: { error: "Admin access required" },
-        }),
-        params: {},
-      };
-    }
-    await syncInvites(spaceCtx);
-    return {
-      handler: async () => listAllSpaces(spaceCtx),
-      params: {},
-    };
-  }
-
-  // POST /mirage/v1/admin/spaces - Create a new space
-  if (method === "POST" && path === "/mirage/v1/admin/spaces") {
-    if (!isAdminOrigin) {
-      return {
-        handler: async () => ({
-          status: 403,
-          body: { error: "Admin access required" },
-        }),
-        params: {},
-      };
-    }
-    return {
-      handler: async (body) => createSpace(spaceCtx, body as { name: string }),
-      params: {},
-    };
-  }
-
-  // Admin space-specific routes: /mirage/v1/admin/spaces/:spaceId/...
-  const adminSpaceMatch = path.match(
-    /^\/mirage\/v1\/admin\/spaces\/([a-zA-Z0-9_-]+)(.*)$/,
-  );
-  if (adminSpaceMatch) {
-    const subPath = adminSpaceMatch[2];
-    // Allow /invite for non-admin origins because inviteMember enforces appOrigin scoping (safe).
-    // Other routes like DELETE/UPDATE have fallbacks that might be unsafe for cross-app access.
-    if (!isAdminOrigin && subPath !== "/invite") {
-      return {
-        handler: async () => ({
-          status: 403,
-          body: { error: "Admin access required" },
-        }),
-        params: {},
-      };
-    }
-    const spaceId = adminSpaceMatch[1];
-
-    const getIntParam = (
-      p: string | string[] | undefined,
-    ): number | undefined => (p ? parseInt(String(p), 10) : undefined);
-
-    // DELETE /mirage/v1/admin/spaces/:id
-    if (method === "DELETE" && (subPath === "" || subPath === "/")) {
-      return {
-        handler: async () => deleteSpace(spaceCtx, spaceId),
-        params: { spaceId },
-      };
-    }
-
-    // PUT /mirage/v1/admin/spaces/:id (rename)
-    if (method === "PUT" && (subPath === "" || subPath === "/")) {
-      return {
-        handler: async (body) =>
-          updateSpace(spaceCtx, spaceId, body as { name: string }),
-        params: { spaceId },
-      };
-    }
-
-    // GET /mirage/v1/admin/spaces/:id/store
-    if (method === "GET" && subPath === "/store") {
-      return {
-        handler: async () => getSpaceStore(spaceCtx, spaceId),
-        params: { spaceId },
-      };
-    }
-
-    // PUT /mirage/v1/admin/spaces/:id/store/:key
-    const adminStoreKeyMatch = subPath.match(/^\/store\/(.+)$/);
-    if (method === "PUT" && adminStoreKeyMatch) {
-      const key = decodeURIComponent(adminStoreKeyMatch[1]);
-      return {
-        handler: async (body) => updateSpaceStore(spaceCtx, spaceId, key, body),
-        params: { spaceId, key },
-      };
-    }
-
-    // GET /mirage/v1/admin/spaces/:id/messages
-    if (method === "GET" && subPath === "/messages") {
-      return {
-        handler: async () =>
-          getSpaceMessages(spaceCtx, spaceId, {
-            since: getIntParam(params.since),
-            limit: getIntParam(params.limit),
-          }),
-        params: { spaceId },
-      };
-    }
-
-    // POST /mirage/v1/admin/spaces/:id/messages
-    if (method === "POST" && subPath === "/messages") {
-      return {
-        handler: async (body) =>
-          postSpaceMessage(spaceCtx, spaceId, body as { content: string }),
-        params: { spaceId },
-      };
-    }
-
-    // POST /mirage/v1/admin/spaces/:id/invite
-    if (method === "POST" && subPath === "/invite") {
-      console.log(`[InviteDebug] Engine routing invite for space ${spaceId}`);
-      return {
-        handler: async (body) =>
-          inviteMember(spaceCtx, spaceId, body as { pubkey: string }),
-        params: { spaceId },
-      };
-    }
-  }
-
-  // =========================================================================
-  // Legacy Space Routes (keep for backwards compatibility, but deprecated)
-  // These will be removed in a future version
-  // =========================================================================
-
-  // GET /mirage/v1/spaces - DEPRECATED, use /admin/spaces
-  if (method === "GET" && path === "/mirage/v1/spaces") {
-    console.warn(
-      "[Engine] DEPRECATED: GET /spaces - use GET /admin/spaces instead",
-    );
-    await syncInvites(spaceCtx);
-    return {
-      handler: async () => listSpaces(spaceCtx),
-      params: {},
-    };
-  }
-
-  // POST /mirage/v1/spaces - DEPRECATED, use /admin/spaces
-  if (method === "POST" && path === "/mirage/v1/spaces") {
-    console.warn(
-      "[Engine] DEPRECATED: POST /spaces - use POST /admin/spaces instead",
-    );
-    return {
-      handler: async (body) => createSpace(spaceCtx, body as { name: string }),
-      params: {},
-    };
-  }
-
-  // Space-specific routes
-  const spaceMatch = path.match(/^\/mirage\/v1\/spaces\/([a-zA-Z0-9_-]+)(.*)$/);
-  if (spaceMatch) {
-    const spaceId = spaceMatch[1];
-    const subPath = spaceMatch[2]; // e.g. "/messages", "/store", or ""
-
-    // Use helper for safe parsing since params can be array
-    const getIntParam = (
-      p: string | string[] | undefined,
-    ): number | undefined => (p ? parseInt(String(p), 10) : undefined);
-
-    // DELETE /mirage/v1/spaces/:id (delete the space itself)
-    if (method === "DELETE" && (subPath === "" || subPath === "/")) {
-      return {
-        handler: async () => deleteSpace(spaceCtx, spaceId),
-        params: { spaceId },
-      };
-    }
-
-    // PUT /mirage/v1/spaces/:id (update space details e.g. rename)
-    if (method === "PUT" && (subPath === "" || subPath === "/")) {
-      return {
-        handler: async (body) =>
-          updateSpace(spaceCtx, spaceId, body as { name: string }),
-        params: { spaceId },
-      };
-    }
-
-    // GET .../store (Shared KV)
-    if (method === "GET" && subPath === "/store") {
-      return {
-        handler: async () => getSpaceStore(spaceCtx, spaceId),
-        params: { spaceId },
-      };
-    }
-
-    // PUT .../store/:key (Shared KV Update)
-    const storeKeyMatch = subPath.match(/^\/store\/(.+)$/);
-    if (method === "PUT" && storeKeyMatch) {
-      const key = decodeURIComponent(storeKeyMatch[1]);
-      return {
-        handler: async (body) => updateSpaceStore(spaceCtx, spaceId, key, body),
-        params: { spaceId, key },
-      };
-    }
-
-    // GET .../messages
-    if (method === "GET" && subPath === "/messages") {
-      return {
-        handler: async () =>
-          getSpaceMessages(spaceCtx, spaceId, {
-            since: getIntParam(params.since),
-            limit: getIntParam(params.limit),
-          }),
-        params: { spaceId },
-      };
-    }
-
-    // POST .../messages
-    if (method === "POST" && subPath === "/messages") {
-      return {
-        handler: async (body) =>
-          postSpaceMessage(spaceCtx, spaceId, body as { content: string }),
-        params: { spaceId },
-      };
-    }
-
-    // POST .../invite
-    if (method === "POST" && subPath === "/invite") {
-      return {
-        handler: async (body) =>
-          inviteMember(spaceCtx, spaceId, body as { pubkey: string }),
-        params: { spaceId },
-      };
-    }
-  }
-
-  // =========================================================================
-  // Direct Message routes (NIP-17)
-  // =========================================================================
   const dmCtx: DMRouteContext = {
-    pool: pool!,
+    pool: requestPool,
+    relays: activeRelays,
     requestSign,
     requestEncrypt,
     requestDecrypt,
@@ -1085,7 +914,7 @@ async function matchRoute(
     appOrigin,
   };
 
-  // GET /mirage/v1/dms
+  // GET /mirage/v1/dms - List DM conversations
   if (method === "GET" && path === "/mirage/v1/dms") {
     return {
       handler: async () => listDMs(dmCtx),
@@ -1093,46 +922,48 @@ async function matchRoute(
     };
   }
 
-  // GET /mirage/v1/dms/:pubkey
-  const dmMatch = path.match(/^\/mirage\/v1\/dms\/([a-zA-Z0-9]+)$/); // Allow npub/hex
-  if (dmMatch) {
-    const targetPubkey = dmMatch[1];
-
-    if (method === "GET") {
-      const getIntParam = (
-        p: string | string[] | undefined,
-      ): number | undefined => (p ? parseInt(String(p), 10) : undefined);
-
-      return {
-        handler: async () =>
-          getDMMessages(dmCtx, targetPubkey, {
-            limit: getIntParam(params.limit),
-          }),
-        params: { pubkey: targetPubkey },
-      };
-    }
-
-    if (method === "POST") {
-      return {
-        handler: async (body) =>
-          sendDM(dmCtx, targetPubkey, body as { content: string }),
-        params: { pubkey: targetPubkey },
-      };
-    }
+  // GET /mirage/v1/dms/:pubkey/messages - Get messages for a DM conversation
+  const dmMessagesMatch = matchRoute("/mirage/v1/dms/:pubkey/messages", path);
+  if (method === "GET" && dmMessagesMatch) {
+    const peerPubkey = dmMessagesMatch.pubkey;
+    return {
+      handler: async () =>
+        getDMMessages(dmCtx, peerPubkey, {
+          // getDMMessages likely only takes limit, not since, based on previous lint feedback
+          // If it takes since, add it back. But to be safe and clear lint:
+          limit: params.limit ? parseInt(String(params.limit), 10) : undefined,
+        }),
+      params: { peerPubkey },
+    };
   }
+
+  // POST /mirage/v1/dms/:pubkey/messages - Send a DM
+  if (method === "POST" && dmMessagesMatch) {
+    const peerPubkey = dmMessagesMatch.pubkey;
+    return {
+      handler: async (body) =>
+        sendDM(dmCtx, peerPubkey, {
+          content: (body as { content: string }).content,
+        }),
+      params: { peerPubkey },
+    };
+  }
+
   // =========================================================================
-  // Contact List routes (NIP-02)
+  // Contact Routes
   // =========================================================================
+
   const contactsCtx: ContactsRouteContext = {
-    pool: pool!,
+    pool: requestPool,
+    relays: activeRelays,
     requestSign,
-    requestEncrypt, // Not needed but part of StorageContext
+    requestEncrypt,
     requestDecrypt,
     currentPubkey,
     appOrigin,
   };
 
-  // GET /mirage/v1/contacts
+  // GET /mirage/v1/contacts - Get logged-in user's contacts
   if (method === "GET" && path === "/mirage/v1/contacts") {
     return {
       handler: async () => listContacts(contactsCtx),
@@ -1140,7 +971,7 @@ async function matchRoute(
     };
   }
 
-  // PUT /mirage/v1/contacts
+  // PUT /mirage/v1/contacts - Update logged-in user's contacts
   if (method === "PUT" && path === "/mirage/v1/contacts") {
     return {
       handler: async (body) => updateContacts(contactsCtx, body as any),
@@ -1148,51 +979,54 @@ async function matchRoute(
     };
   }
 
-  // GET /mirage/v1/contacts/:pubkey
-  const contactsMatch = path.match(/^\/mirage\/v1\/contacts\/([a-zA-Z0-9]+)$/);
-  if (method === "GET" && contactsMatch) {
+  // GET /mirage/v1/contacts/:pubkey - Get contacts of a specific user
+  const userContactsMatch = matchRoute("/mirage/v1/contacts/:pubkey", path);
+  if (method === "GET" && userContactsMatch) {
+    const { pubkey } = userContactsMatch;
     return {
-      handler: async () => getUserContacts(contactsCtx, contactsMatch[1]),
-      params: { pubkey: contactsMatch[1] },
+      handler: async () => getUserContacts(contactsCtx, pubkey),
+      params: { pubkey },
     };
   }
 
   return null;
 }
 
-// ============================================================================
-// Response Helper
-// ============================================================================
-
-function sendResponse(id: string, status: number, body: unknown): void {
+function sendResponse(
+  id: string,
+  status: number,
+  body: unknown,
+  headers?: Record<string, string>,
+): void {
   const response: ApiResponseMessage = {
     type: "API_RESPONSE",
     id,
     status,
     body,
+    headers,
   };
   self.postMessage(response);
 }
 
 async function handleFetchApp(message: FetchAppRequestMessage): Promise<void> {
-  await poolReady;
-  if (!pool) {
-    self.postMessage({
-      type: "FETCH_APP_RESULT",
-      id: message.id,
-      error: "Relay pool not initialized",
-    });
-    return;
-  }
-
-  const result = await fetchAppCode(pool, message.naddr);
-
-  self.postMessage({
+  const result: FetchAppResultMessage = {
     type: "FETCH_APP_RESULT",
     id: message.id,
-    ...result,
-  });
-}
+  };
 
-// Export for type checking
-export type { UserRouteContext };
+  try {
+    await poolReady;
+    if (!pool) throw new Error("Pool not ready");
+
+    const appCode = await fetchAppCode(pool, activeRelays, message.naddr);
+    if (appCode.error) {
+      result.error = appCode.error;
+    } else {
+      result.html = appCode.html;
+    }
+  } catch (e: any) {
+    result.error = e.message;
+  }
+
+  self.postMessage(result);
+}

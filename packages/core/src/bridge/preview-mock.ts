@@ -14,6 +14,9 @@
  * - /library/apps
  */
 
+// Import standardized matcher
+import { matchRoute } from '../engine/route-matcher';
+
 // ============================================================================
 // Type Definitions (matching engine response shapes)
 // ============================================================================
@@ -103,7 +106,6 @@ let currentSpace: { id: string; name: string } | null = null;
 
 export function setPreviewSpaceContext(id: string, name: string): void {
     currentSpace = { id, name };
-    console.log('[Preview Mock] Set space context:', currentSpace);
 }
 
 function resolveSpaceId(spaceId: string): string {
@@ -139,9 +141,14 @@ function now(): number {
 // ============================================================================
 
 async function handlePreviewGet(path: string): Promise<Response> {
-    // Add 350ms delay to simulate network latency
     await new Promise(resolve => setTimeout(resolve, 350));
-    console.log(`[Preview Mock] GET ${path}`);
+
+    // Remove query string for matching
+    const [cleanPath, queryString] = path.split('?');
+    const params: Record<string, string> = {};
+    if (queryString) {
+        new URLSearchParams(queryString).forEach((val, key) => params[key] = val);
+    }
 
     // === System ===
     if (path === '/mirage/v1/ready') {
@@ -165,9 +172,9 @@ async function handlePreviewGet(path: string): Promise<Response> {
         return jsonResponse(PREVIEW_PROFILE);
     }
 
-    const profileMatch = path.match(/\/mirage\/v1\/(users|profiles)\/(.+)/);
-    if (profileMatch) {
-        const pubkey = profileMatch[2];
+    const profilesMatch = matchRoute("/mirage/v1/users/:pubkey", cleanPath);
+    if (profilesMatch) {
+        const { pubkey } = profilesMatch;
         // Return a mock profile for any pubkey
         return jsonResponse({
             pubkey,
@@ -181,16 +188,16 @@ async function handlePreviewGet(path: string): Promise<Response> {
         return jsonResponse(previewContacts);
     }
 
-    const contactsMatch = path.match(/\/mirage\/v1\/contacts\/(.+)/);
+    const contactsMatch = matchRoute("/mirage/v1/contacts/:pubkey", cleanPath);
     if (contactsMatch) {
         // Return empty contacts for other users
         return jsonResponse([]);
     }
 
     // === Storage ===
-    const storageMatch = path.match(/\/mirage\/v1\/storage\/(.+)/);
+    const storageMatch = matchRoute("/mirage/v1/storage/:key", cleanPath);
     if (storageMatch) {
-        const key = storageMatch[1];
+        const { key } = storageMatch;
         const value = previewStorage.get(key);
         return jsonResponse(value !== undefined ? value : null);
     }
@@ -200,29 +207,32 @@ async function handlePreviewGet(path: string): Promise<Response> {
         return jsonResponse(Array.from(previewSpaces.values()));
     }
 
-    if (path === '/mirage/v1/spaces/all') {
+    if (path === '/mirage/v1/admin/spaces') {
         return jsonResponse(Array.from(previewSpaces.values()));
     }
 
     // GET /spaces/:id/messages
-    const messagesMatch = path.match(/\/mirage\/v1\/spaces\/([^/]+)\/messages/);
+    const messagesMatch = matchRoute("/mirage/v1/spaces/:id/messages", cleanPath);
     if (messagesMatch) {
-        const spaceId = resolveSpaceId(messagesMatch[1]);
-        return jsonResponse(previewMessages.get(spaceId) || []);
+        const spaceId = resolveSpaceId(messagesMatch.id);
+        const limit = params.limit ? parseInt(params.limit) : 50;
+        const messages = previewMessages.get(spaceId) || [];
+        return jsonResponse(messages.slice(-limit));
     }
 
     // GET /spaces/:id/store
-    const storeMatch = path.match(/\/mirage\/v1\/spaces\/([^/]+)\/store\/?$/);
+    const storeMatch = matchRoute("/mirage/v1/spaces/:id/store", cleanPath);
     if (storeMatch) {
-        const spaceId = resolveSpaceId(storeMatch[1]);
+        const spaceId = resolveSpaceId(storeMatch.id);
         const store = previewStore.get(spaceId);
         return jsonResponse(store ? Object.fromEntries(store) : {});
     }
 
     // GET /spaces/:id (single space)
-    const spaceMatch = path.match(/\/mirage\/v1\/spaces\/([^/]+)$/);
+    const spaceMatch = matchRoute("/mirage/v1/spaces/:id", cleanPath) ||
+        matchRoute("/mirage/v1/admin/spaces/:id", cleanPath);
     if (spaceMatch) {
-        const spaceId = resolveSpaceId(spaceMatch[1]);
+        const spaceId = resolveSpaceId(spaceMatch.id);
         const space = previewSpaces.get(spaceId);
         if (space) return jsonResponse(space);
         return jsonResponse({ error: 'Space not found' }, 404);
@@ -239,9 +249,9 @@ async function handlePreviewGet(path: string): Promise<Response> {
         return jsonResponse(conversations);
     }
 
-    const dmMatch = path.match(/\/mirage\/v1\/dms\/(.+)/);
+    const dmMatch = matchRoute("/mirage/v1/dms/:pubkey", cleanPath);
     if (dmMatch) {
-        const pubkey = dmMatch[1];
+        const { pubkey } = dmMatch;
         return jsonResponse(previewDMs.get(pubkey) || []);
     }
 
@@ -251,7 +261,6 @@ async function handlePreviewGet(path: string): Promise<Response> {
     }
 
     // Default
-    console.log(`[Preview Mock] Unknown GET path: ${path}`);
     return jsonResponse([]);
 }
 
@@ -260,7 +269,7 @@ async function handlePreviewGet(path: string): Promise<Response> {
 // ============================================================================
 
 async function handlePreviewPost(path: string, body: any): Promise<Response> {
-    console.log(`[Preview Mock] POST ${path}`, body);
+    const [cleanPath] = path.split('?');
 
     // === Events ===
     if (path === '/mirage/v1/events') {
@@ -292,9 +301,9 @@ async function handlePreviewPost(path: string, body: any): Promise<Response> {
     }
 
     // POST /spaces/:id/messages
-    const messagesMatch = path.match(/\/mirage\/v1\/spaces\/([^/]+)\/messages/);
+    const messagesMatch = matchRoute("/mirage/v1/spaces/:id/messages", cleanPath);
     if (messagesMatch) {
-        const spaceId = resolveSpaceId(messagesMatch[1]);
+        const spaceId = resolveSpaceId(messagesMatch.id);
         if (!previewMessages.has(spaceId)) {
             previewMessages.set(spaceId, []);
         }
@@ -307,20 +316,20 @@ async function handlePreviewPost(path: string, body: any): Promise<Response> {
             createdAt: now(),
         };
         previewMessages.get(spaceId)!.push(message);
-        console.log(`[Preview Mock] Message stored:`, message);
         return jsonResponse(message, 201);
     }
 
-    // POST /spaces/:id/invite
-    const inviteMatch = path.match(/\/mirage\/v1\/spaces\/([^/]+)\/invite/);
+    // POST /spaces/:id/invitations (supports /admin prefix)
+    const inviteMatch = matchRoute("/mirage/v1/spaces/:id/invitations", cleanPath) ||
+        matchRoute("/mirage/v1/admin/spaces/:id/invitations", cleanPath);
     if (inviteMatch) {
         return jsonResponse({ invited: body?.pubkey, success: true });
     }
 
     // === DMs ===
-    const dmMatch = path.match(/\/mirage\/v1\/dms\/(.+)/);
+    const dmMatch = matchRoute("/mirage/v1/dms/:pubkey", cleanPath);
     if (dmMatch) {
-        const recipient = dmMatch[1];
+        const recipient = dmMatch.pubkey;
         if (!previewDMs.has(recipient)) {
             previewDMs.set(recipient, []);
         }
@@ -348,7 +357,6 @@ async function handlePreviewPost(path: string, body: any): Promise<Response> {
     }
 
     // Default
-    console.log(`[Preview Mock] Unknown POST path: ${path}`);
     return jsonResponse({ success: true });
 }
 
@@ -357,7 +365,7 @@ async function handlePreviewPost(path: string, body: any): Promise<Response> {
 // ============================================================================
 
 async function handlePreviewPut(path: string, body: any): Promise<Response> {
-    console.log(`[Preview Mock] PUT ${path}`, body);
+    const [cleanPath] = path.split('?');
 
     // === Contacts ===
     if (path === '/mirage/v1/contacts') {
@@ -369,18 +377,18 @@ async function handlePreviewPut(path: string, body: any): Promise<Response> {
     }
 
     // === Storage ===
-    const storageMatch = path.match(/\/mirage\/v1\/storage\/(.+)/);
+    const storageMatch = matchRoute("/mirage/v1/storage/:key", cleanPath);
     if (storageMatch) {
-        const key = storageMatch[1];
+        const { key } = storageMatch;
         previewStorage.set(key, body);
         return jsonResponse({ success: true });
     }
 
     // === Spaces Store ===
-    const storeKeyMatch = path.match(/\/mirage\/v1\/spaces\/([^/]+)\/store\/(.+)/);
+    const storeKeyMatch = matchRoute("/mirage/v1/spaces/:id/store/:key", cleanPath);
     if (storeKeyMatch) {
-        const spaceId = resolveSpaceId(storeKeyMatch[1]);
-        const key = storeKeyMatch[2];
+        const spaceId = resolveSpaceId(storeKeyMatch.id);
+        const key = storeKeyMatch.key;
         if (!previewStore.has(spaceId)) {
             previewStore.set(spaceId, new Map());
         }
@@ -397,20 +405,21 @@ async function handlePreviewPut(path: string, body: any): Promise<Response> {
 // ============================================================================
 
 async function handlePreviewDelete(path: string): Promise<Response> {
-    console.log(`[Preview Mock] DELETE ${path}`);
+    const [cleanPath] = path.split('?');
 
     // === Storage ===
-    const storageMatch = path.match(/\/mirage\/v1\/storage\/(.+)/);
+    const storageMatch = matchRoute("/mirage/v1/storage/:key", cleanPath);
     if (storageMatch) {
-        const key = storageMatch[1];
+        const { key } = storageMatch;
         previewStorage.delete(key);
         return jsonResponse({ deleted: true, key });
     }
 
     // === Spaces ===
-    const spaceMatch = path.match(/\/mirage\/v1\/spaces\/([^/]+)$/);
+    const spaceMatch = matchRoute("/mirage/v1/spaces/:id", cleanPath) ||
+        matchRoute("/mirage/v1/admin/spaces/:id", cleanPath);
     if (spaceMatch) {
-        const spaceId = resolveSpaceId(spaceMatch[1]);
+        const spaceId = resolveSpaceId(spaceMatch.id);
         previewSpaces.delete(spaceId);
         previewMessages.delete(spaceId);
         previewStore.delete(spaceId);
@@ -435,8 +444,6 @@ export async function handlePreviewRequest(
     path: string,
     body?: any
 ): Promise<Response> {
-    console.log(`[Preview Mock] ${method} ${path}`);
-
     switch (method) {
         case 'GET':
             return handlePreviewGet(path);
@@ -464,7 +471,6 @@ export function clearPreviewData(): void {
     previewDMs.clear();
     previewEvents.length = 0;
     previewLibrary.length = 0;
-    console.log('[Preview Mock] Cleared all preview data');
 }
 
 // Export for testing

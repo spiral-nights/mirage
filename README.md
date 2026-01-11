@@ -13,6 +13,7 @@ This allows developers (and AI agents) to build feature-rich social and data app
 * **True Serverless:** Apps are stored as Nostr events (Kind 30xxx) and run locally. No AWS, no Vercel, no backend maintenance.
 * **AI-Native Design:** The API is designed to be "self-documenting" for LLMs. You can prompt an AI: *"Make a grocery list app using the Mirage API"* and it will work instantly.
 * **Zero-Knowledge Security:** Apps run in a sandboxed `iframe` with a `null` origin. They **never** touch the user's private keys.
+* **Offline-First:** All apps run locally. Toggle "Offline Only" to ensure data *never* leaves your device, using a built-in IndexedDB relay.
 * **Family-Ready:** Built-in support for encrypted spaces and NIP-17 encryption allows for private, shared apps (e.g., "Family Chores" or "Team Notes").
 * **PWA Support:** Mirage is installable as a Progressive Web App on desktop and mobile devices.
 

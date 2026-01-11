@@ -15,9 +15,9 @@ import type { Event } from 'nostr-tools';
 function createMockContext(overrides?: Partial<EventsRouteContext>): EventsRouteContext {
     const mockPool = {
         subscribe: mock(),
-        publish: mock(async (event: Event) => { }),
-        query: mock(),
-        queryAll: mock(async (filters: any[], timeout?: number) => []),
+        publish: mock((relays: string[], event: Event) => [Promise.resolve()]),
+        get: mock(),
+        querySync: mock(async (relays: string[], filter: any) => []),
     };
 
     const mockSign = mock(async (event: any): Promise<Event> => ({
@@ -29,6 +29,7 @@ function createMockContext(overrides?: Partial<EventsRouteContext>): EventsRoute
 
     return {
         pool: mockPool as any,
+        relays: ['wss://relay.test.com'],
         requestSign: mockSign,
         ...overrides,
     };
@@ -43,33 +44,33 @@ describe('getEvents', () => {
         const ctx = createMockContext();
         await getEvents(ctx, {});
 
-        const filters = (ctx.pool.queryAll as any).mock.calls[0][0];
-        expect(filters[0]).toEqual({ limit: 20 });
+        const filter = (ctx.pool.querySync as any).mock.calls[0][1];
+        expect(filter).toEqual({ limit: 20 });
     });
 
     test('parses kinds filter', async () => {
         const ctx = createMockContext();
         await getEvents(ctx, { kinds: '1,0,3' });
 
-        const filters = (ctx.pool.queryAll as any).mock.calls[0][0];
-        expect(filters[0].kinds).toEqual([1, 0, 3]);
+        const filter = (ctx.pool.querySync as any).mock.calls[0][1];
+        expect(filter.kinds).toEqual([1, 0, 3]);
     });
 
     test('parses authors filter', async () => {
         const ctx = createMockContext();
         await getEvents(ctx, { authors: 'pubkey1,pubkey2' });
 
-        const filters = (ctx.pool.queryAll as any).mock.calls[0][0];
-        expect(filters[0].authors).toEqual(['pubkey1', 'pubkey2']);
+        const filter = (ctx.pool.querySync as any).mock.calls[0][1];
+        expect(filter.authors).toEqual(['pubkey1', 'pubkey2']);
     });
 
     test('parses simplified tag filters', async () => {
         const ctx = createMockContext();
         await getEvents(ctx, { tags: ['t:nostr', 'p:person1'] });
 
-        const filters = (ctx.pool.queryAll as any).mock.calls[0][0];
-        expect(filters[0]['#t']).toEqual(['nostr']);
-        expect(filters[0]['#p']).toEqual(['person1']);
+        const filter = (ctx.pool.querySync as any).mock.calls[0][1];
+        expect(filter['#t']).toEqual(['nostr']);
+        expect(filter['#p']).toEqual(['person1']);
     });
 
     test('returns events from pool', async () => {
@@ -84,7 +85,7 @@ describe('getEvents', () => {
             sig: 'sig'
         };
 
-        ctx.pool.queryAll = mock(async () => [mockEvent]);
+        ctx.pool.querySync = mock(async () => [mockEvent]);
 
         const result = await getEvents(ctx, {});
         expect(result.status).toBe(200);

@@ -17,9 +17,9 @@ function createMockContext(overrides?: Partial<StorageRouteContext>): StorageRou
         subscribe: mock((filters: any[], onEvent: (e: Event) => void, onEose?: () => void) => {
             return () => { }; // unsubscribe function
         }),
-        publish: mock(async (event: Event) => { }),
-        query: mock(async (filters: any[], timeout?: number) => null),
-        queryAll: mock(async (filters: any[], timeout?: number) => []),
+        publish: mock((relays: string[], event: Event) => [Promise.resolve()]),
+        get: mock(async (relays: string[], filter: any) => null),
+        querySync: mock(async (relays: string[], filter: any) => []),
     };
 
     const mockSign = mock(async (event: any): Promise<Event> => ({
@@ -44,6 +44,7 @@ function createMockContext(overrides?: Partial<StorageRouteContext>): StorageRou
 
     return {
         pool: mockPool as any,
+        relays: ['wss://relay.test.com'],
         requestSign: mockSign,
         requestEncrypt: mockEncrypt,
         requestDecrypt: mockDecrypt,
@@ -91,7 +92,7 @@ describe('getStorage', () => {
 
         const ctx = createMockContext();
         // Mock query to return an event
-        ctx.pool.query = mock(async () => storedEvent);
+        ctx.pool.get = mock(async () => storedEvent);
 
         const result = await getStorage(ctx, 'my-key', {});
 
@@ -115,9 +116,9 @@ describe('getStorage', () => {
         };
 
         const ctx = createMockContext();
-        ctx.pool.query = mock(async (filters) => {
+        ctx.pool.get = mock(async (relays, filter) => {
             // Check that we are querying the foreign pubkey
-            if (filters[0].authors.includes(foreignPubkey)) {
+            if (filter.authors.includes(foreignPubkey)) {
                 return storedEvent;
             }
             return null;

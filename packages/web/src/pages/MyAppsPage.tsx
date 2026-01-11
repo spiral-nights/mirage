@@ -72,10 +72,8 @@ const ResolvedAppName = ({ naddr, className }: { naddr: string; className?: stri
           }
 
           const code = await host.fetchApp(fetchNaddr);
-          console.log(`[AppName] Fetch result length: ${code?.length}`);
           if (code && mounted) {
             const match = code.match(/<title>(.*?)<\/title>/i);
-            console.log(`[AppName] Match:`, match);
             if (match && match[1]) {
               setName(match[1].trim());
             } else {

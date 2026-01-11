@@ -63,6 +63,12 @@ graph TD
    - **Role:** The "Virtual Backend"
    - **Responsibilities:** Maintains relay connections, serializes to Nostr events, manages subscriptions
    - **Streaming:** Pushes events to Bridge via `STREAM_CHUNK` messages
+   - **Pool Architecture:** Uses **MiragePool**, a composition wrapper around `SimplePool` that manages relay sets and enforces request scoping (e.g., forcing offline apps to use only `mirage://local`).
+
+4. **Local Relay (Offline Mode)**
+   - **Role:** The "Device Database"
+   - **Mechanism:** A fully functional Nostr relay running inside the browser (IndexedDB/Dexie).
+   - **Privacy:** When "Offline Only" is enabled, the Engine strictly isolates the app to this relay. Data never touches the network.
 
 ---
 
@@ -96,8 +102,7 @@ Use these endpoints to build open social features like global feeds, user discov
 |--------|----------|-----------|-------------|
 | `GET` | `/ready` | No | Check system status |
 | `GET` | `/user/me` | No | Current user profile |
-| `GET` | `/profiles/{pubkey}` | No | User by public key (Standard) |
-| `GET` | `/users/{pubkey}` | No | User by public key (Alias) |
+| `GET` | `/users/{pubkey}` | No | User by public key |
 | `GET` | `/events` | **Yes** | Query Nostr events |
 | `POST` | `/events` | No | Publish a Nostr event |
 | `GET` | `/feed` | **Yes** | Public timeline (Alias) |
@@ -183,7 +188,7 @@ These endpoints are used for **system-level management** of spaces and applicati
 | `POST` | `/admin/spaces` | Create a new Space |
 | `PUT` | `/admin/spaces/{id}` | Rename a Space |
 | `DELETE` | `/admin/spaces/{id}` | Delete a Space |
-| `GET` | `/admin/spaces/all` | List ALL spaces across all apps |
+
 | `GET` | `/admin/apps` | List apps in the library |
 | `POST` | `/admin/apps` | Add app to library |
 | `DELETE` | `/admin/apps` | Remove app from library |
