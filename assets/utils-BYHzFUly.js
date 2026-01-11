@@ -1,1 +1,0 @@
-import{b as e,y as t}from"./index-DwGAovV_.js";export{e as getAppCanonicalId};
