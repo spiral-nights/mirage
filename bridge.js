@@ -7056,6 +7056,29 @@ async function validateEvent2(event, url, method, body) {
   return true;
 }
 
+// src/engine/route-matcher.ts
+function matchRoute(pattern, path) {
+  const patternParts = pattern.split("/");
+  const pathParts = path.split("/");
+  if (patternParts.length !== pathParts.length) {
+    return null;
+  }
+  const params = {};
+  for (let i2 = 0;i2 < patternParts.length; i2++) {
+    const patternPart = patternParts[i2];
+    const pathPart = pathParts[i2];
+    if (patternPart.startsWith(":")) {
+      const paramName = patternPart.slice(1);
+      if (!pathPart)
+        return null;
+      params[paramName] = decodeURIComponent(pathPart);
+    } else if (patternPart !== pathPart) {
+      return null;
+    }
+  }
+  return params;
+}
+
 // src/bridge/preview-mock.ts
 var previewSpaces = new Map;
 var previewMessages = new Map;
@@ -7075,7 +7098,6 @@ var PREVIEW_PROFILE = {
 var currentSpace = null;
 function setPreviewSpaceContext(id, name) {
   currentSpace = { id, name };
-  console.log("[Preview Mock] Set space context:", currentSpace);
 }
 function resolveSpaceId(spaceId) {
   if (spaceId === "current") {
@@ -7097,7 +7119,11 @@ function now2() {
 }
 async function handlePreviewGet(path) {
   await new Promise((resolve) => setTimeout(resolve, 350));
-  console.log(`[Preview Mock] GET ${path}`);
+  const [cleanPath, queryString] = path.split("?");
+  const params = {};
+  if (queryString) {
+    new URLSearchParams(queryString).forEach((val, key) => params[key] = val);
+  }
   if (path === "/mirage/v1/ready") {
     return jsonResponse({ ready: true, authenticated: true, relayCount: 3 });
   }
@@ -7112,9 +7138,9 @@ async function handlePreviewGet(path) {
   if (path === "/mirage/v1/user/me") {
     return jsonResponse(PREVIEW_PROFILE);
   }
-  const profileMatch = path.match(/\/mirage\/v1\/(users|profiles)\/(.+)/);
-  if (profileMatch) {
-    const pubkey = profileMatch[2];
+  const profilesMatch = matchRoute("/mirage/v1/users/:pubkey", cleanPath);
+  if (profilesMatch) {
+    const { pubkey } = profilesMatch;
     return jsonResponse({
       pubkey,
       name: `User ${pubkey.slice(0, 8)}`,
@@ -7124,36 +7150,38 @@ async function handlePreviewGet(path) {
   if (path === "/mirage/v1/contacts") {
     return jsonResponse(previewContacts);
   }
-  const contactsMatch = path.match(/\/mirage\/v1\/contacts\/(.+)/);
+  const contactsMatch = matchRoute("/mirage/v1/contacts/:pubkey", cleanPath);
   if (contactsMatch) {
     return jsonResponse([]);
   }
-  const storageMatch = path.match(/\/mirage\/v1\/storage\/(.+)/);
+  const storageMatch = matchRoute("/mirage/v1/storage/:key", cleanPath);
   if (storageMatch) {
-    const key = storageMatch[1];
+    const { key } = storageMatch;
     const value = previewStorage.get(key);
     return jsonResponse(value !== undefined ? value : null);
   }
   if (path === "/mirage/v1/spaces") {
     return jsonResponse(Array.from(previewSpaces.values()));
   }
-  if (path === "/mirage/v1/spaces/all") {
+  if (path === "/mirage/v1/admin/spaces") {
     return jsonResponse(Array.from(previewSpaces.values()));
   }
-  const messagesMatch = path.match(/\/mirage\/v1\/spaces\/([^/]+)\/messages/);
+  const messagesMatch = matchRoute("/mirage/v1/spaces/:id/messages", cleanPath);
   if (messagesMatch) {
-    const spaceId = resolveSpaceId(messagesMatch[1]);
-    return jsonResponse(previewMessages.get(spaceId) || []);
+    const spaceId = resolveSpaceId(messagesMatch.id);
+    const limit2 = params.limit ? parseInt(params.limit) : 50;
+    const messages = previewMessages.get(spaceId) || [];
+    return jsonResponse(messages.slice(-limit2));
   }
-  const storeMatch = path.match(/\/mirage\/v1\/spaces\/([^/]+)\/store\/?$/);
+  const storeMatch = matchRoute("/mirage/v1/spaces/:id/store", cleanPath);
   if (storeMatch) {
-    const spaceId = resolveSpaceId(storeMatch[1]);
+    const spaceId = resolveSpaceId(storeMatch.id);
     const store = previewStore.get(spaceId);
     return jsonResponse(store ? Object.fromEntries(store) : {});
   }
-  const spaceMatch = path.match(/\/mirage\/v1\/spaces\/([^/]+)$/);
+  const spaceMatch = matchRoute("/mirage/v1/spaces/:id", cleanPath) || matchRoute("/mirage/v1/admin/spaces/:id", cleanPath);
   if (spaceMatch) {
-    const spaceId = resolveSpaceId(spaceMatch[1]);
+    const spaceId = resolveSpaceId(spaceMatch.id);
     const space = previewSpaces.get(spaceId);
     if (space)
       return jsonResponse(space);
@@ -7167,19 +7195,18 @@ async function handlePreviewGet(path) {
     }));
     return jsonResponse(conversations);
   }
-  const dmMatch = path.match(/\/mirage\/v1\/dms\/(.+)/);
+  const dmMatch = matchRoute("/mirage/v1/dms/:pubkey", cleanPath);
   if (dmMatch) {
-    const pubkey = dmMatch[1];
+    const { pubkey } = dmMatch;
     return jsonResponse(previewDMs.get(pubkey) || []);
   }
   if (path === "/mirage/v1/library/apps") {
     return jsonResponse(previewLibrary);
   }
-  console.log(`[Preview Mock] Unknown GET path: ${path}`);
   return jsonResponse([]);
 }
 async function handlePreviewPost(path, body) {
-  console.log(`[Preview Mock] POST ${path}`, body);
+  const [cleanPath] = path.split("?");
   if (path === "/mirage/v1/events") {
     const event = {
       id: generateId(),
@@ -7205,9 +7232,9 @@ async function handlePreviewPost(path, body) {
     previewStore.set(spaceId, new Map);
     return jsonResponse(space, 201);
   }
-  const messagesMatch = path.match(/\/mirage\/v1\/spaces\/([^/]+)\/messages/);
+  const messagesMatch = matchRoute("/mirage/v1/spaces/:id/messages", cleanPath);
   if (messagesMatch) {
-    const spaceId = resolveSpaceId(messagesMatch[1]);
+    const spaceId = resolveSpaceId(messagesMatch.id);
     if (!previewMessages.has(spaceId)) {
       previewMessages.set(spaceId, []);
     }
@@ -7220,16 +7247,15 @@ async function handlePreviewPost(path, body) {
       createdAt: now2()
     };
     previewMessages.get(spaceId).push(message);
-    console.log(`[Preview Mock] Message stored:`, message);
     return jsonResponse(message, 201);
   }
-  const inviteMatch = path.match(/\/mirage\/v1\/spaces\/([^/]+)\/invite/);
+  const inviteMatch = matchRoute("/mirage/v1/spaces/:id/invitations", cleanPath) || matchRoute("/mirage/v1/admin/spaces/:id/invitations", cleanPath);
   if (inviteMatch) {
     return jsonResponse({ invited: body?.pubkey, success: true });
   }
-  const dmMatch = path.match(/\/mirage\/v1\/dms\/(.+)/);
+  const dmMatch = matchRoute("/mirage/v1/dms/:pubkey", cleanPath);
   if (dmMatch) {
-    const recipient = dmMatch[1];
+    const recipient = dmMatch.pubkey;
     if (!previewDMs.has(recipient)) {
       previewDMs.set(recipient, []);
     }
@@ -7253,11 +7279,10 @@ async function handlePreviewPost(path, body) {
     previewLibrary.push(app);
     return jsonResponse({ success: true }, 201);
   }
-  console.log(`[Preview Mock] Unknown POST path: ${path}`);
   return jsonResponse({ success: true });
 }
 async function handlePreviewPut(path, body) {
-  console.log(`[Preview Mock] PUT ${path}`, body);
+  const [cleanPath] = path.split("?");
   if (path === "/mirage/v1/contacts") {
     previewContacts.length = 0;
     if (body?.contacts && Array.isArray(body.contacts)) {
@@ -7265,16 +7290,16 @@ async function handlePreviewPut(path, body) {
     }
     return jsonResponse({ success: true });
   }
-  const storageMatch = path.match(/\/mirage\/v1\/storage\/(.+)/);
+  const storageMatch = matchRoute("/mirage/v1/storage/:key", cleanPath);
   if (storageMatch) {
-    const key = storageMatch[1];
+    const { key } = storageMatch;
     previewStorage.set(key, body);
     return jsonResponse({ success: true });
   }
-  const storeKeyMatch = path.match(/\/mirage\/v1\/spaces\/([^/]+)\/store\/(.+)/);
+  const storeKeyMatch = matchRoute("/mirage/v1/spaces/:id/store/:key", cleanPath);
   if (storeKeyMatch) {
-    const spaceId = resolveSpaceId(storeKeyMatch[1]);
-    const key = storeKeyMatch[2];
+    const spaceId = resolveSpaceId(storeKeyMatch.id);
+    const key = storeKeyMatch.key;
     if (!previewStore.has(spaceId)) {
       previewStore.set(spaceId, new Map);
     }
@@ -7284,16 +7309,16 @@ async function handlePreviewPut(path, body) {
   return jsonResponse({ success: true });
 }
 async function handlePreviewDelete(path) {
-  console.log(`[Preview Mock] DELETE ${path}`);
-  const storageMatch = path.match(/\/mirage\/v1\/storage\/(.+)/);
+  const [cleanPath] = path.split("?");
+  const storageMatch = matchRoute("/mirage/v1/storage/:key", cleanPath);
   if (storageMatch) {
-    const key = storageMatch[1];
+    const { key } = storageMatch;
     previewStorage.delete(key);
     return jsonResponse({ deleted: true, key });
   }
-  const spaceMatch = path.match(/\/mirage\/v1\/spaces\/([^/]+)$/);
+  const spaceMatch = matchRoute("/mirage/v1/spaces/:id", cleanPath) || matchRoute("/mirage/v1/admin/spaces/:id", cleanPath);
   if (spaceMatch) {
-    const spaceId = resolveSpaceId(spaceMatch[1]);
+    const spaceId = resolveSpaceId(spaceMatch.id);
     previewSpaces.delete(spaceId);
     previewMessages.delete(spaceId);
     previewStore.delete(spaceId);
@@ -7305,7 +7330,6 @@ async function handlePreviewDelete(path) {
   return jsonResponse({ success: true });
 }
 async function handlePreviewRequest(method, path, body) {
-  console.log(`[Preview Mock] ${method} ${path}`);
   switch (method) {
     case "GET":
       return handlePreviewGet(path);
