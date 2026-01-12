@@ -511,6 +511,13 @@ export class MirageEngine {
             }
         }
 
+        // POST /mirage/v1/space/invitations (Implicit context invite)
+        if (method === 'POST' && path === '/mirage/v1/space/invitations') {
+            if (!this.currentSpace?.id) return { type: 'API_RESPONSE', id, status: 400, body: { error: 'No space context set' } };
+            const result = await this.spaceService.inviteMember(this.currentSpace.id, body.pubkey, body.name);
+            return { type: 'API_RESPONSE', id, status: 200, body: result };
+        }
+
         return { type: 'API_RESPONSE', id, status: 404, body: { error: 'Route not found' } };
     }
 

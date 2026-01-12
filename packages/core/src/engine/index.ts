@@ -4,14 +4,8 @@
  * The "Virtual Backend" that handles API requests and manages relay connections.
  */
 
-import { SimplePool, type Filter, type Event } from "nostr-tools";
+import { SimplePool } from "nostr-tools";
 import { MirageEngine } from "./MirageEngine";
-
-import { matchRoute } from "./route-matcher";
-
-
-
-
 
 
 import { SYSTEM_APP_ORIGIN } from "./keys";
@@ -20,15 +14,11 @@ import type {
   ApiRequestMessage,
   ApiResponseMessage,
   RelayConfigMessage,
-  FetchAppRequestMessage,
-  FetchAppResultMessage,
 } from "../types";
-import { handleStreamOpen, sendStreamError } from "./streaming";
+import { handleStreamOpen } from "./streaming";
 import {
   requestSign,
   handleSignatureResult,
-  requestEncrypt,
-  requestDecrypt,
   handleEncryptResult,
   handleDecryptResult,
 } from "./signing";
@@ -180,12 +170,21 @@ async function handleApiRequest(message: ApiRequestMessage): Promise<void> {
 
   const { method, path, body } = message;
 
-  // Track original sender
-  const sender = (message as any)._sender;
-
   // Wait for keys to be loaded before handling any spaces or admin requests
-  // V2 Migration: Delegate space routes to MirageEngine
-  if (path.startsWith("/mirage/v1/space") || path.startsWith("/mirage/v1/admin/spaces") || path.startsWith("/mirage/v1/admin/apps") || path.startsWith("/mirage/v1/contacts") || path.startsWith("/mirage/v1/dms") || path.startsWith("/mirage/v1/events")) {
+  // V2 Migration: Delegate routes to MirageEngine
+  const delegationPaths = [
+    "/mirage/v1/space",
+    "/mirage/v1/admin/spaces",
+    "/mirage/v1/admin/apps",
+    "/mirage/v1/contacts",
+    "/mirage/v1/dms",
+    "/mirage/v1/events",
+    "/mirage/v1/user",
+    "/mirage/v1/users"
+  ];
+  const isDelegatedPath = delegationPaths.find((val) => path.startsWith(val))
+
+  if (isDelegatedPath) {
     await mirageEngine.handleMessage(message as MirageMessage); // MirageEngine sends response internally
     return;
   }
@@ -239,7 +238,7 @@ interface RouteMatch {
 async function resolveRoute(
   method: string,
   fullPath: string,
-  requestPool: SimplePool,
+  _requestPool: SimplePool,
 ): Promise<RouteMatch | null> {
   const [path, queryString] = fullPath.split("?");
   const params: Record<string, string | string[]> = {};
@@ -258,9 +257,6 @@ async function resolveRoute(
       }
     });
   }
-
-
-
 
   // Helper to check admin access
   const isAdminOrigin = appOrigin === SYSTEM_APP_ORIGIN;
