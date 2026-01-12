@@ -1,14 +1,16 @@
-/**
- * Space Key Persistence (NIP-78)
- *
- * Manages the "private keychain" for space keys.
- * Keys are stored in a Kind 30078 event with d-tag: "mirage:space_keys".
- * The content is encrypted (NIP-44 self-encryption) by the storage layer.
- */
+import type { SpaceKey, UnsignedNostrEvent } from "../types";
+import type { SimplePool, Filter, Event } from "nostr-tools";
 
-import type { SpaceKey } from "../types";
-import type { StorageRouteContext } from "./routes/storage";
-import { internalGetStorage, internalPutStorage } from "./routes/storage";
+// Define a context compatible with services
+export interface KeyStorageContext {
+  pool: SimplePool;
+  relays: string[];
+  requestSign: (event: UnsignedNostrEvent) => Promise<Event>;
+  requestEncrypt: (pubkey: string, plaintext: string) => Promise<string>;
+  requestDecrypt: (pubkey: string, ciphertext: string) => Promise<string>;
+  currentPubkey: string | null;
+  appOrigin: string; // usually 'mirage' for keys
+}
 
 /**
  * System app origin - used for:
@@ -28,12 +30,10 @@ interface KeyMap {
  * Returns a Map of ScopedSpaceId -> SpaceKey.
  */
 export async function loadSpaceKeys(
-  ctx: StorageRouteContext,
+  ctx: KeyStorageContext,
 ): Promise<Map<string, SpaceKey>> {
   try {
-    // Use a fixed origin for the keychain itself, so it's shared across all apps
-    const mirageCtx = { ...ctx, appOrigin: SYSTEM_APP_ORIGIN };
-    const rawMap = await internalGetStorage<KeyMap>(mirageCtx, KEY_STORAGE_ID);
+    const rawMap = await internalGetStorage<KeyMap>(ctx, KEY_STORAGE_ID);
 
     if (!rawMap) {
       return new Map();
@@ -54,7 +54,7 @@ export async function loadSpaceKeys(
  * Save all space keys to NIP-78 storage.
  */
 export async function saveSpaceKeys(
-  ctx: StorageRouteContext,
+  ctx: KeyStorageContext,
   keys: Map<string, SpaceKey>,
 ): Promise<void> {
   try {
@@ -63,12 +63,86 @@ export async function saveSpaceKeys(
       rawMap[id] = keyInfo;
     }
 
-    // Use a fixed origin for the keychain itself
-    const mirageCtx = { ...ctx, appOrigin: SYSTEM_APP_ORIGIN };
-    await internalPutStorage(mirageCtx, KEY_STORAGE_ID, rawMap);
+    await internalPutStorage(ctx, KEY_STORAGE_ID, rawMap);
     console.log("[Keys] Saved keys to NIP-78 (global keychain)");
   } catch (error) {
     console.error("[Keys] Failed to save keys:", error);
     throw error;
   }
 }
+
+/**
+ * Internal Helper: Get NIP-78 Data (System Origin 'mirage')
+ */
+async function internalGetStorage<T>(
+  ctx: KeyStorageContext,
+  key: string
+): Promise<T | null> {
+  if (!ctx.currentPubkey) return null;
+
+  // Force system origin for keys
+  const origin = SYSTEM_APP_ORIGIN;
+  const dTag = `${origin}:${key}`;
+
+  const filter: Filter = {
+    kinds: [30078],
+    authors: [ctx.currentPubkey],
+    "#d": [dTag],
+    limit: 1,
+  };
+
+  const event = await ctx.pool.get(ctx.relays, filter);
+  if (!event) return null;
+
+  const content = event.content;
+
+  // 1. Try JSON
+  try {
+    return JSON.parse(content);
+  } catch { }
+
+  // 2. Try Decrypt
+  if (event.pubkey === ctx.currentPubkey) {
+    try {
+      const plaintext = await ctx.requestDecrypt(ctx.currentPubkey, content);
+      try {
+        return JSON.parse(plaintext);
+      } catch {
+        return plaintext as unknown as T;
+      }
+    } catch { }
+  }
+
+  return content as unknown as T;
+}
+
+/**
+ * Internal Helper: Put NIP-78 Data (Private by default, System Origin)
+ */
+async function internalPutStorage<T>(
+  ctx: KeyStorageContext,
+  key: string,
+  value: T
+): Promise<Event> {
+  if (!ctx.currentPubkey) throw new Error("Not authenticated");
+
+  const origin = SYSTEM_APP_ORIGIN;
+  const dTag = `${origin}:${key}`;
+
+  const plaintext = typeof value === "string" ? value : JSON.stringify(value);
+  const content = await ctx.requestEncrypt(ctx.currentPubkey, plaintext);
+
+  const unsignedEvent: UnsignedNostrEvent = {
+    kind: 30078,
+    created_at: Math.floor(Date.now() / 1000),
+    tags: [["d", dTag]],
+    content: content,
+  };
+
+  const signedEvent = await ctx.requestSign(unsignedEvent);
+  await Promise.any(ctx.pool.publish(ctx.relays, signedEvent));
+
+  return signedEvent;
+}
+
+

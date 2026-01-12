@@ -77,3 +77,18 @@ import { TextEncoder, TextDecoder } from 'util';
   unobserve() { }
   disconnect() { }
 };
+
+// Mock framer-motion
+import { mock } from "bun:test";
+mock.module("framer-motion", () => ({
+  motion: {
+    div: ({ children, className, ...props }: any) => {
+      // Convert custom props if needed, or just pass safe DOM props
+      // For simplicity, just render a div
+      return require('react').createElement('div', { className, ...props }, children);
+    },
+    section: ({ children, className, ...props }: any) => require('react').createElement('section', { className, ...props }, children),
+    // Add other HTML elements as needed
+  },
+  AnimatePresence: ({ children }: any) => require('react').createElement(require('react').Fragment, {}, children),
+}));
