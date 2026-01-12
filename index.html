@@ -31,12 +31,15 @@
   // the correct url will be waiting in the browser's history for
   // the single page app to route accordingly.
   (function (l) {
-    if (l.search[1] === '/') {
-      var decoded = l.search.slice(1).split('&').map(function (s) {
-        return s.replace(/~and~/g, '&')
-      }).join('?');
+    var params = new URLSearchParams(l.search);
+    var redirect = params.get('p');
+    if (redirect) {
+      // Restore ~and~ back to &
+      var path = redirect.replace(/~and~/g, '&');
+      var query = params.get('q');
+      var queryString = query ? '?' + query.replace(/~and~/g, '&') : '';
       window.history.replaceState(null, null,
-        l.pathname.slice(0, -1) + decoded + l.hash
+        l.pathname.slice(0, -1) + path + queryString + l.hash
       );
     }
   }(window.location))
