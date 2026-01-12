@@ -1,0 +1,1 @@
+import{b as e,y as t}from"./index-CHprxF90.js";export{e as getAppCanonicalId};

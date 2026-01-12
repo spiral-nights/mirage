@@ -1,1 +1,0 @@
-import{b as e,y as t}from"./index-pwwHU_gb.js";export{e as getAppCanonicalId};
