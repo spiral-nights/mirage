@@ -4,8 +4,8 @@ import { MirageHost } from "../src/index";
 // Mock Window
 if (typeof window === 'undefined') {
     (global as any).window = {
-        addEventListener: () => {},
-        removeEventListener: () => {},
+        addEventListener: () => { },
+        removeEventListener: () => { },
         location: { origin: 'http://localhost' }
     };
 }
@@ -14,8 +14,8 @@ if (typeof window === 'undefined') {
 class MockWorker {
     onmessage: ((event: MessageEvent) => void) | null = null;
     onerror: ((event: ErrorEvent) => void) | null = null;
-    
-    constructor(url: string) {}
+
+    constructor(url: string) { }
 
     postMessage(data: any) {
         // Echo back for testing
@@ -32,8 +32,8 @@ class MockWorker {
             }, 10);
         }
     }
-    
-    terminate() {}
+
+    terminate() { }
 }
 
 // Override global Worker

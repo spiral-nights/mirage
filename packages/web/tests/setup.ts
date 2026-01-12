@@ -17,23 +17,23 @@ class MockWorker {
   onmessage: ((ev: any) => any) | null = null;
   postMessage(message: any) {
     if (this.onmessage) {
-        // Simulate async response to unblock requests
-        setTimeout(() => {
-            if (message.type === 'API_REQUEST') {
-                this.onmessage!({
-                    data: {
-                        type: 'API_RESPONSE',
-                        id: message.id,
-                        status: 200,
-                        body: [] // Return empty list for library/spaces
-                    }
-                } as any);
+      // Simulate async response to unblock requests
+      setTimeout(() => {
+        if (message.type === 'API_REQUEST') {
+          this.onmessage!({
+            data: {
+              type: 'API_RESPONSE',
+              id: message.id,
+              status: 200,
+              body: [] // Return empty list for library/spaces
             }
-            // Add other message types if needed
-        }, 10);
+          } as any);
+        }
+        // Add other message types if needed
+      }, 10);
     }
   }
-  terminate() {}
+  terminate() { }
 }
 
 (globalThis as any).Worker = MockWorker;
@@ -59,9 +59,21 @@ const storageMap: Record<string, string> = {};
   matches: false,
   media: query,
   onchange: null,
-  addListener: () => {},
-  removeListener: () => {},
-  addEventListener: () => {},
-  removeEventListener: () => {},
+  addListener: () => { },
+  removeListener: () => { },
+  addEventListener: () => { },
+  removeEventListener: () => { },
   dispatchEvent: () => false,
 });
+
+// Mock TextEncoder/TextDecoder (Required by nostr-tools)
+import { TextEncoder, TextDecoder } from 'util';
+(globalThis as any).TextEncoder = TextEncoder;
+(globalThis as any).TextDecoder = TextDecoder;
+
+// Mock ResizeObserver (Required by framer-motion)
+(globalThis as any).ResizeObserver = class ResizeObserver {
+  observe() { }
+  unobserve() { }
+  disconnect() { }
+};
