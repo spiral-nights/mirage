@@ -42,13 +42,13 @@ export const UserProfile = ({
           {profile?.picture ? (
             <img src={profile.picture} alt={displayName} className="w-full h-full object-cover" />
           ) : (
-            <User size={16} className="text-gray-400" />
+            <User size={16} className="text-vivid-cyan" />
           )}
         </div>
 
-        {/* Desktop: Show Name and Chevron */}
+        {/* Show Name and Chevron */}
         {!compact && (
-          <div className="hidden md:flex items-center gap-2 flex-1 justify-between min-w-0">
+          <div className="flex items-center gap-2 flex-1 justify-between min-w-0">
             <span className="text-sm font-medium text-gray-200 truncate">
               {displayName}
             </span>

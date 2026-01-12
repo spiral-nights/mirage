@@ -49,8 +49,12 @@ export const SettingsPage = () => {
         <div className="p-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4 overflow-hidden">
-              <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-vivid-cyan shrink-0">
-                <User size={20} />
+              <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-vivid-cyan shrink-0 overflow-hidden">
+                {profile?.picture ? (
+                  <img src={profile.picture} alt={profile.displayName || 'Profile'} className="w-full h-full object-cover" />
+                ) : (
+                  <User size={20} />
+                )}
               </div>
               <div className="overflow-hidden">
                 <div className="font-bold text-white mb-1">
