@@ -167,9 +167,11 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
 
             // Load initial data
             try {
-              const [library, userProfile] = await Promise.all([
+              const [library, userProfile, _spaces] = await Promise.all([
                 mirageHost.request('GET', '/mirage/v1/admin/apps').catch((e: any) => { console.warn('Apps fetch failed', e); return []; }),
-                mirageHost.request('GET', '/mirage/v1/user/me').catch((e: any) => { console.warn('Profile fetch failed', e); return null; })
+                mirageHost.request('GET', '/mirage/v1/user/me').catch((e: any) => { console.warn('Profile fetch failed', e); return null; }),
+                // Fetch spaces to trigger invite sync on the backend
+                mirageHost.request('GET', '/mirage/v1/spaces').catch((e: any) => { console.warn('Spaces fetch failed', e); return []; })
               ]);
 
               if (Array.isArray(library)) setApps(library);
@@ -205,9 +207,11 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
       }
       currentHost.setPubkey(pk);
       try {
-        const [library, userProfile] = await Promise.all([
+        const [library, userProfile, _spaces] = await Promise.all([
           currentHost.request('GET', '/mirage/v1/admin/apps').catch((e: any) => { console.warn('Apps fetch failed', e); return []; }),
-          currentHost.request('GET', '/mirage/v1/user/me').catch((e: any) => { console.warn('Profile fetch failed', e); return null; })
+          currentHost.request('GET', '/mirage/v1/user/me').catch((e: any) => { console.warn('Profile fetch failed', e); return null; }),
+          // Fetch spaces to trigger invite sync on the backend
+          currentHost.request('GET', '/mirage/v1/spaces').catch((e: any) => { console.warn('Spaces fetch failed', e); return []; })
         ]);
         if (Array.isArray(library)) setApps(library);
         if (userProfile && !userProfile.error) setProfile(userProfile as UserProfile);
