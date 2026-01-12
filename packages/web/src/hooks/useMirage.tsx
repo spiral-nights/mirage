@@ -17,6 +17,7 @@ interface MirageContextType {
   deleteApp: (naddr: string) => Promise<boolean>;
   logout: () => void;
   profile: UserProfile | null;
+  spacesVersion: number;
 }
 
 const MirageContext = createContext<MirageContextType | undefined>(undefined);
@@ -33,6 +34,7 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
   const [apps, setApps] = useState<AppDefinition[]>([]);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
+  const [spacesVersion, setSpacesVersion] = useState(0);
   const initRef = useRef(false);
 
   const logout = useCallback(() => {
@@ -72,6 +74,7 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
     const handleNewSpace = (msg: any) => {
       setNotification(`New space added: ${msg.spaceName || 'Unnamed Space'}`);
       refreshApps();
+      setSpacesVersion(v => v + 1); // Trigger useSpaces to refresh
       setTimeout(() => setNotification(null), 3000);
     };
 
@@ -332,7 +335,7 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <MirageContext.Provider value={{ host, isReady, pubkey, apps, notification, publishApp, fetchApp, refreshApps, deleteApp, logout, profile }}>
+    <MirageContext.Provider value={{ host, isReady, pubkey, apps, notification, publishApp, fetchApp, refreshApps, deleteApp, logout, profile, spacesVersion }}>
       {!isReady ? (
         <div className="fixed inset-0 bg-[#050505] flex flex-col items-center justify-center p-12 z-[9999]">
           <div className="relative mb-20 scale-125">

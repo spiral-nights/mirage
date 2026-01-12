@@ -347,7 +347,43 @@ describe("MirageEngine V2", () => {
         expect(response.status).toBe(201);
         expect(mockSendMsg).toHaveBeenCalledWith("s1", "hi");
     });
+
+    test("routes implicit invitations correctly", async () => {
+        const mockInvite = mock(() => Promise.resolve({ invited: "recipient-pubkey" }));
+        (engine as any).spaceService.inviteMember = mockInvite;
+        (engine as any).currentSpace = { id: "s1", name: "Test Space" };
+
+        let response: any;
+        (engine as any).send = (r: any) => { response = r; };
+
+        await engine.handleMessage({
+            type: "API_REQUEST",
+            id: "req_impl_invite",
+            method: "POST",
+            path: "/mirage/v1/space/invitations",
+            body: { pubkey: "recipient-pubkey", name: "Test Space" }
+        } as any);
+
+        expect(response.status).toBe(200);
+        expect(mockInvite).toHaveBeenCalledWith("s1", "recipient-pubkey", "Test Space");
+        expect(response.body.invited).toBe("recipient-pubkey");
+    });
+
+    test("routes implicit invitations returns 400 without space context", async () => {
+        (engine as any).currentSpace = undefined;
+
+        let response: any;
+        (engine as any).send = (r: any) => { response = r; };
+
+        await engine.handleMessage({
+            type: "API_REQUEST",
+            id: "req_impl_invite_no_ctx",
+            method: "POST",
+            path: "/mirage/v1/space/invitations",
+            body: { pubkey: "recipient-pubkey" }
+        } as any);
+
+        expect(response.status).toBe(400);
+        expect(response.body.error).toBe("No space context set");
+    });
 });
-
-
-

@@ -9,7 +9,7 @@ export interface Space {
 }
 
 export function useSpaces() {
-  const { host, isReady, pubkey } = useMirage();
+  const { host, isReady, pubkey, spacesVersion } = useMirage();
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -71,12 +71,12 @@ export function useSpaces() {
     }
   }, [host]);
 
-  // Initial load
+  // Initial load + refresh when spacesVersion changes (new invite received)
   useEffect(() => {
     if (isReady) {
       refreshSpaces();
     }
-  }, [isReady, refreshSpaces]);
+  }, [isReady, refreshSpaces, spacesVersion]);
 
   return { spaces, loading, refreshSpaces, createSpace, deleteSpace, renameSpace };
 }

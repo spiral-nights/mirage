@@ -14,12 +14,12 @@ const mockSign = mock((event: UnsignedNostrEvent) => Promise.resolve({
     pubkey: "test-pubkey"
 } as NostrEvent));
 
-// Mock Pool
+// Mock Pool with proper types
 const mockPool = {
     publish: mock(() => [Promise.resolve()]),
-    querySync: mock(() => []),
-    get: mock(() => Promise.resolve(null)),
-    list: mock(() => Promise.resolve([])),
+    querySync: mock((): any[] => []),
+    get: mock((): Promise<any> => Promise.resolve(null)),
+    list: mock((): Promise<any[]> => Promise.resolve([])),
     close: mock(),
     sub: mock()
 };
@@ -243,6 +243,118 @@ describe("SpaceService Unit Tests", () => {
 
             expect(msg).toBeDefined();
             expect(mockPool.publish).toHaveBeenCalled();
+        });
+    });
+
+    describe("Invitations", () => {
+        test("inviteMember creates Kind 13 invite with correct payload", async () => {
+            const spaceId = "s1";
+            const scopedId = `${testOrigin}:${spaceId}`;
+            const recipientPubkey = "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234";
+
+            const mockKeys = {
+                [scopedId]: {
+                    key: "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE=",
+                    version: 1,
+                    name: "Test Space",
+                    deleted: false
+                }
+            };
+
+            const encryptedKeys = "encrypted:" + JSON.stringify(mockKeys);
+            const mockKeychainEvent = {
+                kind: 30078,
+                tags: [["d", "mirage-app:mirage:space_keys"]],
+                content: encryptedKeys,
+                pubkey: testPubkey,
+                created_at: 1000
+            };
+
+            mockPool.querySync.mockReturnValue([mockKeychainEvent]);
+            mockPool.get.mockReturnValue(Promise.resolve(mockKeychainEvent));
+
+            // Can't test full flow due to EC math requiring real pubkeys
+            // Instead verify the Kind 13 inner event is signed correctly
+            try {
+                await service.inviteMember(spaceId, recipientPubkey, "Test Space");
+            } catch (e) {
+                // wrapEvent may fail with mock pubkey - that's OK for this test
+            }
+
+            // Verify Kind 13 (Seal) event was signed with correct payload
+            expect(mockSign).toHaveBeenCalled();
+            const signedEvents = mockSign.mock.calls.map(c => c[0]);
+            const innerEvent = signedEvents.find((e: any) => e.kind === 13);
+            expect(innerEvent).toBeDefined();
+            expect(innerEvent!.content).toContain("mirage_invite");
+            expect(innerEvent!.content).toContain(spaceId);
+            expect(innerEvent!.content).toContain("Test Space");
+        });
+
+
+
+        test("inviteMember throws if space not found", async () => {
+            mockPool.querySync.mockReturnValue([]);
+            mockPool.get.mockReturnValue(Promise.resolve(null));
+
+            await expect(service.inviteMember("nonexistent", "recipient"))
+                .rejects.toThrow("Space key not found");
+        });
+
+        test("syncInvites processes incoming invites and updates keys", async () => {
+            // Set up a gift-wrapped invite event
+            const invitePayload = {
+                type: "mirage_invite",
+                spaceId: "invited-space-id",
+                scopedId: "invited-app:invited-space-id",
+                key: "YmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmI=",
+                version: 1,
+                name: "Invited Space",
+                origin: "invited-app"
+            };
+
+            const innerEvent = {
+                kind: 13,
+                created_at: Math.floor(Date.now() / 1000),
+                tags: [],
+                content: JSON.stringify(invitePayload),
+                pubkey: "sender-pubkey"
+            };
+
+            const giftWrap = {
+                kind: 1059,
+                pubkey: "ephemeral-pubkey",
+                created_at: Math.floor(Date.now() / 1000) - 1000,
+                tags: [["p", testPubkey]],
+                content: "encrypted:" + JSON.stringify(innerEvent),
+                id: "gift-wrap-id",
+                sig: "fake-sig"
+            };
+
+            // First call returns gift wraps, second returns empty keychain
+            mockPool.querySync
+                .mockReturnValueOnce([giftWrap])
+                .mockReturnValueOnce([]);
+            mockPool.get.mockReturnValue(Promise.resolve(null));
+
+            // Spy on postMessage to check for NEW_SPACE_INVITE
+            const originalPostMessage = (self as any).postMessage;
+            const postedMessages: any[] = [];
+            (self as any).postMessage = (msg: any) => postedMessages.push(msg);
+
+            await service.syncInvites();
+
+            // Restore
+            (self as any).postMessage = originalPostMessage;
+
+            // Should have published updated keys
+            expect(mockPool.publish).toHaveBeenCalled();
+
+            // Should have sent NEW_SPACE_INVITE notification
+            const inviteNotification = postedMessages.find(m => m.type === "NEW_SPACE_INVITE");
+            expect(inviteNotification).toBeDefined();
+            expect(inviteNotification.spaceId).toBe("invited-space-id");
+            expect(inviteNotification.spaceName).toBe("Invited Space");
         });
     });
 });
