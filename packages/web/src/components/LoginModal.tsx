@@ -41,14 +41,22 @@ export const LoginModal = ({ isOpen, onSuccess }: LoginModalProps) => {
     const [hasExtension, setHasExtension] = useState(false);
     const [prfStatus, setPrfStatus] = useState<'loading' | 'supported' | 'unsupported'>('loading');
     const [generatedKey, setGeneratedKey] = useState<Uint8Array | null>(null);
+    const [isMobile, setIsMobile] = useState(false);
 
     useEffect(() => {
         setHasExtension(!!(window as any).nostr);
+        // Detect mobile: viewport < 768px (matches Tailwind's md: breakpoint)
+        const checkMobile = () => setIsMobile(window.innerWidth < 768);
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+
         isPrfSupported().then(supported => {
             setPrfStatus(supported ? 'supported' : 'unsupported');
         }).catch(() => {
             setPrfStatus('unsupported');
         });
+
+        return () => window.removeEventListener('resize', checkMobile);
     }, []);
 
     const handleExtensionLogin = async () => {
@@ -74,7 +82,7 @@ export const LoginModal = ({ isOpen, onSuccess }: LoginModalProps) => {
             return;
         }
 
-        if (prfStatus === 'supported') {
+        if (prfStatus === 'supported' && isMobile) {
             setGeneratedKey(sk);
             setStep('webauthn-setup');
         } else {
@@ -163,7 +171,7 @@ export const LoginModal = ({ isOpen, onSuccess }: LoginModalProps) => {
                             exit={{ opacity: 0, x: -20 }}
                             className="flex flex-col gap-3"
                         >
-                            {loadIdentity() && (
+                            {loadIdentity() && isMobile && (
                                 <button
                                     onClick={handleUnlockWithBiometrics}
                                     disabled={isLoading}

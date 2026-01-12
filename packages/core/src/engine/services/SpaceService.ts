@@ -80,7 +80,6 @@ export class SpaceService {
     }
 
     async listSpaces(): Promise<Space[]> {
-        console.log(`[SpaceService] listSpaces called, pubkey=${this.ctx.currentPubkey?.slice(0, 8)}..., appOrigin=${this.ctx.appOrigin}`);
         if (!this.ctx.currentPubkey) throw new Error("Not authenticated");
 
         await this.syncInvites();
@@ -316,7 +315,6 @@ export class SpaceService {
     }
 
     async inviteMember(rawSpaceId: string, pubkey: string, name?: string): Promise<{ invited: string }> {
-        console.log(`[SpaceService] inviteMember called: spaceId=${rawSpaceId}, pubkey=${pubkey?.slice(0, 8)}...`);
         if (!this.ctx.currentPubkey) throw new Error("Not authenticated");
 
         const spaceId = this.resolveSpaceId(rawSpaceId);
@@ -359,12 +357,9 @@ export class SpaceService {
 
         const signedInner = await this.ctx.requestSign(innerEvent);
         const wrapper = wrapEvent(signedInner, receiverPubkey);
-        console.log(`[SpaceService] Invite wrapper created: kind=${wrapper.kind}, p-tag=${(wrapper.tags.find((t: any) => t[0] === 'p') || [])[1]?.slice(0, 8)}...`);
-        console.log(`[SpaceService] Publishing to relays:`, this.ctx.relays);
 
         try {
             await Promise.any(this.ctx.pool.publish(this.ctx.relays, wrapper as any));
-            console.log(`[SpaceService] Invite published successfully`);
         } catch (e) {
             console.error(`[SpaceService] Failed to publish invite:`, e);
             throw new Error("Failed to publish invite");
@@ -374,7 +369,6 @@ export class SpaceService {
     }
 
     async syncInvites(): Promise<void> {
-        console.log(`[SpaceService] syncInvites called, pubkey=${this.ctx.currentPubkey?.slice(0, 8)}...`);
         if (!this.ctx.currentPubkey) return;
 
         const filter: Filter = {
@@ -383,11 +377,8 @@ export class SpaceService {
             limit: 100,
             since: Math.floor(Date.now() / 1000) - 7 * 24 * 60 * 60,
         };
-        console.log(`[SpaceService] Querying for gift wraps with filter:`, JSON.stringify(filter));
 
         const events = await this.ctx.pool.querySync(this.ctx.relays, filter);
-        console.log(`[SpaceService] Found ${events.length} potential invite events`);
-
         const keys = await this.getKeys();
         let updated = false;
         const newSpaces: { id: string; name?: string }[] = [];
