@@ -1,22 +1,5 @@
 (() => {
   var __defProp = Object.defineProperty;
-  var __getOwnPropNames = Object.getOwnPropertyNames;
-  var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
-  var __hasOwnProp = Object.prototype.hasOwnProperty;
-  var __moduleCache = /* @__PURE__ */ new WeakMap;
-  var __toCommonJS = (from) => {
-    var entry = __moduleCache.get(from), desc;
-    if (entry)
-      return entry;
-    entry = __defProp({}, "__esModule", { value: true });
-    if (from && typeof from === "object" || typeof from === "function")
-      __getOwnPropNames(from).map((key) => !__hasOwnProp.call(entry, key) && __defProp(entry, key, {
-        get: () => from[key],
-        enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable
-      }));
-    __moduleCache.set(from, entry);
-    return entry;
-  };
   var __export = (target, all) => {
     for (var name in all)
       __defProp(target, name, {
@@ -26,12 +9,6 @@
         set: (newValue) => all[name] = () => newValue
       });
   };
-
-  // src/engine/index.ts
-  var exports_engine = {};
-  __export(exports_engine, {
-    waitForKeysReady: () => waitForKeysReady
-  });
 
   // ../../node_modules/@noble/curves/node_modules/@noble/hashes/esm/_assert.js
   function number(n) {
@@ -7331,256 +7308,6 @@
     return true;
   }
 
-  // src/engine/route-matcher.ts
-  function matchRoute(pattern, path) {
-    const patternParts = pattern.split("/");
-    const pathParts = path.split("/");
-    if (patternParts.length !== pathParts.length) {
-      return null;
-    }
-    const params = {};
-    for (let i2 = 0;i2 < patternParts.length; i2++) {
-      const patternPart = patternParts[i2];
-      const pathPart = pathParts[i2];
-      if (patternPart.startsWith(":")) {
-        const paramName = patternPart.slice(1);
-        if (!pathPart)
-          return null;
-        params[paramName] = decodeURIComponent(pathPart);
-      } else if (patternPart !== pathPart) {
-        return null;
-      }
-    }
-    return params;
-  }
-
-  // src/engine/routes/user.ts
-  async function getCurrentUser(ctx) {
-    if (!ctx.currentPubkey) {
-      return { status: 401, body: { error: "Not authenticated" } };
-    }
-    return getUserByPubkey(ctx, ctx.currentPubkey);
-  }
-  async function getUserByPubkey(ctx, pubkey) {
-    const filter = {
-      kinds: [0],
-      authors: [pubkey],
-      limit: 1
-    };
-    const event = await ctx.pool.get(ctx.relays, filter);
-    if (!event) {
-      return { status: 404, body: { error: "User not found" } };
-    }
-    try {
-      const metadata = JSON.parse(event.content);
-      const profile = {
-        pubkey: event.pubkey,
-        name: metadata.name,
-        displayName: metadata.display_name || metadata.displayName,
-        about: metadata.about,
-        picture: metadata.picture,
-        nip05: metadata.nip05,
-        lud16: metadata.lud16
-      };
-      return { status: 200, body: profile };
-    } catch {
-      return { status: 500, body: { error: "Invalid metadata format" } };
-    }
-  }
-
-  // src/engine/keys.ts
-  var SYSTEM_APP_ORIGIN = "mirage";
-  var KEY_STORAGE_ID = "space_keys";
-  async function loadSpaceKeys(ctx) {
-    try {
-      const mirageCtx = { ...ctx, appOrigin: SYSTEM_APP_ORIGIN };
-      const rawMap = await internalGetStorage(mirageCtx, KEY_STORAGE_ID);
-      if (!rawMap) {
-        return new Map;
-      }
-      const map = new Map;
-      for (const [id, keyInfo] of Object.entries(rawMap)) {
-        map.set(id, keyInfo);
-      }
-      return map;
-    } catch (error) {
-      console.error("[Keys] Failed to load keys:", error);
-      return new Map;
-    }
-  }
-  async function saveSpaceKeys(ctx, keys) {
-    try {
-      const rawMap = {};
-      for (const [id, keyInfo] of keys.entries()) {
-        rawMap[id] = keyInfo;
-      }
-      const mirageCtx = { ...ctx, appOrigin: SYSTEM_APP_ORIGIN };
-      await internalPutStorage(mirageCtx, KEY_STORAGE_ID, rawMap);
-      console.log("[Keys] Saved keys to NIP-78 (global keychain)");
-    } catch (error) {
-      console.error("[Keys] Failed to save keys:", error);
-      throw error;
-    }
-  }
-
-  // src/engine/routes/storage.ts
-  async function internalGetStorage(ctx, key, targetPubkey) {
-    if (!ctx.currentPubkey && !targetPubkey)
-      throw new Error("Not authenticated");
-    const isSystemStorage = ctx.appOrigin === SYSTEM_APP_ORIGIN;
-    if (!isSystemStorage && !ctx.currentSpace?.id) {
-      throw new Error("Space context required for storage operations");
-    }
-    const author = targetPubkey || ctx.currentPubkey;
-    const dTag = isSystemStorage ? `${ctx.appOrigin}:${key}` : `${ctx.appOrigin}:${ctx.currentSpace.id}:${key}`;
-    const filter = {
-      kinds: [30078],
-      authors: [author],
-      "#d": [dTag],
-      limit: 1
-    };
-    const event = await ctx.pool.get(ctx.relays, filter);
-    if (!event) {
-      return null;
-    }
-    const content = event.content;
-    try {
-      const parsed = JSON.parse(content);
-      return parsed;
-    } catch {}
-    if (ctx.currentPubkey === author) {
-      try {
-        const plaintext = await ctx.requestDecrypt(ctx.currentPubkey, content);
-        try {
-          return JSON.parse(plaintext);
-        } catch (e) {
-          return plaintext;
-        }
-      } catch (e) {
-        console.error(`Decryption failed:`, e);
-      }
-    }
-    return content;
-  }
-  async function internalPutStorage(ctx, key, value, isPublic = false) {
-    if (!ctx.currentPubkey)
-      throw new Error("Not authenticated");
-    const isSystemStorage = ctx.appOrigin === SYSTEM_APP_ORIGIN;
-    if (!isSystemStorage && !ctx.currentSpace?.id) {
-      throw new Error("Space context required for storage operations");
-    }
-    const dTag = isSystemStorage ? `${ctx.appOrigin}:${key}` : `${ctx.appOrigin}:${ctx.currentSpace.id}:${key}`;
-    const plaintext = typeof value === "string" ? value : JSON.stringify(value);
-    let content = plaintext;
-    if (!isPublic) {
-      content = await ctx.requestEncrypt(ctx.currentPubkey, plaintext);
-    }
-    const created_at = Math.floor(Date.now() / 1000);
-    const unsignedEvent = {
-      kind: 30078,
-      created_at,
-      tags: [["d", dTag]],
-      content
-    };
-    const signedEvent = await ctx.requestSign(unsignedEvent);
-    await Promise.any(ctx.pool.publish(ctx.relays, signedEvent));
-    return signedEvent;
-  }
-  async function getStorage(ctx, key, params) {
-    try {
-      if (!ctx.currentPubkey && !params.pubkey)
-        return { status: 401, body: { error: "Not authenticated" } };
-      const value = await internalGetStorage(ctx, key, params.pubkey);
-      if (value === null) {
-        return { status: 404, body: { error: "Key not found" } };
-      }
-      return {
-        status: 200,
-        body: {
-          key,
-          value,
-          updatedAt: Math.floor(Date.now() / 1000)
-        }
-      };
-    } catch (error) {
-      console.error("[Storage] Error:", error);
-      return {
-        status: 500,
-        body: { error: error instanceof Error ? error.message : "Storage error" }
-      };
-    }
-  }
-  async function putStorage(ctx, key, body, params) {
-    try {
-      if (!ctx.currentPubkey)
-        return { status: 401, body: { error: "Not authenticated" } };
-      const isPublic = params.public === "true";
-      const event = await internalPutStorage(ctx, key, body, isPublic);
-      return {
-        status: 200,
-        body: {
-          key,
-          value: body,
-          updatedAt: event.created_at,
-          public: isPublic
-        }
-      };
-    } catch (error) {
-      console.error("[Storage] Error:", error);
-      return {
-        status: 500,
-        body: { error: error instanceof Error ? error.message : "Storage error" }
-      };
-    }
-  }
-  async function deleteStorage(ctx, key) {
-    if (!ctx.currentPubkey) {
-      return { status: 401, body: { error: "Not authenticated" } };
-    }
-    const isSystemStorage = ctx.appOrigin === SYSTEM_APP_ORIGIN;
-    if (!isSystemStorage && !ctx.currentSpace?.id) {
-      return {
-        status: 400,
-        body: { error: "Space context required for storage operations" }
-      };
-    }
-    const dTag = isSystemStorage ? `${ctx.appOrigin}:${key}` : `${ctx.appOrigin}:${ctx.currentSpace.id}:${key}`;
-    let ciphertext;
-    try {
-      ciphertext = await ctx.requestEncrypt(ctx.currentPubkey, "");
-    } catch (err) {
-      return {
-        status: 500,
-        body: { error: "Failed to encrypt deletion marker" }
-      };
-    }
-    const unsignedEvent = {
-      kind: 30078,
-      created_at: Math.floor(Date.now() / 1000),
-      tags: [
-        ["d", dTag],
-        ["deleted", "true"]
-      ],
-      content: ciphertext
-    };
-    try {
-      const signedTombstone = await ctx.requestSign(unsignedEvent);
-      await Promise.any(ctx.pool.publish(ctx.relays, signedTombstone));
-      const deletionEvent = {
-        kind: 5,
-        created_at: Math.floor(Date.now() / 1000) + 5,
-        content: "Deleted by Mirage",
-        tags: [["a", `30078:${ctx.currentPubkey}:${dTag}`]]
-      };
-      const signedDeletion = await ctx.requestSign(deletionEvent);
-      await Promise.any(ctx.pool.publish(ctx.relays, signedDeletion));
-      return { status: 200, body: { deleted: true, key } };
-    } catch (error) {
-      console.error("[Storage] Delete failed:", error);
-      return { status: 500, body: { error: "Failed to delete value" } };
-    }
-  }
-
   // ../../node_modules/@noble/ciphers/utils.js
   /*! noble-ciphers - MIT License (c) 2023 Paul Miller (paulmillr.com) */
   function isBytes2(a) {
@@ -8370,6 +8097,86 @@
     return Uint8Array.from(binString, (m) => m.codePointAt(0));
   }
 
+  // src/engine/keys.ts
+  var SYSTEM_APP_ORIGIN = "mirage";
+  var KEY_STORAGE_ID = "space_keys";
+  async function loadSpaceKeys(ctx) {
+    try {
+      const rawMap = await internalGetStorage(ctx, KEY_STORAGE_ID);
+      if (!rawMap) {
+        return new Map;
+      }
+      const map = new Map;
+      for (const [id, keyInfo] of Object.entries(rawMap)) {
+        map.set(id, keyInfo);
+      }
+      return map;
+    } catch (error) {
+      console.error("[Keys] Failed to load keys:", error);
+      return new Map;
+    }
+  }
+  async function saveSpaceKeys(ctx, keys) {
+    try {
+      const rawMap = {};
+      for (const [id, keyInfo] of keys.entries()) {
+        rawMap[id] = keyInfo;
+      }
+      await internalPutStorage(ctx, KEY_STORAGE_ID, rawMap);
+      console.log("[Keys] Saved keys to NIP-78 (global keychain)");
+    } catch (error) {
+      console.error("[Keys] Failed to save keys:", error);
+      throw error;
+    }
+  }
+  async function internalGetStorage(ctx, key) {
+    if (!ctx.currentPubkey)
+      return null;
+    const origin = SYSTEM_APP_ORIGIN;
+    const dTag = `${origin}:${key}`;
+    const filter = {
+      kinds: [30078],
+      authors: [ctx.currentPubkey],
+      "#d": [dTag],
+      limit: 1
+    };
+    const event = await ctx.pool.get(ctx.relays, filter);
+    if (!event)
+      return null;
+    const content = event.content;
+    try {
+      return JSON.parse(content);
+    } catch {}
+    if (event.pubkey === ctx.currentPubkey) {
+      try {
+        const plaintext = await ctx.requestDecrypt(ctx.currentPubkey, content);
+        try {
+          return JSON.parse(plaintext);
+        } catch {
+          return plaintext;
+        }
+      } catch {}
+    }
+    return content;
+  }
+  async function internalPutStorage(ctx, key, value) {
+    if (!ctx.currentPubkey)
+      throw new Error("Not authenticated");
+    const origin = SYSTEM_APP_ORIGIN;
+    const dTag = `${origin}:${key}`;
+    const plaintext = typeof value === "string" ? value : JSON.stringify(value);
+    const content = await ctx.requestEncrypt(ctx.currentPubkey, plaintext);
+    const unsignedEvent = {
+      kind: 30078,
+      created_at: Math.floor(Date.now() / 1000),
+      tags: [["d", dTag]],
+      content
+    };
+    const signedEvent = await ctx.requestSign(unsignedEvent);
+    await Promise.any(ctx.pool.publish(ctx.relays, signedEvent));
+    return signedEvent;
+  }
+
   // src/engine/nip17.ts
   function wrapEvent3(signedEvent, receiverPubkey) {
     const ephemeralPrivKey = generateSecretKey();
@@ -8402,942 +8209,1081 @@
     }
   }
 
-  // src/engine/routes/spaces.ts
-  var keyCache = null;
-  var storeCache = new Map;
-  async function getKeys(ctx) {
-    if (!keyCache) {
-      keyCache = await loadSpaceKeys(ctx);
+  // src/engine/services/SpaceService.ts
+  class SpaceService {
+    ctx;
+    keyCache = null;
+    storeCache = new Map;
+    constructor(config) {
+      this.ctx = {
+        ...config,
+        requestEncrypt: config.requestEncrypt || (async () => {
+          throw new Error("Encryption provider missing");
+        })
+      };
     }
-    return keyCache;
-  }
-  function resolveSpaceId(ctx, spaceId) {
-    if (spaceId === "current") {
-      return ctx.currentSpace?.id || "default";
+    updateContext(patches) {
+      this.ctx = { ...this.ctx, ...patches };
+      if (patches.currentPubkey && patches.currentPubkey !== this.ctx.currentPubkey || patches.appOrigin && patches.appOrigin !== this.ctx.appOrigin) {
+        this.keyCache = null;
+      }
     }
-    return spaceId;
-  }
-  async function getSpaceContext(ctx) {
-    if (ctx.currentSpace) {
-      return { status: 200, body: ctx.currentSpace };
+    async getKeys() {
+      if (!this.keyCache) {
+        this.keyCache = await loadSpaceKeys({
+          pool: this.ctx.pool,
+          relays: this.ctx.relays,
+          currentPubkey: this.ctx.currentPubkey,
+          requestSign: this.ctx.requestSign,
+          requestDecrypt: this.ctx.requestDecrypt,
+          requestEncrypt: this.ctx.requestEncrypt,
+          appOrigin: this.ctx.appOrigin
+        });
+      }
+      return this.keyCache;
     }
-    return { status: 200, body: { id: null, standalone: true } };
-  }
-  async function listSpaces(ctx) {
-    if (!ctx.currentPubkey)
-      return { status: 401, body: { error: "Not authenticated" } };
-    await syncInvites(ctx);
-    const keys = await getKeys(ctx);
-    const spaces = [];
-    const appPrefix = `${ctx.appOrigin}:`;
-    for (const [scopedId, keyInfo] of keys.entries()) {
-      if (keyInfo.deleted)
-        continue;
-      if (scopedId.startsWith(appPrefix)) {
-        const id = scopedId.slice(appPrefix.length);
+    resolveSpaceId(spaceId) {
+      if (spaceId === "current") {
+        return this.ctx.currentSpace?.id || "default";
+      }
+      return spaceId;
+    }
+    async listSpaces() {
+      if (!this.ctx.currentPubkey)
+        throw new Error("Not authenticated");
+      await this.syncInvites();
+      const keys = await this.getKeys();
+      const spaces = [];
+      const appPrefix = `${this.ctx.appOrigin}:`;
+      for (const [scopedId, keyInfo] of keys.entries()) {
+        if (keyInfo.deleted)
+          continue;
+        if (scopedId.startsWith(appPrefix)) {
+          const id = scopedId.slice(appPrefix.length);
+          spaces.push({
+            id,
+            name: keyInfo.name || `Space ${id.slice(0, 8)}`,
+            createdAt: keyInfo.createdAt || 0,
+            memberCount: 0,
+            appOrigin: this.ctx.appOrigin
+          });
+        }
+      }
+      return spaces;
+    }
+    async listAllSpaces() {
+      if (!this.ctx.currentPubkey)
+        throw new Error("Not authenticated");
+      const keys = await this.getKeys();
+      const spaces = [];
+      for (const [scopedId, keyInfo] of keys.entries()) {
+        if (keyInfo.deleted)
+          continue;
+        const colonIndex = scopedId.lastIndexOf(":");
+        if (colonIndex === -1)
+          continue;
+        const appOrigin = scopedId.slice(0, colonIndex);
+        const id = scopedId.slice(colonIndex + 1);
         spaces.push({
           id,
           name: keyInfo.name || `Space ${id.slice(0, 8)}`,
           createdAt: keyInfo.createdAt || 0,
           memberCount: 0,
-          appOrigin: ctx.appOrigin
+          appOrigin
         });
       }
+      return spaces;
     }
-    return { status: 200, body: spaces };
-  }
-  async function listAllSpaces(ctx) {
-    if (!ctx.currentPubkey)
-      return { status: 401, body: { error: "Not authenticated" } };
-    const keys = await getKeys(ctx);
-    const spaces = [];
-    for (const [scopedId, keyInfo] of keys.entries()) {
-      if (keyInfo.deleted)
-        continue;
-      const colonIndex = scopedId.lastIndexOf(":");
-      if (colonIndex === -1)
-        continue;
-      const appOrigin = scopedId.slice(0, colonIndex);
-      const id = scopedId.slice(colonIndex + 1);
-      spaces.push({
-        id,
-        name: keyInfo.name || `Space ${id.slice(0, 8)}`,
-        createdAt: keyInfo.createdAt || 0,
-        memberCount: 0,
-        appOrigin
+    async createSpace(name, forAppOrigin) {
+      if (!this.ctx.currentPubkey)
+        throw new Error("Not authenticated");
+      const appOrigin = forAppOrigin || this.ctx.appOrigin;
+      if (appOrigin === "unknown") {
+        throw new Error("Cannot create space for unknown app origin");
+      }
+      const spaceId = generateRandomId();
+      const key = generateSymmetricKey();
+      const scopedId = `${appOrigin}:${spaceId}`;
+      const createdAt = Math.floor(Date.now() / 1000);
+      const keys = await this.getKeys();
+      keys.set(scopedId, {
+        key,
+        version: 1,
+        name,
+        createdAt,
+        deleted: false
       });
+      await this.saveKeys(keys);
+      return {
+        id: spaceId,
+        name,
+        createdAt,
+        memberCount: 1,
+        appOrigin
+      };
     }
-    return { status: 200, body: spaces };
-  }
-  async function createSpace(ctx, body) {
-    if (!ctx.currentPubkey)
-      return { status: 401, body: { error: "Not authenticated" } };
-    if (!body?.name)
-      return { status: 400, body: { error: "Space name required" } };
-    const targetOrigin = body.appOrigin || ctx.appOrigin;
-    const spaceId = generateRandomId();
-    const key = generateSymmetricKey();
-    const scopedId = `${targetOrigin}:${spaceId}`;
-    const createdAt = Math.floor(Date.now() / 1000);
-    const keys = await getKeys(ctx);
-    keys.set(scopedId, {
-      key,
-      version: 1,
-      name: body.name,
-      createdAt,
-      deleted: false
-    });
-    await saveSpaceKeys(ctx, keys);
-    const space = {
-      id: spaceId,
-      name: body.name,
-      createdAt,
-      memberCount: 1,
-      appOrigin: targetOrigin
-    };
-    return { status: 201, body: space };
-  }
-  async function deleteSpace(ctx, rawSpaceId) {
-    if (!ctx.currentPubkey)
-      return { status: 401, body: { error: "Not authenticated" } };
-    const spaceId = resolveSpaceId(ctx, rawSpaceId);
-    const keys = await getKeys(ctx);
-    let targetScopedId = `${ctx.appOrigin}:${spaceId}`;
-    if (!keys.has(targetScopedId)) {
-      const found = Array.from(keys.keys()).find((k) => k.endsWith(`:${spaceId}`));
-      if (found) {
-        targetScopedId = found;
-      } else {
-        return { status: 404, body: { error: "Space not found" } };
+    async deleteSpace(rawSpaceId) {
+      if (!this.ctx.currentPubkey)
+        throw new Error("Not authenticated");
+      const spaceId = this.resolveSpaceId(rawSpaceId);
+      const keys = await this.getKeys();
+      let targetScopedId = `${this.ctx.appOrigin}:${spaceId}`;
+      if (!keys.has(targetScopedId)) {
+        const found = Array.from(keys.keys()).find((k) => k.endsWith(`:${spaceId}`));
+        if (found) {
+          targetScopedId = found;
+        } else {
+          throw new Error("Space not found");
+        }
       }
+      const existing = keys.get(targetScopedId);
+      keys.set(targetScopedId, {
+        ...existing,
+        deleted: true,
+        deletedAt: Math.floor(Date.now() / 1000)
+      });
+      await this.saveKeys(keys);
+      return spaceId;
     }
-    const existing = keys.get(targetScopedId);
-    keys.set(targetScopedId, {
-      ...existing,
-      deleted: true,
-      deletedAt: Math.floor(Date.now() / 1000)
-    });
-    await saveSpaceKeys(ctx, keys);
-    return { status: 200, body: { deleted: spaceId } };
-  }
-  async function updateSpace(ctx, rawSpaceId, body) {
-    if (!ctx.currentPubkey)
-      return { status: 401, body: { error: "Not authenticated" } };
-    if (!body?.name)
-      return { status: 400, body: { error: "Space name required" } };
-    const spaceId = resolveSpaceId(ctx, rawSpaceId);
-    const keys = await getKeys(ctx);
-    let targetScopedId = `${ctx.appOrigin}:${spaceId}`;
-    if (!keys.has(targetScopedId)) {
-      const found = Array.from(keys.keys()).find((k) => k.endsWith(`:${spaceId}`));
-      if (found) {
-        targetScopedId = found;
-      } else {
-        return { status: 404, body: { error: "Space not found" } };
+    async updateSpace(rawSpaceId, name) {
+      if (!this.ctx.currentPubkey)
+        throw new Error("Not authenticated");
+      const spaceId = this.resolveSpaceId(rawSpaceId);
+      const keys = await this.getKeys();
+      let targetScopedId = `${this.ctx.appOrigin}:${spaceId}`;
+      if (!keys.has(targetScopedId)) {
+        const found = Array.from(keys.keys()).find((k) => k.endsWith(`:${spaceId}`));
+        if (found)
+          targetScopedId = found;
+        else
+          throw new Error("Space not found");
       }
+      const existing = keys.get(targetScopedId);
+      keys.set(targetScopedId, {
+        ...existing,
+        name
+      });
+      await this.saveKeys(keys);
+      return { id: spaceId, name };
     }
-    const existing = keys.get(targetScopedId);
-    keys.set(targetScopedId, {
-      ...existing,
-      name: body.name
-    });
-    await saveSpaceKeys(ctx, keys);
-    return { status: 200, body: { id: spaceId, name: body.name } };
-  }
-  async function getSpaceMessages(ctx, rawSpaceId, params) {
-    if (!ctx.currentPubkey)
-      return { status: 401, body: { error: "Not authenticated" } };
-    const spaceId = resolveSpaceId(ctx, rawSpaceId);
-    const scopedId = `${ctx.appOrigin}:${spaceId}`;
-    const keys = await getKeys(ctx);
-    const keyInfo = keys.get(scopedId);
-    if (!keyInfo)
-      return { status: 404, body: { error: "Space key not found" } };
-    const filter = {
-      kinds: [42],
-      "#e": [spaceId],
-      limit: params.limit || 50
-    };
-    if (params.since)
-      filter.since = params.since;
-    const events = await ctx.pool.querySync(ctx.relays, filter);
-    const messages = [];
-    for (const ev of events) {
-      try {
-        let payload;
+    async getMessages(rawSpaceId, limit2 = 50, since) {
+      if (!this.ctx.currentPubkey)
+        throw new Error("Not authenticated");
+      const spaceId = this.resolveSpaceId(rawSpaceId);
+      const scopedId = `${this.ctx.appOrigin}:${spaceId}`;
+      const keys = await this.getKeys();
+      const keyInfo = keys.get(scopedId);
+      if (!keyInfo)
+        throw new Error("Space key not found");
+      const filter = {
+        kinds: [42],
+        "#e": [spaceId],
+        limit: limit2
+      };
+      if (since)
+        filter.since = since;
+      const events = await this.ctx.pool.querySync(this.ctx.relays, filter);
+      const messages = [];
+      for (const ev of events) {
         try {
-          payload = JSON.parse(ev.content);
-        } catch {
-          continue;
-        }
-        const plaintext = decryptSymmetric(keyInfo.key, payload.ciphertext, payload.nonce);
-        if (plaintext) {
-          messages.push({
-            id: ev.id,
-            spaceId,
-            author: ev.pubkey,
-            content: plaintext,
-            type: "message",
-            createdAt: ev.created_at
-          });
-        }
-      } catch (e) {}
-    }
-    return { status: 200, body: messages };
-  }
-  async function postSpaceMessage(ctx, rawSpaceId, body) {
-    if (!ctx.currentPubkey)
-      return { status: 401, body: { error: "Not authenticated" } };
-    if (!body?.content)
-      return { status: 400, body: { error: "Content required" } };
-    const spaceId = resolveSpaceId(ctx, rawSpaceId);
-    const scopedId = `${ctx.appOrigin}:${spaceId}`;
-    const keys = await getKeys(ctx);
-    const keyInfo = keys.get(scopedId);
-    if (!keyInfo)
-      return { status: 404, body: { error: "Space key not found" } };
-    const encrypted = encryptSymmetric(keyInfo.key, body.content);
-    const content = JSON.stringify(encrypted);
-    const unsigned = {
-      kind: 42,
-      created_at: Math.floor(Date.now() / 1000),
-      tags: [["e", spaceId, "", "root"]],
-      content,
-      pubkey: ctx.currentPubkey
-    };
-    const signed = await ctx.requestSign(unsigned);
-    await Promise.any(ctx.pool.publish(ctx.relays, signed));
-    const msg = {
-      id: signed.id,
-      spaceId,
-      author: signed.pubkey,
-      content: body.content,
-      type: "message",
-      createdAt: signed.created_at
-    };
-    return { status: 201, body: msg };
-  }
-  async function inviteMember(ctx, rawSpaceId, body) {
-    if (!ctx.currentPubkey)
-      return { status: 401, body: { error: "Not authenticated" } };
-    if (!body?.pubkey)
-      return { status: 400, body: { error: "Pubkey required" } };
-    const spaceId = resolveSpaceId(ctx, rawSpaceId);
-    let receiverPubkey = body.pubkey;
-    if (receiverPubkey.startsWith("npub")) {
-      try {
-        const decoded = nip19_exports.decode(receiverPubkey);
-        if (decoded.type === "npub") {
-          receiverPubkey = decoded.data;
-        }
-      } catch (e) {
-        return { status: 400, body: { error: "Invalid npub format" } };
-      }
-    }
-    const scopedId = `${ctx.appOrigin}:${spaceId}`;
-    const keys = await getKeys(ctx);
-    const keyInfo = keys.get(scopedId);
-    if (!keyInfo) {
-      return { status: 404, body: { error: "Space key not found" } };
-    }
-    const invitePayload = {
-      type: "mirage_invite",
-      spaceId,
-      scopedId,
-      key: keyInfo.key,
-      version: keyInfo.version,
-      name: body.name || keyInfo.name || `Space ${spaceId.slice(0, 8)}`,
-      origin: ctx.appOrigin
-    };
-    const innerEvent = {
-      kind: 13,
-      created_at: Math.floor(Date.now() / 1000),
-      tags: [],
-      content: JSON.stringify(invitePayload),
-      pubkey: ctx.currentPubkey
-    };
-    const signedInner = await ctx.requestSign(innerEvent);
-    const wrapper = wrapEvent3(signedInner, receiverPubkey);
-    try {
-      await Promise.any(ctx.pool.publish(ctx.relays, wrapper));
-      console.log(`[Invites] Sent invite to ${receiverPubkey} for space ${spaceId} (scoped: ${scopedId})`);
-    } catch (e) {
-      console.error(`[Invites] Failed to publish invite:`, e);
-      return { status: 500, body: { error: "Failed to publish invite" } };
-    }
-    return { status: 200, body: { invited: receiverPubkey } };
-  }
-  async function syncInvites(ctx) {
-    if (!ctx.currentPubkey)
-      return;
-    const filter = {
-      kinds: [1059],
-      "#p": [ctx.currentPubkey],
-      limit: 100,
-      since: Math.floor(Date.now() / 1000) - 7 * 24 * 60 * 60
-    };
-    const events = await ctx.pool.querySync(ctx.relays, filter);
-    if (events.length > 0) {
-      console.log(`[Invites] Syncing... Found ${events.length} potential invites.`);
-    }
-    const keys = await getKeys(ctx);
-    let updated = false;
-    const newSpaces = [];
-    for (const wrap of events) {
-      try {
-        const innerJson = await ctx.requestDecrypt(wrap.pubkey, wrap.content);
-        const innerEvent = JSON.parse(innerJson);
-        if (innerEvent.kind === 13) {
-          const payload = JSON.parse(innerEvent.content);
-          if (payload.type === "mirage_invite" && payload.key && payload.scopedId) {
-            console.log(`[Invites] Processing invite for ${payload.scopedId} (v${payload.version}) from ${innerEvent.pubkey}`);
-            const existing = keys.get(payload.scopedId);
-            let isNewerInvite = false;
-            const inviteTime = innerEvent.created_at;
-            if (existing) {
-              if (existing.latestInviteTimestamp) {
-                isNewerInvite = inviteTime > existing.latestInviteTimestamp;
-              } else {
-                isNewerInvite = inviteTime > (existing.deletedAt || existing.createdAt || 0);
-              }
-            }
-            if (!existing || !existing.deleted && existing.version < payload.version || isNewerInvite) {
-              console.log(`[Invites] Accepting invite for ${payload.scopedId}. Updated: ${updated}`);
-              keys.set(payload.scopedId, {
-                key: payload.key,
-                version: payload.version,
-                name: payload.name,
-                deleted: false,
-                deletedAt: undefined,
-                latestInviteTimestamp: inviteTime
-              });
-              updated = true;
-              const parts = payload.scopedId.split(":");
-              if (parts.length > 1) {
-                newSpaces.push({ id: parts[1], name: payload.name });
-              }
-            } else if (existing.deleted) {}
+          const payload = JSON.parse(ev.content);
+          const plaintext = decryptSymmetric(keyInfo.key, payload.ciphertext, payload.nonce);
+          if (plaintext) {
+            messages.push({
+              id: ev.id,
+              spaceId,
+              author: ev.pubkey,
+              content: plaintext,
+              type: "message",
+              createdAt: ev.created_at
+            });
           }
-        } else {}
-      } catch (e) {
-        console.warn("[Invites] Failed to process wrapper:", e);
-        continue;
+        } catch (e) {}
       }
+      return messages;
     }
-    if (updated) {
-      await saveSpaceKeys(ctx, keys);
-      for (const space of newSpaces) {
-        console.log(`[Invites] Accepted new space: ${space.id} (${space.name})`);
-        self.postMessage({
-          type: "NEW_SPACE_INVITE",
-          id: crypto.randomUUID(),
-          spaceId: space.id,
-          spaceName: space.name
-        });
-      }
-    } else if (events.length > 0) {
-      console.log("[Invites] Synced checks, no updates found.");
+    async sendMessage(rawSpaceId, content) {
+      if (!this.ctx.currentPubkey)
+        throw new Error("Not authenticated");
+      const spaceId = this.resolveSpaceId(rawSpaceId);
+      const scopedId = `${this.ctx.appOrigin}:${spaceId}`;
+      const keys = await this.getKeys();
+      const keyInfo = keys.get(scopedId);
+      if (!keyInfo)
+        throw new Error("Space key not found");
+      const encrypted = encryptSymmetric(keyInfo.key, content);
+      const eventContent = JSON.stringify(encrypted);
+      const unsigned = {
+        kind: 42,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [["e", spaceId, "", "root"]],
+        content: eventContent,
+        pubkey: this.ctx.currentPubkey
+      };
+      const signed = await this.ctx.requestSign(unsigned);
+      await Promise.any(this.ctx.pool.publish(this.ctx.relays, signed));
+      return {
+        id: signed.id,
+        spaceId,
+        author: signed.pubkey,
+        content,
+        type: "message",
+        createdAt: signed.created_at
+      };
     }
-  }
-  async function getSpaceStore(ctx, rawSpaceId) {
-    if (!ctx.currentPubkey)
-      return { status: 401, body: { error: "Not authenticated" } };
-    const spaceId = resolveSpaceId(ctx, rawSpaceId);
-    const scopedId = `${ctx.appOrigin}:${spaceId}`;
-    const keys = await getKeys(ctx);
-    const keyInfo = keys.get(scopedId);
-    if (!keyInfo)
-      return { status: 404, body: { error: "Space key not found" } };
-    let cache = storeCache.get(scopedId);
-    if (!cache) {
-      cache = { state: new Map, latestTimestamp: 0 };
-      storeCache.set(scopedId, cache);
+    async saveKeys(keys) {
+      await saveSpaceKeys({
+        pool: this.ctx.pool,
+        relays: this.ctx.relays,
+        currentPubkey: this.ctx.currentPubkey,
+        requestSign: this.ctx.requestSign,
+        requestDecrypt: this.ctx.requestDecrypt,
+        requestEncrypt: this.ctx.requestEncrypt,
+        appOrigin: this.ctx.appOrigin
+      }, keys);
     }
-    const filter = {
-      kinds: [42],
-      "#e": [spaceId],
-      "#t": ["mirage_store"],
-      since: cache.latestTimestamp + 1
-    };
-    const events = await ctx.pool.querySync(ctx.relays, filter);
-    let hasUpdates = false;
-    for (const ev of events) {
-      if (ev.created_at > cache.latestTimestamp) {
-        cache.latestTimestamp = ev.created_at;
-      }
-      try {
-        let payload;
+    async inviteMember(rawSpaceId, pubkey, name) {
+      if (!this.ctx.currentPubkey)
+        throw new Error("Not authenticated");
+      const spaceId = this.resolveSpaceId(rawSpaceId);
+      let receiverPubkey = pubkey;
+      if (receiverPubkey.startsWith("npub")) {
         try {
-          payload = JSON.parse(ev.content);
-        } catch {
-          continue;
-        }
-        const plaintext = decryptSymmetric(keyInfo.key, payload.ciphertext, payload.nonce);
-        if (!plaintext) {
-          console.warn(`[SpaceStore] Decryption failed for event ${ev.id}`);
-          continue;
-        }
-        const data = JSON.parse(plaintext);
-        if (Array.isArray(data) && data[0] === "store_put" && data.length === 3) {
-          const [_, key, value] = data;
-          const existing = cache.state.get(key);
-          if (!existing || ev.created_at >= existing.updatedAt) {
-            cache.state.set(key, { value, updatedAt: ev.created_at });
-            hasUpdates = true;
+          const decoded = nip19_exports.decode(receiverPubkey);
+          if (decoded.type === "npub") {
+            receiverPubkey = decoded.data;
           }
+        } catch (e) {
+          throw new Error("Invalid npub format");
         }
-      } catch (e) {}
-    }
-    const stateObj = {};
-    for (const [key, record] of cache.state.entries()) {
-      stateObj[key] = record.value;
-    }
-    return { status: 200, body: stateObj };
-  }
-  async function updateSpaceStore(ctx, rawSpaceId, key, value) {
-    if (!ctx.currentPubkey)
-      return { status: 401, body: { error: "Not authenticated" } };
-    const spaceId = resolveSpaceId(ctx, rawSpaceId);
-    const scopedId = `${ctx.appOrigin}:${spaceId}`;
-    const keys = await getKeys(ctx);
-    const keyInfo = keys.get(scopedId);
-    if (!keyInfo)
-      return { status: 404, body: { error: "Space key not found" } };
-    const rawPayload = JSON.stringify(["store_put", key, value]);
-    const encrypted = encryptSymmetric(keyInfo.key, rawPayload);
-    const content = JSON.stringify(encrypted);
-    const unsigned = {
-      kind: 42,
-      created_at: Math.floor(Date.now() / 1000),
-      tags: [
-        ["e", spaceId, "", "root"],
-        ["t", "mirage_store"],
-        ["k", key]
-      ],
-      content,
-      pubkey: ctx.currentPubkey
-    };
-    const signed = await ctx.requestSign(unsigned);
-    await Promise.any(ctx.pool.publish(ctx.relays, signed));
-    let cache = storeCache.get(scopedId);
-    if (!cache) {
-      cache = { state: new Map, latestTimestamp: 0 };
-      storeCache.set(scopedId, cache);
-    }
-    cache.state.set(key, { value, updatedAt: signed.created_at });
-    if (signed.created_at > cache.latestTimestamp) {
-      cache.latestTimestamp = signed.created_at;
-    }
-    return { status: 200, body: { key, value, updatedAt: signed.created_at } };
-  }
-
-  // src/engine/routes/dm.ts
-  async function listDMs(ctx) {
-    if (!ctx.currentPubkey)
-      return { status: 401, body: { error: "Not authenticated" } };
-    const filter = {
-      kinds: [1059],
-      "#p": [ctx.currentPubkey],
-      limit: 100
-    };
-    const events = await ctx.pool.querySync(ctx.relays, filter);
-    const conversations = new Map;
-    const seenIds = new Set;
-    for (const wrap of events) {
-      try {
-        const sealEvent = await unwrapEvent3(wrap, ctx.requestDecrypt);
-        if (!sealEvent || sealEvent.kind !== 13)
-          continue;
-        if (!sealEvent.pubkey)
-          continue;
-        const senderPubkey = sealEvent.pubkey;
-        let rumorJson;
-        try {
-          rumorJson = await ctx.requestDecrypt(senderPubkey, sealEvent.content);
-        } catch (err) {
-          console.warn(`[DM] Failed to decrypt Seal from ${senderPubkey.slice(0, 8)}`);
-          continue;
-        }
-        const rumor = JSON.parse(rumorJson);
-        if (!rumor.pubkey)
-          continue;
-        const uniqueId = rumor.id || `${rumor.pubkey}:${rumor.created_at}:${rumor.content.slice(0, 20)}`;
-        if (seenIds.has(uniqueId))
-          continue;
-        seenIds.add(uniqueId);
-        const sender = rumor.pubkey;
-        let otherPubkey = sender;
-        if (sender === ctx.currentPubkey) {
-          const pTag = rumor.tags.find((t) => t[0] === "p");
-          if (pTag && pTag[1]) {
-            otherPubkey = pTag[1];
-          }
-        }
-        const existing = conversations.get(otherPubkey);
-        const ts = rumor.created_at;
-        if (!existing || ts > existing.timestamp) {
-          conversations.set(otherPubkey, {
-            pubkey: otherPubkey,
-            lastMessage: rumor.content,
-            timestamp: ts,
-            unreadCount: 0
-          });
-        }
-      } catch (e) {
-        continue;
       }
-    }
-    const start = Array.from(conversations.values()).sort((a, b) => b.timestamp - a.timestamp);
-    return { status: 200, body: start };
-  }
-  async function getDMMessages(ctx, targetPubkey, params) {
-    if (!ctx.currentPubkey)
-      return { status: 401, body: { error: "Not authenticated" } };
-    let hexTarget = targetPubkey;
-    if (hexTarget.startsWith("npub")) {
-      try {
-        const d = nip19_exports.decode(hexTarget);
-        if (d.type === "npub")
-          hexTarget = d.data;
-      } catch {}
-    }
-    const filter = {
-      kinds: [1059],
-      "#p": [ctx.currentPubkey],
-      limit: params.limit || 50
-    };
-    const events = await ctx.pool.querySync(ctx.relays, filter);
-    const messages = [];
-    const seenIds = new Set;
-    for (const wrap of events) {
-      try {
-        const sealEvent = await unwrapEvent3(wrap, ctx.requestDecrypt);
-        if (!sealEvent || sealEvent.kind !== 13)
-          continue;
-        if (!sealEvent.pubkey)
-          continue;
-        const senderPubkey = sealEvent.pubkey;
-        let rumorJson;
-        try {
-          rumorJson = await ctx.requestDecrypt(senderPubkey, sealEvent.content);
-        } catch (decErr) {
-          continue;
-        }
-        const rumor = JSON.parse(rumorJson);
-        if (!rumor.pubkey)
-          continue;
-        const uniqueId = rumor.id || `${rumor.pubkey}:${rumor.created_at}:${rumor.content}`;
-        if (seenIds.has(uniqueId))
-          continue;
-        seenIds.add(uniqueId);
-        const sender = rumor.pubkey;
-        let isMatch = false;
-        let isIncoming = false;
-        if (sender === hexTarget) {
-          isMatch = true;
-          isIncoming = true;
-        } else if (sender === ctx.currentPubkey) {
-          const pTag = rumor.tags.find((t) => t[0] === "p");
-          if (pTag && pTag[1] === hexTarget) {
-            isMatch = true;
-            isIncoming = false;
-          }
-        }
-        if (isMatch) {
-          messages.push({
-            id: rumor.id || "unsigned",
-            pubkey: hexTarget,
-            sender,
-            content: rumor.content,
-            createdAt: rumor.created_at,
-            isIncoming
-          });
-        }
-      } catch (e) {
-        continue;
-      }
-    }
-    messages.sort((a, b) => a.createdAt - b.createdAt);
-    return { status: 200, body: messages };
-  }
-  async function sendDM(ctx, targetPubkey, body) {
-    if (!ctx.currentPubkey)
-      return { status: 401, body: { error: "Not authenticated" } };
-    if (!body?.content)
-      return { status: 400, body: { error: "Content required" } };
-    let hexTarget = targetPubkey;
-    if (hexTarget.startsWith("npub")) {
-      try {
-        const d = nip19_exports.decode(hexTarget);
-        if (d.type === "npub")
-          hexTarget = d.data;
-      } catch {
-        return { status: 400, body: { error: "Invalid pubkey" } };
-      }
-    }
-    const rumor = {
-      kind: 14,
-      created_at: Math.floor(Date.now() / 1000),
-      tags: [["p", hexTarget]],
-      content: body.content,
-      pubkey: ctx.currentPubkey
-    };
-    const rumorJson = JSON.stringify(rumor);
-    const cipherTextForRecipient = await ctx.requestEncrypt(hexTarget, rumorJson);
-    const sealForRecipient = {
-      kind: 13,
-      created_at: Math.floor(Date.now() / 1000),
-      tags: [],
-      content: cipherTextForRecipient,
-      pubkey: ctx.currentPubkey
-    };
-    const signedSealForRecipient = await ctx.requestSign(sealForRecipient);
-    const giftForRecipient = wrapEvent3(signedSealForRecipient, hexTarget);
-    await Promise.any(ctx.pool.publish(ctx.relays, giftForRecipient));
-    if (hexTarget !== ctx.currentPubkey) {
-      const cipherTextForSelf = await ctx.requestEncrypt(ctx.currentPubkey, rumorJson);
-      const sealForSelf = {
+      const scopedId = `${this.ctx.appOrigin}:${spaceId}`;
+      const keys = await this.getKeys();
+      const keyInfo = keys.get(scopedId);
+      if (!keyInfo)
+        throw new Error("Space key not found");
+      const invitePayload = {
+        type: "mirage_invite",
+        spaceId,
+        scopedId,
+        key: keyInfo.key,
+        version: keyInfo.version,
+        name: name || keyInfo.name || `Space ${spaceId.slice(0, 8)}`,
+        origin: this.ctx.appOrigin
+      };
+      const innerEvent = {
         kind: 13,
         created_at: Math.floor(Date.now() / 1000),
         tags: [],
-        content: cipherTextForSelf,
-        pubkey: ctx.currentPubkey
+        content: JSON.stringify(invitePayload),
+        pubkey: this.ctx.currentPubkey
       };
-      const signedSealForSelf = await ctx.requestSign(sealForSelf);
-      const giftForSelf = wrapEvent3(signedSealForSelf, ctx.currentPubkey);
-      await Promise.any(ctx.pool.publish(ctx.relays, giftForSelf));
-    }
-    return {
-      status: 201,
-      body: {
-        sent: true,
-        to: hexTarget,
-        content: body.content
-      }
-    };
-  }
-
-  // src/engine/routes/contacts.ts
-  function normalizePubkey(pubkey) {
-    if (pubkey.startsWith("npub")) {
+      const signedInner = await this.ctx.requestSign(innerEvent);
+      const wrapper = wrapEvent3(signedInner, receiverPubkey);
       try {
-        const d = nip19_exports.decode(pubkey);
-        if (d.type === "npub")
-          return d.data;
-      } catch {}
-    }
-    return pubkey;
-  }
-  async function fetchContactList(ctx, pubkey) {
-    const filter = {
-      kinds: [3],
-      authors: [pubkey],
-      limit: 1
-    };
-    const event = await ctx.pool.get(ctx.relays, filter);
-    if (!event)
-      return [];
-    const latest = event;
-    return latest.tags.filter((t) => t[0] === "p").map((t) => ({
-      pubkey: t[1],
-      relay: t[2] || undefined,
-      petname: t[3] || undefined
-    }));
-  }
-  async function listContacts(ctx) {
-    if (!ctx.currentPubkey)
-      return { status: 401, body: { error: "Not authenticated" } };
-    const contacts = await fetchContactList(ctx, ctx.currentPubkey);
-    return { status: 200, body: contacts };
-  }
-  async function getUserContacts(ctx, targetPubkey) {
-    const hexPubkey = normalizePubkey(targetPubkey);
-    const contacts = await fetchContactList(ctx, hexPubkey);
-    return { status: 200, body: contacts };
-  }
-  async function updateContacts(ctx, body) {
-    if (!ctx.currentPubkey)
-      return { status: 401, body: { error: "Not authenticated" } };
-    if (!body || !Array.isArray(body.contacts)) {
-      return { status: 400, body: { error: "Invalid body, expected { contacts: [] }" } };
-    }
-    const tags = body.contacts.map((c) => {
-      const tag = ["p", normalizePubkey(c.pubkey)];
-      if (c.relay)
-        tag.push(c.relay);
-      if (c.petname) {
-        if (!c.relay)
-          tag.push("");
-        tag.push(c.petname);
+        await Promise.any(this.ctx.pool.publish(this.ctx.relays, wrapper));
+      } catch (e) {
+        console.error(`[SpaceService] Failed to publish invite:`, e);
+        throw new Error("Failed to publish invite");
       }
-      return tag;
-    });
-    const event = {
-      kind: 3,
-      created_at: Math.floor(Date.now() / 1000),
-      tags,
-      content: "",
-      pubkey: ctx.currentPubkey
-    };
-    const signed = await ctx.requestSign(event);
-    await Promise.any(ctx.pool.publish(ctx.relays, signed));
-    return { status: 200, body: { success: true } };
-  }
-
-  // src/engine/routes/events.ts
-  async function getEvents(ctx, params) {
-    const limit2 = params.limit ? parseInt(String(params.limit), 10) : 20;
-    const filter = {
-      limit: limit2
-    };
-    if (params.kinds) {
-      const kindsRaw = Array.isArray(params.kinds) ? params.kinds : String(params.kinds).split(",");
-      filter.kinds = kindsRaw.map((k) => parseInt(k.trim(), 10)).filter((n) => !isNaN(n));
+      return { invited: receiverPubkey };
     }
-    if (params.authors) {
-      const authorsRaw = Array.isArray(params.authors) ? params.authors : String(params.authors).split(",");
-      filter.authors = authorsRaw.map((a) => a.trim()).filter((a) => a.length > 0);
-    }
-    if (params.since) {
-      filter.since = parseInt(String(params.since), 10);
-    }
-    if (params.tags) {
-      const tagsRaw = Array.isArray(params.tags) ? params.tags : String(params.tags).split(",");
-      tagsRaw.forEach((tagStr) => {
-        const [key, value] = tagStr.trim().split(":");
-        if (key && value) {
-          const tagName = `#${key}`;
-          if (!filter[tagName]) {
-            filter[tagName] = [];
+    async syncInvites() {
+      if (!this.ctx.currentPubkey)
+        return;
+      const filter = {
+        kinds: [1059],
+        "#p": [this.ctx.currentPubkey],
+        limit: 100,
+        since: Math.floor(Date.now() / 1000) - 7 * 24 * 60 * 60
+      };
+      const events = await this.ctx.pool.querySync(this.ctx.relays, filter);
+      const keys = await this.getKeys();
+      let updated = false;
+      const newSpaces = [];
+      for (const wrap of events) {
+        try {
+          const innerJson = await this.ctx.requestDecrypt(wrap.pubkey, wrap.content);
+          const innerEvent = JSON.parse(innerJson);
+          if (innerEvent.kind === 13) {
+            const payload = JSON.parse(innerEvent.content);
+            if (payload.type === "mirage_invite" && payload.key && payload.scopedId) {
+              const existing = keys.get(payload.scopedId);
+              let isNewerInvite = false;
+              const inviteTime = innerEvent.created_at;
+              if (existing) {
+                if (existing.latestInviteTimestamp) {
+                  isNewerInvite = inviteTime > existing.latestInviteTimestamp;
+                } else {
+                  isNewerInvite = inviteTime > (existing.deletedAt || existing.createdAt || 0);
+                }
+              }
+              if (!existing || !existing.deleted && existing.version < payload.version || isNewerInvite) {
+                keys.set(payload.scopedId, {
+                  key: payload.key,
+                  version: payload.version,
+                  name: payload.name,
+                  deleted: false,
+                  deletedAt: undefined,
+                  latestInviteTimestamp: inviteTime
+                });
+                updated = true;
+                const parts = payload.scopedId.split(":");
+                if (parts.length > 1) {
+                  newSpaces.push({ id: parts[1], name: payload.name });
+                }
+              }
+            }
           }
-          filter[tagName].push(value);
+        } catch (e) {
+          continue;
         }
-      });
-    }
-    const events = await ctx.pool.querySync(ctx.relays, filter);
-    return { status: 200, body: events };
-  }
-  async function postEvents(ctx, body) {
-    if (body.kind === undefined || body.content === undefined) {
-      return { status: 400, body: { error: "Missing kind or content" } };
-    }
-    const unsignedEvent = {
-      kind: body.kind,
-      content: body.content,
-      tags: body.tags ?? [],
-      created_at: Math.floor(Date.now() / 1000)
-    };
-    try {
-      const signedEvent = await ctx.requestSign(unsignedEvent);
-      const targets = body.targetRelays || ctx.targetRelays || ctx.relays;
-      await Promise.any(ctx.pool.publish(targets, signedEvent));
-      return {
-        status: 201,
-        body: signedEvent
-      };
-    } catch (error) {
-      return {
-        status: 500,
-        body: { error: error instanceof Error ? error.message : "Failed to publish event" }
-      };
-    }
-  }
-
-  // src/engine/routes/apps.ts
-  async function fetchAppCode(pool, relays, naddr) {
-    try {
-      const decoded = nip19_exports.decode(naddr);
-      if (decoded.type !== "naddr") {
-        return { error: "Invalid naddr: Must be an addressable event (Kind 30078)" };
       }
-      const { kind, pubkey, identifier } = decoded.data;
-      if (kind !== 30078) {
-        return { error: "Invalid kind: Mirage apps must be Kind 30078" };
+      if (updated) {
+        await this.saveKeys(keys);
+        for (const space of newSpaces) {
+          self.postMessage({
+            type: "NEW_SPACE_INVITE",
+            id: crypto.randomUUID(),
+            spaceId: space.id,
+            spaceName: space.name
+          });
+        }
+      }
+    }
+    async getSpaceStore(rawSpaceId) {
+      if (!this.ctx.currentPubkey)
+        throw new Error("Not authenticated");
+      const spaceId = this.resolveSpaceId(rawSpaceId);
+      const scopedId = `${this.ctx.appOrigin}:${spaceId}`;
+      const keys = await this.getKeys();
+      const keyInfo = keys.get(scopedId);
+      if (!keyInfo)
+        throw new Error("Space key not found");
+      let cache = this.storeCache.get(scopedId);
+      if (!cache) {
+        cache = { state: new Map, latestTimestamp: 0 };
+        this.storeCache.set(scopedId, cache);
       }
       const filter = {
-        kinds: [30078],
-        authors: [pubkey],
-        "#d": [identifier],
-        limit: 1
+        kinds: [42],
+        "#e": [spaceId],
+        "#t": ["mirage_store"],
+        since: cache.latestTimestamp + 1
       };
-      const event = await pool.get(relays, filter);
-      if (!event) {
-        return { error: "App not found on relays" };
-      }
-      return { html: event.content };
-    } catch (error) {
-      console.error("[Apps] Fetch failed:", error);
-      return { error: error instanceof Error ? error.message : "Unknown fetch error" };
-    }
-  }
-
-  // src/engine/library.ts
-  var APP_LIST_ID = "app_list";
-  async function loadAppLibrary(ctx) {
-    console.log("[Library] Loading app library...");
-    try {
-      const result = await internalGetStorage(ctx, APP_LIST_ID);
-      let list = Array.isArray(result) ? result : null;
-      console.log("[Library] Loaded apps from NIP-78:", list?.length ?? 0, "apps");
-      return list || [];
-    } catch (error) {
-      console.error("[Library] Failed to load apps:", error);
-      return [];
-    }
-  }
-  async function saveAppLibrary(ctx, apps) {
-    console.log("[Library] Saving app library...", apps.length, "apps");
-    try {
-      const event = await internalPutStorage(ctx, APP_LIST_ID, apps);
-      console.log("[Library] Saved app list to NIP-78");
-    } catch (error) {
-      console.error("[Library] Failed to save apps:", error);
-      throw error;
-    }
-  }
-  async function addAppToLibrary(ctx, app) {
-    console.log("[Library] Adding app to library:", app.name, app.naddr?.slice(0, 20) + "...");
-    const library = await loadAppLibrary(ctx);
-    let newIdentifier;
-    let newPubkey;
-    try {
-      const decoded = nip19_exports.decode(app.naddr);
-      if (decoded.type === "naddr") {
-        newIdentifier = decoded.data.identifier;
-        newPubkey = decoded.data.pubkey;
-      }
-    } catch (e) {
-      console.warn("[Library] Failed to decode new app naddr:", e);
-    }
-    const filtered = library.filter((existing) => {
-      if (existing.naddr === app.naddr)
-        return false;
-      if (newIdentifier && newPubkey) {
+      const events = await this.ctx.pool.querySync(this.ctx.relays, filter);
+      for (const ev of events) {
+        if (ev.created_at > cache.latestTimestamp) {
+          cache.latestTimestamp = ev.created_at;
+        }
         try {
-          const decoded = nip19_exports.decode(existing.naddr);
-          if (decoded.type === "naddr") {
-            if (decoded.data.identifier === newIdentifier && decoded.data.pubkey === newPubkey) {
-              return false;
+          const payload = JSON.parse(ev.content);
+          const plaintext = decryptSymmetric(keyInfo.key, payload.ciphertext, payload.nonce);
+          if (!plaintext)
+            continue;
+          const data = JSON.parse(plaintext);
+          if (Array.isArray(data) && data[0] === "store_put" && data.length === 3) {
+            const [_, key, value] = data;
+            const existing = cache.state.get(key);
+            if (!existing || ev.created_at >= existing.updatedAt) {
+              cache.state.set(key, { value, updatedAt: ev.created_at });
             }
           }
         } catch (e) {}
       }
+      const stateObj = {};
+      for (const [key, record] of cache.state.entries()) {
+        stateObj[key] = record.value;
+      }
+      return stateObj;
+    }
+    async updateSpaceStore(rawSpaceId, key, value) {
+      if (!this.ctx.currentPubkey)
+        throw new Error("Not authenticated");
+      const spaceId = this.resolveSpaceId(rawSpaceId);
+      const scopedId = `${this.ctx.appOrigin}:${spaceId}`;
+      const keys = await this.getKeys();
+      const keyInfo = keys.get(scopedId);
+      if (!keyInfo)
+        throw new Error("Space key not found");
+      const rawPayload = JSON.stringify(["store_put", key, value]);
+      const encrypted = encryptSymmetric(keyInfo.key, rawPayload);
+      const content = JSON.stringify(encrypted);
+      const unsigned = {
+        kind: 42,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [
+          ["e", spaceId, "", "root"],
+          ["t", "mirage_store"],
+          ["k", key]
+        ],
+        content,
+        pubkey: this.ctx.currentPubkey
+      };
+      const signed = await this.ctx.requestSign(unsigned);
+      await Promise.any(this.ctx.pool.publish(this.ctx.relays, signed));
+      let cache = this.storeCache.get(scopedId);
+      if (!cache) {
+        cache = { state: new Map, latestTimestamp: 0 };
+        this.storeCache.set(scopedId, cache);
+      }
+      cache.state.set(key, { value, updatedAt: signed.created_at });
+      if (signed.created_at > cache.latestTimestamp) {
+        cache.latestTimestamp = signed.created_at;
+      }
+      return { key, value, updatedAt: signed.created_at };
+    }
+  }
+
+  // src/engine/services/AppService.ts
+  class AppService {
+    ctx;
+    constructor(pool, relays, requestSign, requestEncrypt, requestDecrypt, currentPubkey, appOrigin) {
+      this.ctx = {
+        pool,
+        relays,
+        requestSign,
+        requestEncrypt,
+        requestDecrypt,
+        currentPubkey,
+        appOrigin,
+        currentSpace: undefined
+      };
+    }
+    updateContext(updates) {
+      this.ctx = { ...this.ctx, ...updates };
+    }
+    async fetchAppCode(naddr) {
+      try {
+        const decoded = nip19_exports.decode(naddr);
+        if (decoded.type !== "naddr") {
+          return { error: "Invalid naddr: Must be an addressable event (Kind 30078)" };
+        }
+        const { kind, pubkey, identifier } = decoded.data;
+        if (kind !== 30078) {
+          return { error: "Invalid kind: Mirage apps must be Kind 30078" };
+        }
+        const filter = {
+          kinds: [30078],
+          authors: [pubkey],
+          "#d": [identifier],
+          limit: 1
+        };
+        const event = await this.ctx.pool.get(this.ctx.relays, filter);
+        if (!event) {
+          return { error: "App not found on relays" };
+        }
+        return { html: event.content };
+      } catch (error) {
+        console.error("[AppService] Fetch failed:", error);
+        return { error: error instanceof Error ? error.message : "Unknown fetch error" };
+      }
+    }
+    async listApps() {
+      const APP_LIST_ID = "app_list";
+      console.log("[AppService] Loading app library...");
+      try {
+        const result = await this.internalGetStorage(APP_LIST_ID);
+        let list = Array.isArray(result) ? result : null;
+        console.log("[AppService] Loaded apps from NIP-78:", list?.length ?? 0, "apps");
+        return list || [];
+      } catch (error) {
+        console.error("[AppService] Failed to load apps:", error);
+        return [];
+      }
+    }
+    async addApp(app) {
+      console.log("[AppService] Adding app to library:", app.name, app.naddr?.slice(0, 20) + "...");
+      const library = await this.listApps();
+      let newIdentifier;
+      let newPubkey;
+      try {
+        const decoded = nip19_exports.decode(app.naddr);
+        if (decoded.type === "naddr") {
+          newIdentifier = decoded.data.identifier;
+          newPubkey = decoded.data.pubkey;
+        }
+      } catch (e) {
+        console.warn("[AppService] Failed to decode new app naddr:", e);
+      }
+      const filtered = library.filter((existing) => {
+        if (existing.naddr === app.naddr)
+          return false;
+        if (newIdentifier && newPubkey) {
+          try {
+            const decoded = nip19_exports.decode(existing.naddr);
+            if (decoded.type === "naddr") {
+              if (decoded.data.identifier === newIdentifier && decoded.data.pubkey === newPubkey) {
+                return false;
+              }
+            }
+          } catch (e) {}
+        }
+        return true;
+      });
+      const updated = [app, ...filtered];
+      await this.saveAppLibrary(updated);
+    }
+    async removeApp(naddr) {
+      console.log("[AppService] Removing app from library:", naddr?.slice(0, 20) + "...");
+      const library = await this.listApps();
+      const filtered = library.filter((a) => a.naddr !== naddr);
+      if (filtered.length === library.length) {
+        console.log("[AppService] App not found in library");
+        return false;
+      }
+      await this.saveAppLibrary(filtered);
+      await this.publishDeletion(naddr);
       return true;
-    });
-    const updated = [app, ...filtered];
-    console.log("[Library] Library size: before=", library.length, ", after=", updated.length);
-    await saveAppLibrary(ctx, updated);
-  }
-  async function removeAppFromLibrary(ctx, naddr) {
-    console.log("[Library] Removing app from library:", naddr?.slice(0, 20) + "...");
-    const library = await loadAppLibrary(ctx);
-    const filtered = library.filter((a) => a.naddr !== naddr);
-    if (filtered.length === library.length) {
-      console.log("[Library] App not found in library");
-      return false;
     }
-    console.log("[Library] Library size: before=", library.length, ", after=", filtered.length);
-    await saveAppLibrary(ctx, filtered);
-    try {
-      const decoded = nip19_exports.decode(naddr);
-      if (decoded.type === "naddr") {
-        const { identifier } = decoded.data;
-        console.log(`[Library] Publishing deletion for d-tag="${identifier}"...`);
-        const unsigned = {
-          kind: 5,
-          pubkey: ctx.currentPubkey,
-          created_at: Math.floor(Date.now() / 1000),
-          tags: [
-            ["a", `30078:${ctx.currentPubkey}:${identifier}`]
-          ],
-          content: "App deleted by user"
-        };
-        const signed = await ctx.requestSign(unsigned);
-        await Promise.any(ctx.pool.publish(ctx.relays, signed));
-        try {
-          if (ctx.relays.includes("mirage://local")) {} else {
-            await Promise.any(ctx.pool.publish(["mirage://local"], signed));
-          }
-        } catch (localErr) {
-          console.warn("[Library] Failed to clean up local storage:", localErr);
-        }
-        console.log("[Library] Deletion request published.");
+    async saveAppLibrary(apps) {
+      const APP_LIST_ID = "app_list";
+      console.log("[AppService] Saving app library...", apps.length, "apps");
+      try {
+        await this.internalPutStorage(APP_LIST_ID, apps);
+        console.log("[AppService] Saved app list to NIP-78");
+      } catch (error) {
+        console.error("[AppService] Failed to save apps:", error);
+        throw error;
       }
-    } catch (e) {
-      console.error("[Library] Failed to publish deletion request:", e);
     }
-    return true;
-  }
-
-  // src/engine/streaming.ts
-  var activeSubscriptions = new Map;
-  async function handleStreamOpen(message, pool, relays, currentPubkey) {
-    const { id, path } = message;
-    try {
-      let filter = null;
-      const channelMatch = path.match(/^\/mirage\/v1\/channels\/([a-zA-Z0-9_-]+)\/messages/);
-      if (channelMatch) {
-        const channelId = channelMatch[1];
-        filter = {
-          kinds: [42],
-          "#e": [channelId],
-          limit: 50
-        };
-      } else if (path === "/mirage/v1/feed") {
-        filter = {
-          kinds: [1],
-          limit: 50
-        };
-      } else {
-        const dmMatch = path.match(/^\/mirage\/v1\/dm\/([a-f0-9]{64})$/);
-        if (dmMatch) {
-          if (!currentPubkey) {
-            sendStreamError(id, "Authentication required for DMs");
-            return;
-          }
-          filter = {
-            kinds: [4],
-            "#p": [currentPubkey],
-            limit: 50
-          };
-        }
-      }
-      if (!filter) {
-        sendStreamError(id, "Stream route not found: " + path);
+    async publishDeletion(naddr) {
+      if (!this.ctx.currentPubkey)
         return;
-      }
-      console.log("[Engine] Starting stream:", id, path, filter);
-      const sub = pool.subscribe(relays, filter, {
-        onevent: (event) => {
-          sendStreamChunk(id, `data: ${JSON.stringify(event)}
-
-`);
+      try {
+        const decoded = nip19_exports.decode(naddr);
+        if (decoded.type === "naddr") {
+          const { identifier } = decoded.data;
+          console.log(`[AppService] Publishing deletion for d-tag="${identifier}"...`);
+          const unsigned = {
+            kind: 5,
+            pubkey: this.ctx.currentPubkey,
+            created_at: Math.floor(Date.now() / 1000),
+            tags: [
+              ["a", `30078:${this.ctx.currentPubkey}:${identifier}`]
+            ],
+            content: "App deleted by user"
+          };
+          const signed = await this.ctx.requestSign(unsigned);
+          await Promise.any(this.ctx.pool.publish(this.ctx.relays, signed));
+          if (!this.ctx.relays.includes("mirage://local")) {
+            try {
+              await Promise.any(this.ctx.pool.publish(["mirage://local"], signed));
+            } catch (e) {
+              console.warn("[AppService] Failed to clean up local storage:", e);
+            }
+          }
         }
-      });
-      activeSubscriptions.set(id, {
-        id,
-        unsubscribe: () => sub.close(),
-        filter,
-        buffer: []
-      });
-    } catch (error) {
-      console.error("[Engine] Stream error:", error);
-      sendStreamError(id, "Internal stream error");
+      } catch (e) {
+        console.error("[AppService] Failed to publish deletion request:", e);
+      }
+    }
+    async internalGetStorage(key) {
+      if (!this.ctx.currentPubkey)
+        return null;
+      const dTag = `${SYSTEM_APP_ORIGIN}:${key}`;
+      const filter = {
+        kinds: [30078],
+        authors: [this.ctx.currentPubkey],
+        "#d": [dTag],
+        limit: 1
+      };
+      const event = await this.ctx.pool.get(this.ctx.relays, filter);
+      if (!event)
+        return null;
+      const content = event.content;
+      try {
+        return JSON.parse(content);
+      } catch {}
+      if (event.pubkey === this.ctx.currentPubkey) {
+        try {
+          const plaintext = await this.ctx.requestDecrypt(this.ctx.currentPubkey, content);
+          try {
+            return JSON.parse(plaintext);
+          } catch {
+            return plaintext;
+          }
+        } catch {}
+      }
+      return content;
+    }
+    async internalPutStorage(key, value, isPublic = false) {
+      if (!this.ctx.currentPubkey)
+        throw new Error("Not authenticated");
+      const dTag = `${SYSTEM_APP_ORIGIN}:${key}`;
+      const plaintext = typeof value === "string" ? value : JSON.stringify(value);
+      let content = plaintext;
+      if (!isPublic) {
+        content = await this.ctx.requestEncrypt(this.ctx.currentPubkey, plaintext);
+      }
+      const unsignedEvent = {
+        kind: 30078,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [["d", dTag]],
+        content
+      };
+      const signedEvent = await this.ctx.requestSign(unsignedEvent);
+      await Promise.any(this.ctx.pool.publish(this.ctx.relays, signedEvent));
+      return signedEvent;
     }
   }
-  function sendStreamChunk(id, chunk) {
-    self.postMessage({
-      type: "STREAM_CHUNK",
-      id,
-      chunk
-    });
+
+  // src/engine/services/ContactService.ts
+  class ContactService {
+    ctx;
+    constructor(pool, relays, requestSign, currentPubkey) {
+      this.ctx = {
+        pool,
+        relays,
+        requestSign,
+        currentPubkey
+      };
+    }
+    updateContext(updates) {
+      this.ctx = { ...this.ctx, ...updates };
+    }
+    async listContacts() {
+      if (!this.ctx.currentPubkey) {
+        throw new Error("Not authenticated");
+      }
+      return this.fetchContactList(this.ctx.currentPubkey);
+    }
+    async getUserContacts(targetPubkey) {
+      const hexPubkey = this.normalizePubkey(targetPubkey);
+      return this.fetchContactList(hexPubkey);
+    }
+    async updateContacts(contacts) {
+      if (!this.ctx.currentPubkey) {
+        throw new Error("Not authenticated");
+      }
+      const tags = contacts.map((c) => {
+        const tag = ["p", this.normalizePubkey(c.pubkey)];
+        if (c.relay)
+          tag.push(c.relay);
+        if (c.petname) {
+          if (!c.relay)
+            tag.push("");
+          tag.push(c.petname);
+        }
+        return tag;
+      });
+      const event = {
+        kind: 3,
+        created_at: Math.floor(Date.now() / 1000),
+        tags,
+        content: "",
+        pubkey: this.ctx.currentPubkey
+      };
+      const signed = await this.ctx.requestSign(event);
+      await Promise.any(this.ctx.pool.publish(this.ctx.relays, signed));
+    }
+    async fetchContactList(pubkey) {
+      const filter = {
+        kinds: [3],
+        authors: [pubkey],
+        limit: 1
+      };
+      const event = await this.ctx.pool.get(this.ctx.relays, filter);
+      if (!event)
+        return [];
+      return event.tags.filter((t) => t[0] === "p").map((t) => ({
+        pubkey: t[1],
+        relay: t[2] || undefined,
+        petname: t[3] || undefined
+      }));
+    }
+    normalizePubkey(pubkey) {
+      if (pubkey.startsWith("npub")) {
+        try {
+          const d = nip19_exports.decode(pubkey);
+          if (d.type === "npub")
+            return d.data;
+        } catch {}
+      }
+      return pubkey;
+    }
   }
-  function sendStreamError(id, error) {
-    self.postMessage({
-      type: "STREAM_ERROR",
-      id,
-      error
-    });
+
+  // src/engine/services/DirectMessageService.ts
+  class DirectMessageService {
+    ctx;
+    constructor(pool, relays, requestSign, requestEncrypt, requestDecrypt, currentPubkey) {
+      this.ctx = {
+        pool,
+        relays,
+        requestSign,
+        requestEncrypt,
+        requestDecrypt,
+        currentPubkey
+      };
+    }
+    updateContext(updates) {
+      this.ctx = { ...this.ctx, ...updates };
+    }
+    async listDMs() {
+      if (!this.ctx.currentPubkey)
+        throw new Error("Not authenticated");
+      const filter = {
+        kinds: [1059],
+        "#p": [this.ctx.currentPubkey],
+        limit: 100
+      };
+      const events = await this.ctx.pool.querySync(this.ctx.relays, filter);
+      const conversations = new Map;
+      const seenIds = new Set;
+      for (const wrap of events) {
+        try {
+          const sealEvent = await unwrapEvent3(wrap, this.ctx.requestDecrypt);
+          if (!sealEvent || sealEvent.kind !== 13)
+            continue;
+          if (!sealEvent.pubkey)
+            continue;
+          const senderPubkey = sealEvent.pubkey;
+          let rumorJson;
+          try {
+            rumorJson = await this.ctx.requestDecrypt(senderPubkey, sealEvent.content);
+          } catch (err) {
+            console.warn(`[DM] Failed to decrypt Seal from ${senderPubkey.slice(0, 8)}`);
+            continue;
+          }
+          const rumor = JSON.parse(rumorJson);
+          if (!rumor.pubkey)
+            continue;
+          const uniqueId = rumor.id || `${rumor.pubkey}:${rumor.created_at}:${rumor.content.slice(0, 20)}`;
+          if (seenIds.has(uniqueId))
+            continue;
+          seenIds.add(uniqueId);
+          const sender = rumor.pubkey;
+          let otherPubkey = sender;
+          if (sender === this.ctx.currentPubkey) {
+            const pTag = rumor.tags.find((t) => t[0] === "p");
+            if (pTag && pTag[1]) {
+              otherPubkey = pTag[1];
+            }
+          }
+          const existing = conversations.get(otherPubkey);
+          const ts = rumor.created_at;
+          if (!existing || ts > existing.timestamp) {
+            conversations.set(otherPubkey, {
+              pubkey: otherPubkey,
+              lastMessage: rumor.content,
+              timestamp: ts,
+              unreadCount: 0
+            });
+          }
+        } catch (e) {
+          continue;
+        }
+      }
+      return Array.from(conversations.values()).sort((a, b) => b.timestamp - a.timestamp);
+    }
+    async getMessages(targetPubkey, limit2 = 50) {
+      if (!this.ctx.currentPubkey)
+        throw new Error("Not authenticated");
+      let hexTarget = this.normalizePubkey(targetPubkey);
+      const filter = {
+        kinds: [1059],
+        "#p": [this.ctx.currentPubkey],
+        limit: limit2
+      };
+      const events = await this.ctx.pool.querySync(this.ctx.relays, filter);
+      const messages = [];
+      const seenIds = new Set;
+      for (const wrap of events) {
+        try {
+          const sealEvent = await unwrapEvent3(wrap, this.ctx.requestDecrypt);
+          if (!sealEvent || sealEvent.kind !== 13)
+            continue;
+          if (!sealEvent.pubkey)
+            continue;
+          const senderPubkey = sealEvent.pubkey;
+          let rumorJson;
+          try {
+            rumorJson = await this.ctx.requestDecrypt(senderPubkey, sealEvent.content);
+          } catch (decErr) {
+            continue;
+          }
+          const rumor = JSON.parse(rumorJson);
+          if (!rumor.pubkey)
+            continue;
+          const uniqueId = rumor.id || `${rumor.pubkey}:${rumor.created_at}:${rumor.content}`;
+          if (seenIds.has(uniqueId))
+            continue;
+          seenIds.add(uniqueId);
+          const sender = rumor.pubkey;
+          let isMatch = false;
+          let isIncoming = false;
+          if (sender === hexTarget) {
+            isMatch = true;
+            isIncoming = true;
+          } else if (sender === this.ctx.currentPubkey) {
+            const pTag = rumor.tags.find((t) => t[0] === "p");
+            if (pTag && pTag[1] === hexTarget) {
+              isMatch = true;
+              isIncoming = false;
+            }
+          }
+          if (isMatch) {
+            messages.push({
+              id: rumor.id || "unsigned",
+              pubkey: hexTarget,
+              sender,
+              content: rumor.content,
+              createdAt: rumor.created_at,
+              isIncoming
+            });
+          }
+        } catch (e) {
+          continue;
+        }
+      }
+      return messages.sort((a, b) => a.createdAt - b.createdAt);
+    }
+    async sendDM(targetPubkey, content) {
+      if (!this.ctx.currentPubkey)
+        throw new Error("Not authenticated");
+      if (!content)
+        throw new Error("Content required");
+      let hexTarget = this.normalizePubkey(targetPubkey);
+      const rumor = {
+        kind: 14,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [["p", hexTarget]],
+        content,
+        pubkey: this.ctx.currentPubkey
+      };
+      const rumorJson = JSON.stringify(rumor);
+      const cipherTextForRecipient = await this.ctx.requestEncrypt(hexTarget, rumorJson);
+      const sealForRecipient = {
+        kind: 13,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [],
+        content: cipherTextForRecipient,
+        pubkey: this.ctx.currentPubkey
+      };
+      const signedSealForRecipient = await this.ctx.requestSign(sealForRecipient);
+      const giftForRecipient = wrapEvent3(signedSealForRecipient, hexTarget);
+      await Promise.any(this.ctx.pool.publish(this.ctx.relays, giftForRecipient));
+      if (hexTarget !== this.ctx.currentPubkey) {
+        const cipherTextForSelf = await this.ctx.requestEncrypt(this.ctx.currentPubkey, rumorJson);
+        const sealForSelf = {
+          kind: 13,
+          created_at: Math.floor(Date.now() / 1000),
+          tags: [],
+          content: cipherTextForSelf,
+          pubkey: this.ctx.currentPubkey
+        };
+        const signedSealForSelf = await this.ctx.requestSign(sealForSelf);
+        const giftForSelf = wrapEvent3(signedSealForSelf, this.ctx.currentPubkey);
+        await Promise.any(this.ctx.pool.publish(this.ctx.relays, giftForSelf));
+      }
+      return {
+        id: "sent",
+        pubkey: hexTarget,
+        sender: this.ctx.currentPubkey,
+        content,
+        createdAt: rumor.created_at,
+        isIncoming: false
+      };
+    }
+    normalizePubkey(pubkey) {
+      if (pubkey.startsWith("npub")) {
+        try {
+          const d = nip19_exports.decode(pubkey);
+          if (d.type === "npub")
+            return d.data;
+        } catch {}
+      }
+      return pubkey;
+    }
+  }
+
+  // src/engine/services/EventService.ts
+  class EventService {
+    ctx;
+    constructor(pool, relays, requestSign) {
+      this.ctx = {
+        pool,
+        relays,
+        requestSign
+      };
+    }
+    updateContext(updates) {
+      this.ctx = { ...this.ctx, ...updates };
+    }
+    async getEvents(filter) {
+      return this.ctx.pool.querySync(this.ctx.relays, filter);
+    }
+    async publishEvent(partialEvent, targetRelays) {
+      const unsignedEvent = {
+        kind: partialEvent.kind,
+        content: partialEvent.content,
+        tags: partialEvent.tags ?? [],
+        created_at: Math.floor(Date.now() / 1000)
+      };
+      const signedEvent = await this.ctx.requestSign(unsignedEvent);
+      const targets = targetRelays || this.ctx.relays;
+      await Promise.any(this.ctx.pool.publish(targets, signedEvent));
+      return signedEvent;
+    }
+  }
+
+  // src/engine/services/StorageService.ts
+  class StorageService {
+    ctx;
+    constructor(pool, relays, requestSign, requestEncrypt, requestDecrypt, currentPubkey, appOrigin, currentSpace) {
+      this.ctx = {
+        pool,
+        relays,
+        requestSign,
+        requestEncrypt,
+        requestDecrypt,
+        currentPubkey,
+        appOrigin,
+        currentSpace
+      };
+    }
+    updateContext(updates) {
+      this.ctx = { ...this.ctx, ...updates };
+    }
+    async getStorage(key, targetPubkey) {
+      if (!this.ctx.currentPubkey && !targetPubkey)
+        throw new Error("Not authenticated");
+      const isSystemStorage = this.ctx.appOrigin === SYSTEM_APP_ORIGIN;
+      if (!isSystemStorage && !this.ctx.currentSpace?.id) {
+        throw new Error("Space context required for storage operations");
+      }
+      const author = targetPubkey || this.ctx.currentPubkey;
+      const dTag = isSystemStorage ? `${this.ctx.appOrigin}:${key}` : `${this.ctx.appOrigin}:${this.ctx.currentSpace.id}:${key}`;
+      const filter = {
+        kinds: [30078],
+        authors: [author],
+        "#d": [dTag],
+        limit: 1
+      };
+      const event = await this.ctx.pool.get(this.ctx.relays, filter);
+      if (!event)
+        return null;
+      const content = event.content;
+      try {
+        return JSON.parse(content);
+      } catch {}
+      if (this.ctx.currentPubkey === author) {
+        try {
+          const plaintext = await this.ctx.requestDecrypt(this.ctx.currentPubkey, content);
+          try {
+            return JSON.parse(plaintext);
+          } catch {
+            return plaintext;
+          }
+        } catch {}
+      }
+      return content;
+    }
+    async putStorage(key, value, isPublic = false) {
+      if (!this.ctx.currentPubkey)
+        throw new Error("Not authenticated");
+      const isSystemStorage = this.ctx.appOrigin === SYSTEM_APP_ORIGIN;
+      if (!isSystemStorage && !this.ctx.currentSpace?.id) {
+        throw new Error("Space context required for storage operations");
+      }
+      const dTag = isSystemStorage ? `${this.ctx.appOrigin}:${key}` : `${this.ctx.appOrigin}:${this.ctx.currentSpace.id}:${key}`;
+      const plaintext = typeof value === "string" ? value : JSON.stringify(value);
+      let content = plaintext;
+      if (!isPublic) {
+        content = await this.ctx.requestEncrypt(this.ctx.currentPubkey, plaintext);
+      }
+      const unsignedEvent = {
+        kind: 30078,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [["d", dTag]],
+        content
+      };
+      const signedEvent = await this.ctx.requestSign(unsignedEvent);
+      await Promise.any(this.ctx.pool.publish(this.ctx.relays, signedEvent));
+      return signedEvent;
+    }
+    async deleteStorage(key) {
+      if (!this.ctx.currentPubkey)
+        throw new Error("Not authenticated");
+      const isSystemStorage = this.ctx.appOrigin === SYSTEM_APP_ORIGIN;
+      if (!isSystemStorage && !this.ctx.currentSpace?.id) {
+        throw new Error("Space context required for storage operations");
+      }
+      const dTag = isSystemStorage ? `${this.ctx.appOrigin}:${key}` : `${this.ctx.appOrigin}:${this.ctx.currentSpace.id}:${key}`;
+      let ciphertext;
+      try {
+        ciphertext = await this.ctx.requestEncrypt(this.ctx.currentPubkey, "");
+      } catch {
+        throw new Error("Failed to encrypt deletion marker");
+      }
+      const unsignedEvent = {
+        kind: 30078,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [
+          ["d", dTag],
+          ["deleted", "true"]
+        ],
+        content: ciphertext
+      };
+      const signedTombstone = await this.ctx.requestSign(unsignedEvent);
+      await Promise.any(this.ctx.pool.publish(this.ctx.relays, signedTombstone));
+      const deletionEvent = {
+        kind: 5,
+        created_at: Math.floor(Date.now() / 1000) + 5,
+        content: "Deleted by Mirage",
+        tags: [["a", `30078:${this.ctx.currentPubkey}:${dTag}`]]
+      };
+      const signedDeletion = await this.ctx.requestSign(deletionEvent);
+      await Promise.any(this.ctx.pool.publish(this.ctx.relays, signedDeletion));
+      return true;
+    }
+  }
+
+  // src/engine/services/UserService.ts
+  class UserService {
+    ctx;
+    constructor(pool, relays, currentPubkey) {
+      this.ctx = {
+        pool,
+        relays,
+        currentPubkey
+      };
+    }
+    updateContext(updates) {
+      this.ctx = { ...this.ctx, ...updates };
+    }
+    async getCurrentUser() {
+      if (!this.ctx.currentPubkey) {
+        throw new Error("Not authenticated");
+      }
+      return this.getUserByPubkey(this.ctx.currentPubkey);
+    }
+    async getUserByPubkey(pubkey) {
+      const filter = {
+        kinds: [0],
+        authors: [pubkey],
+        limit: 1
+      };
+      const event = await this.ctx.pool.get(this.ctx.relays, filter);
+      if (!event) {
+        throw new Error("User not found");
+      }
+      try {
+        const metadata = JSON.parse(event.content);
+        return {
+          pubkey: event.pubkey,
+          name: metadata.name,
+          displayName: metadata.display_name || metadata.displayName,
+          about: metadata.about,
+          picture: metadata.picture,
+          nip05: metadata.nip05,
+          lud16: metadata.lud16
+        };
+      } catch {
+        throw new Error("Invalid metadata format");
+      }
+    }
   }
 
   // src/engine/signing.ts
@@ -9456,6 +9402,515 @@
     }
   }
 
+  // src/engine/MirageEngine.ts
+  class MirageEngine {
+    pool;
+    relays;
+    spaceService;
+    appService;
+    contactService;
+    directMessageService;
+    eventService;
+    storageService;
+    userService;
+    currentPubkey = null;
+    appOrigin = "unknown";
+    currentSpace;
+    constructor(config) {
+      this.pool = config.pool || new SimplePool;
+      this.relays = config.relays;
+      this.spaceService = new SpaceService({
+        pool: this.pool,
+        relays: this.relays,
+        currentPubkey: this.currentPubkey,
+        appOrigin: this.appOrigin,
+        currentSpace: this.currentSpace,
+        requestSign,
+        requestDecrypt,
+        requestEncrypt
+      });
+      this.appService = new AppService(this.pool, this.relays, requestSign, requestEncrypt, requestDecrypt, this.currentPubkey, this.appOrigin);
+      this.contactService = new ContactService(this.pool, this.relays, requestSign, this.currentPubkey);
+      this.directMessageService = new DirectMessageService(this.pool, this.relays, requestSign, requestEncrypt, requestDecrypt, this.currentPubkey);
+      this.eventService = new EventService(this.pool, this.relays, requestSign);
+      this.storageService = new StorageService(this.pool, this.relays, requestSign, requestEncrypt, requestDecrypt, this.currentPubkey, this.appOrigin, this.currentSpace);
+      this.userService = new UserService(this.pool, this.relays, this.currentPubkey);
+    }
+    async handleMessage(message) {
+      switch (message.type) {
+        case "API_REQUEST":
+          await this.handleApiRequest(message);
+          break;
+        case "ACTION_FETCH_APP":
+          await this.handleFetchApp(message);
+          break;
+        case "SET_PUBKEY":
+          this.currentPubkey = message.pubkey;
+          this.updateContext();
+          break;
+        case "SET_APP_ORIGIN":
+          this.appOrigin = message.origin;
+          this.updateContext();
+          break;
+        case "RELAY_CONFIG":
+          const relayMsg = message;
+          if (relayMsg.action === "SET") {
+            this.relays = relayMsg.relays;
+            this.updateContext();
+          }
+          break;
+        case "SET_SPACE_CONTEXT":
+          const ctxMsg = message;
+          this.currentSpace = { id: ctxMsg.spaceId, name: ctxMsg.spaceName };
+          this.updateContext();
+          break;
+      }
+    }
+    async handleApiRequest(message) {
+      const { method, path, body, id } = message;
+      let response;
+      try {
+        if (path.startsWith("/mirage/v1/space/me/")) {
+          response = await this.routeStorage(method, path, body, id);
+        } else if (path.startsWith("/mirage/v1/space") || path.startsWith("/mirage/v1/admin/spaces")) {
+          response = await this.routeSpaces(method, path, body, id);
+        } else if (path.startsWith("/mirage/v1/admin/apps")) {
+          response = await this.routeApps(method, path, body, id);
+        } else if (path.startsWith("/mirage/v1/contacts")) {
+          response = await this.routeContacts(method, path, body, id);
+        } else if (path.startsWith("/mirage/v1/dms")) {
+          response = await this.routeDMs(method, path, body, id);
+        } else if (path.startsWith("/mirage/v1/events")) {
+          response = await this.routeEvents(method, path, body, id);
+        } else if (path.startsWith("/mirage/v1/user") || path.startsWith("/mirage/v1/users")) {
+          response = await this.routeUsers(method, path, body, id);
+        } else {
+          response = { type: "API_RESPONSE", id, status: 404, body: { error: "Not found" } };
+        }
+      } catch (e) {
+        response = { type: "API_RESPONSE", id, status: 500, body: { error: e.message } };
+      }
+      this.send(response);
+    }
+    async handleFetchApp(message) {
+      const { naddr, id } = message;
+      const result = await this.appService.fetchAppCode(naddr);
+      const response = {
+        type: "FETCH_APP_RESULT",
+        id,
+        html: result.html,
+        error: result.error
+      };
+      this.send(response);
+    }
+    async routeApps(method, path, body, id) {
+      if (method === "GET" && path === "/mirage/v1/admin/apps") {
+        const apps = await this.appService.listApps();
+        return { type: "API_RESPONSE", id, status: 200, body: apps };
+      }
+      if (method === "POST" && path === "/mirage/v1/admin/apps") {
+        await this.appService.addApp(body);
+        return { type: "API_RESPONSE", id, status: 201, body: { success: true } };
+      }
+      if (method === "DELETE" && path === "/mirage/v1/admin/apps") {
+        const { naddr } = body;
+        if (!naddr)
+          return { type: "API_RESPONSE", id, status: 400, body: { error: "naddr required" } };
+        const deleted = await this.appService.removeApp(naddr);
+        if (deleted) {
+          return { type: "API_RESPONSE", id, status: 200, body: { deleted: naddr } };
+        } else {
+          return { type: "API_RESPONSE", id, status: 404, body: { error: "App not found" } };
+        }
+      }
+      return { type: "API_RESPONSE", id, status: 404, body: { error: "Route not found" } };
+    }
+    async routeContacts(method, path, body, id) {
+      if (method === "GET" && path === "/mirage/v1/contacts") {
+        const contacts = await this.contactService.listContacts();
+        return { type: "API_RESPONSE", id, status: 200, body: contacts };
+      }
+      if (method === "PUT" && path === "/mirage/v1/contacts") {
+        await this.contactService.updateContacts(body.contacts);
+        return { type: "API_RESPONSE", id, status: 200, body: { success: true } };
+      }
+      const match = this.matchRoute("/mirage/v1/contacts/:pubkey", path);
+      if (match && method === "GET") {
+        const contacts = await this.contactService.getUserContacts(match.params.pubkey);
+        return { type: "API_RESPONSE", id, status: 200, body: contacts };
+      }
+      return { type: "API_RESPONSE", id, status: 404, body: { error: "Route not found" } };
+    }
+    async routeDMs(method, path, body, id) {
+      if (method === "GET" && path === "/mirage/v1/dms") {
+        const dms = await this.directMessageService.listDMs();
+        return { type: "API_RESPONSE", id, status: 200, body: dms };
+      }
+      let match = this.matchRoute("/mirage/v1/dms/:pubkey", path);
+      if (match && method === "GET") {
+        const messages = await this.directMessageService.getMessages(match.params.pubkey, body?.limit);
+        return { type: "API_RESPONSE", id, status: 200, body: messages };
+      }
+      match = this.matchRoute("/mirage/v1/dms/:pubkey", path);
+      if (match && method === "POST") {
+        const result = await this.directMessageService.sendDM(match.params.pubkey, body.content);
+        return { type: "API_RESPONSE", id, status: 201, body: result };
+      }
+      return { type: "API_RESPONSE", id, status: 404, body: { error: "Route not found" } };
+    }
+    async routeEvents(method, path, body, id) {
+      if (method === "POST" && path === "/mirage/v1/events") {
+        const result = await this.eventService.publishEvent(body, body.targetRelays);
+        return { type: "API_RESPONSE", id, status: 201, body: result };
+      }
+      if (method === "GET" && path === "/mirage/v1/events") {
+        const [urlPath, queryString] = path.split("?");
+        if (urlPath !== "/mirage/v1/events")
+          return { type: "API_RESPONSE", id, status: 404, body: { error: "Route not found" } };
+        const params = {};
+        if (queryString) {
+          const searchParams = new URLSearchParams(queryString);
+          searchParams.forEach((value, key) => {
+            if (key === "kinds" || key === "authors") {
+              params[key] = value.split(",").map((v) => v.trim());
+              if (key === "kinds")
+                params[key] = params[key].map((k) => parseInt(k));
+            } else if (key === "limit" || key === "since" || key === "until") {
+              params[key] = parseInt(value);
+            } else if (key === "tags") {
+              const tagsRaw = value.split(",");
+              tagsRaw.forEach((tagStr) => {
+                const [tKey, tValue] = tagStr.split(":");
+                if (tKey && tValue) {
+                  const tagName = `#${tKey}`;
+                  if (!params[tagName])
+                    params[tagName] = [];
+                  params[tagName].push(tValue);
+                }
+              });
+            }
+          });
+        }
+        const filter = {};
+        if (params.kinds)
+          filter.kinds = params.kinds;
+        if (params.authors)
+          filter.authors = params.authors;
+        if (params.limit)
+          filter.limit = params.limit;
+        if (params.since)
+          filter.since = params.since;
+        if (params.until)
+          filter.until = params.until;
+        Object.keys(params).forEach((k) => {
+          if (k.startsWith("#"))
+            filter[k] = params[k];
+        });
+        if (!filter.limit)
+          filter.limit = 20;
+        const events = await this.eventService.getEvents(filter);
+        return { type: "API_RESPONSE", id, status: 200, body: events };
+      }
+      return { type: "API_RESPONSE", id, status: 404, body: { error: "Route not found" } };
+    }
+    async routeUsers(method, path, body, id) {
+      if (method === "GET" && path === "/mirage/v1/user/me") {
+        try {
+          const user = await this.userService.getCurrentUser();
+          return { type: "API_RESPONSE", id, status: 200, body: user };
+        } catch (e) {
+          if (e.message === "Not authenticated")
+            return { type: "API_RESPONSE", id, status: 401, body: { error: "Not authenticated" } };
+          throw e;
+        }
+      }
+      const match = this.matchRoute("/mirage/v1/users/:pubkey", path);
+      if (match && method === "GET") {
+        const user = await this.userService.getUserByPubkey(match.params.pubkey);
+        return { type: "API_RESPONSE", id, status: 200, body: user };
+      }
+      return { type: "API_RESPONSE", id, status: 404, body: { error: "Route not found" } };
+    }
+    async routeStorage(method, path, body, id) {
+      const match = this.matchRoute("/mirage/v1/space/me/:key", path);
+      if (match) {
+        const [urlPath, queryString] = path.split("?");
+        const params = {};
+        if (queryString) {
+          const searchParams = new URLSearchParams(queryString);
+          searchParams.forEach((value, key) => params[key] = value);
+        }
+        if (method === "GET") {
+          const val = await this.storageService.getStorage(match.params.key, params.pubkey);
+          if (val === null)
+            return { type: "API_RESPONSE", id, status: 404, body: { error: "Key not found" } };
+          return {
+            type: "API_RESPONSE",
+            id,
+            status: 200,
+            body: {
+              key: match.params.key,
+              value: val,
+              updatedAt: Math.floor(Date.now() / 1000)
+            }
+          };
+        }
+        if (method === "PUT") {
+          const isPublic = params.public === "true";
+          const event = await this.storageService.putStorage(match.params.key, body, isPublic);
+          return {
+            type: "API_RESPONSE",
+            id,
+            status: 200,
+            body: {
+              key: match.params.key,
+              value: body,
+              updatedAt: event.created_at,
+              public: isPublic
+            }
+          };
+        }
+        if (method === "DELETE") {
+          await this.storageService.deleteStorage(match.params.key);
+          return { type: "API_RESPONSE", id, status: 200, body: { deleted: true, key: match.params.key } };
+        }
+      }
+      return { type: "API_RESPONSE", id, status: 404, body: { error: "Route not found" } };
+    }
+    async routeSpaces(method, path, body, id) {
+      if (method === "GET" && path === "/mirage/v1/spaces") {
+        const spaces = await this.spaceService.listSpaces();
+        return { type: "API_RESPONSE", id, status: 200, body: spaces };
+      }
+      if (method === "GET" && path === "/mirage/v1/admin/spaces") {
+        const spaces = await this.spaceService.listAllSpaces();
+        return { type: "API_RESPONSE", id, status: 200, body: spaces };
+      }
+      if (method === "POST" && path === "/mirage/v1/admin/spaces") {
+        const space = await this.spaceService.createSpace(body.name, body.appOrigin);
+        return { type: "API_RESPONSE", id, status: 201, body: space };
+      }
+      let match = this.matchRoute("/mirage/v1/spaces/:id", path);
+      if (match) {
+        if (method === "DELETE") {
+          const deleted = await this.spaceService.deleteSpace(match.params.id);
+          return { type: "API_RESPONSE", id, status: 200, body: { deleted } };
+        }
+      }
+      match = this.matchRoute("/mirage/v1/admin/spaces/:id", path);
+      if (match) {
+        if (method === "PUT") {
+          const updated = await this.spaceService.updateSpace(match.params.id, body.name);
+          return { type: "API_RESPONSE", id, status: 200, body: updated };
+        }
+        if (method === "DELETE") {
+          const deleted = await this.spaceService.deleteSpace(match.params.id);
+          return { type: "API_RESPONSE", id, status: 200, body: { deleted } };
+        }
+      }
+      match = this.matchRoute("/mirage/v1/spaces/:id/messages", path);
+      if (match) {
+        if (method === "GET") {
+          const messages = await this.spaceService.getMessages(match.params.id, body?.limit, body?.since);
+          return { type: "API_RESPONSE", id, status: 200, body: messages };
+        }
+        if (method === "POST") {
+          const msg = await this.spaceService.sendMessage(match.params.id, body.content);
+          return { type: "API_RESPONSE", id, status: 201, body: msg };
+        }
+      }
+      match = this.matchRoute("/mirage/v1/admin/spaces/:id/invitations", path);
+      if (match && method === "POST") {
+        const result = await this.spaceService.inviteMember(match.params.id, body.pubkey, body.name);
+        return { type: "API_RESPONSE", id, status: 200, body: result };
+      }
+      match = this.matchRoute("/mirage/v1/spaces/:id/store", path);
+      if (match && method === "GET") {
+        const store = await this.spaceService.getSpaceStore(match.params.id);
+        return { type: "API_RESPONSE", id, status: 200, body: store };
+      }
+      match = this.matchRoute("/mirage/v1/spaces/:id/store/:key", path);
+      if (match && method === "PUT") {
+        const result = await this.spaceService.updateSpaceStore(match.params.id, match.params.key, body);
+        return { type: "API_RESPONSE", id, status: 200, body: result };
+      }
+      if (method === "GET" && path === "/mirage/v1/space") {
+        return {
+          type: "API_RESPONSE",
+          id,
+          status: 200,
+          body: {
+            spaceId: this.currentSpace?.id || "",
+            spaceName: this.currentSpace?.name || ""
+          }
+        };
+      }
+      if (method === "PUT" && path === "/mirage/v1/space") {
+        const { spaceId, spaceName } = body;
+        this.currentSpace = { id: spaceId, name: spaceName || "" };
+        this.updateContext();
+        return { type: "API_RESPONSE", id, status: 200, body: { spaceId, spaceName: spaceName || "" } };
+      }
+      if (method === "GET" && path === "/mirage/v1/space/store") {
+        if (!this.currentSpace?.id)
+          return { type: "API_RESPONSE", id, status: 400, body: { error: "No space context set" } };
+        const store = await this.spaceService.getSpaceStore(this.currentSpace.id);
+        return { type: "API_RESPONSE", id, status: 200, body: store };
+      }
+      match = this.matchRoute("/mirage/v1/space/store/:key", path);
+      if (match && method === "PUT") {
+        if (!this.currentSpace?.id)
+          return { type: "API_RESPONSE", id, status: 400, body: { error: "No space context set" } };
+        const result = await this.spaceService.updateSpaceStore(this.currentSpace.id, match.params.key, body);
+        return { type: "API_RESPONSE", id, status: 200, body: result };
+      }
+      if (path === "/mirage/v1/space/messages") {
+        if (!this.currentSpace?.id)
+          return { type: "API_RESPONSE", id, status: 400, body: { error: "No space context set" } };
+        if (method === "GET") {
+          const messages = await this.spaceService.getMessages(this.currentSpace.id, body?.limit, body?.since);
+          return { type: "API_RESPONSE", id, status: 200, body: messages };
+        }
+        if (method === "POST") {
+          const msg = await this.spaceService.sendMessage(this.currentSpace.id, body.content);
+          return { type: "API_RESPONSE", id, status: 201, body: msg };
+        }
+      }
+      if (method === "POST" && path === "/mirage/v1/space/invitations") {
+        if (!this.currentSpace?.id)
+          return { type: "API_RESPONSE", id, status: 400, body: { error: "No space context set" } };
+        const result = await this.spaceService.inviteMember(this.currentSpace.id, body.pubkey, body.name);
+        return { type: "API_RESPONSE", id, status: 200, body: result };
+      }
+      return { type: "API_RESPONSE", id, status: 404, body: { error: "Route not found" } };
+    }
+    matchRoute(pattern, path) {
+      const keys = [];
+      const regexStr = pattern.replace(/:([a-zA-Z]+)/g, (_, key) => {
+        keys.push(key);
+        return "([^/]+)";
+      });
+      const regex2 = new RegExp(`^${regexStr}$`);
+      const match = path.match(regex2);
+      if (!match)
+        return null;
+      const params = {};
+      keys.forEach((key, i2) => {
+        params[key] = match[i2 + 1];
+      });
+      return { params };
+    }
+    updateContext() {
+      this.spaceService.updateContext({
+        relays: this.relays,
+        currentPubkey: this.currentPubkey,
+        appOrigin: this.appOrigin,
+        currentSpace: this.currentSpace
+      });
+      this.appService.updateContext({
+        relays: this.relays,
+        currentPubkey: this.currentPubkey,
+        appOrigin: this.appOrigin,
+        currentSpace: this.currentSpace
+      });
+      this.contactService.updateContext({
+        relays: this.relays,
+        currentPubkey: this.currentPubkey
+      });
+      this.directMessageService.updateContext({
+        relays: this.relays,
+        currentPubkey: this.currentPubkey
+      });
+      this.eventService.updateContext({
+        relays: this.relays
+      });
+      this.storageService.updateContext({
+        relays: this.relays,
+        currentPubkey: this.currentPubkey,
+        appOrigin: this.appOrigin,
+        currentSpace: this.currentSpace
+      });
+      this.userService.updateContext({
+        relays: this.relays,
+        currentPubkey: this.currentPubkey
+      });
+    }
+    send(message) {
+      self.postMessage(message);
+    }
+  }
+
+  // src/engine/streaming.ts
+  var activeSubscriptions = new Map;
+  async function handleStreamOpen(message, pool, relays, currentPubkey) {
+    const { id, path } = message;
+    try {
+      let filter = null;
+      const channelMatch = path.match(/^\/mirage\/v1\/channels\/([a-zA-Z0-9_-]+)\/messages/);
+      if (channelMatch) {
+        const channelId = channelMatch[1];
+        filter = {
+          kinds: [42],
+          "#e": [channelId],
+          limit: 50
+        };
+      } else if (path === "/mirage/v1/feed") {
+        filter = {
+          kinds: [1],
+          limit: 50
+        };
+      } else {
+        const dmMatch = path.match(/^\/mirage\/v1\/dm\/([a-f0-9]{64})$/);
+        if (dmMatch) {
+          if (!currentPubkey) {
+            sendStreamError(id, "Authentication required for DMs");
+            return;
+          }
+          filter = {
+            kinds: [4],
+            "#p": [currentPubkey],
+            limit: 50
+          };
+        }
+      }
+      if (!filter) {
+        sendStreamError(id, "Stream route not found: " + path);
+        return;
+      }
+      console.log("[Engine] Starting stream:", id, path, filter);
+      const sub = pool.subscribe(relays, filter, {
+        onevent: (event) => {
+          sendStreamChunk(id, `data: ${JSON.stringify(event)}
+
+`);
+        }
+      });
+      activeSubscriptions.set(id, {
+        id,
+        unsubscribe: () => sub.close(),
+        filter,
+        buffer: []
+      });
+    } catch (error) {
+      console.error("[Engine] Stream error:", error);
+      sendStreamError(id, "Internal stream error");
+    }
+  }
+  function sendStreamChunk(id, chunk) {
+    self.postMessage({
+      type: "STREAM_CHUNK",
+      id,
+      chunk
+    });
+  }
+  function sendStreamError(id, error) {
+    self.postMessage({
+      type: "STREAM_ERROR",
+      id,
+      error
+    });
+  }
+
   // src/engine/index.ts
   var pool = new SimplePool;
   var activeRelays = [];
@@ -9466,100 +9921,25 @@
   var currentPubkey = null;
   var appOrigin = SYSTEM_APP_ORIGIN;
   var currentSpace;
-  var keysReadyResolve = null;
-  var keysReady = null;
+  var mirageEngine = new MirageEngine({
+    pool,
+    relays: activeRelays
+  });
   function setCurrentPubkey(pubkey) {
     currentPubkey = pubkey;
-  }
-  function initKeysPreload() {
-    if (keysReady)
-      return;
-    keysReady = new Promise((resolve) => {
-      keysReadyResolve = resolve;
-    });
-  }
-  var isLoggingWaiting = false;
-  async function waitForKeysReady() {
-    let attempts = 0;
-    while (!keysReady && attempts < 100) {
-      if (attempts === 0)
-        console.log("[Engine] waitForKeysReady: Waiting for SET_PUBKEY...");
-      await new Promise((r) => setTimeout(r, 100));
-      attempts++;
-    }
-    if (keysReady) {
-      if (!isLoggingWaiting) {
-        isLoggingWaiting = true;
-        console.log("[Engine] Waiting for keys to load from relays...");
-        keysReady.finally(() => {
-          isLoggingWaiting = false;
-        });
-      }
-      await keysReady;
-      return true;
-    } else {
-      console.warn("[Engine] Keys never initialized - SET_PUBKEY not received after 10s");
-      return false;
-    }
-  }
-  async function preloadSpaceKeys() {
-    await poolReady;
-    if (!pool || !currentPubkey) {
-      keysReadyResolve?.();
-      return;
-    }
-    console.log("[Engine] Preloading space keys...");
-    const ctx = {
-      pool,
-      relays: activeRelays,
-      requestSign,
-      requestEncrypt,
-      requestDecrypt,
-      currentPubkey,
-      appOrigin
-    };
-    try {
-      await loadSpaceKeys(ctx);
-      console.log("[Engine] Space keys preloaded");
-    } catch (e) {
-      console.error("[Engine] Failed to preload space keys:", e);
-    } finally {
-      startBackgroundSync();
-      keysReadyResolve?.();
-    }
-  }
-  function startBackgroundSync() {
-    const runSync = async () => {
-      if (!pool || !currentPubkey)
-        return;
-      const ctx = {
-        pool,
-        relays: activeRelays,
-        requestSign,
-        requestEncrypt,
-        requestDecrypt,
-        currentPubkey,
-        appOrigin,
-        currentSpace
-      };
-      await syncInvites(ctx);
-    };
-    runSync().catch((err) => console.error("[InviteDebug] Background sync failed:", err));
-    setInterval(() => {
-      runSync().catch((err) => console.error("[InviteDebug] Background sync failed:", err));
-    }, 60000);
   }
   self.onmessage = async (event) => {
     const message = event.data;
     switch (message.type) {
       case "RELAY_CONFIG":
+        await mirageEngine.handleMessage(message);
         await handleRelayConfig(message);
         break;
       case "API_REQUEST":
         await handleApiRequest(message);
         break;
       case "ACTION_FETCH_APP":
-        await handleFetchApp(message);
+        await mirageEngine.handleMessage(message);
         break;
       case "ACTION_GET_RELAY_STATUS":
         self.postMessage({
@@ -9577,19 +9957,20 @@
         break;
       case "SET_PUBKEY":
         console.log("[Engine] SET_PUBKEY received:", message.pubkey.slice(0, 8) + "...");
+        await mirageEngine.handleMessage(message);
         setCurrentPubkey(message.pubkey);
-        initKeysPreload();
-        preloadSpaceKeys();
         break;
       case "SET_APP_ORIGIN":
         const payload = message;
         appOrigin = payload.origin;
         console.log(`[Engine] App origin set: ${appOrigin?.slice(0, 20)}...`);
+        await mirageEngine.handleMessage(message);
         break;
       case "SET_SPACE_CONTEXT":
         const ctxMsg = message;
         currentSpace = { id: ctxMsg.spaceId, name: ctxMsg.spaceName };
         console.log("[Engine] Space context set:", currentSpace);
+        await mirageEngine.handleMessage(message);
         break;
       case "ENCRYPT_RESULT":
         handleEncryptResult(message);
@@ -9627,14 +10008,20 @@
       return;
     }
     const { method, path, body } = message;
-    const sender = message._sender;
-    if (path.startsWith("/mirage/v1/space") || path.startsWith("/mirage/v1/admin")) {
-      const keysReady2 = await waitForKeysReady();
-      if (!keysReady2) {
-        console.warn(`[API] ${method} ${path} → 503 (keys not ready)`);
-        sendResponse(message.id, 503, { error: "Keys not ready" });
-        return;
-      }
+    const delegationPaths = [
+      "/mirage/v1/space",
+      "/mirage/v1/admin/spaces",
+      "/mirage/v1/admin/apps",
+      "/mirage/v1/contacts",
+      "/mirage/v1/dms",
+      "/mirage/v1/events",
+      "/mirage/v1/user",
+      "/mirage/v1/users"
+    ];
+    const isDelegatedPath = delegationPaths.find((val) => path.startsWith(val));
+    if (isDelegatedPath) {
+      await mirageEngine.handleMessage(message);
+      return;
     }
     const route = await resolveRoute(method, path, pool);
     if (!route) {
@@ -9657,7 +10044,7 @@
       sendResponse(message.id, err.status || 500, { error: err.message });
     }
   }
-  async function resolveRoute(method, fullPath, requestPool) {
+  async function resolveRoute(method, fullPath, _requestPool) {
     const [path, queryString] = fullPath.split("?");
     const params = {};
     if (queryString) {
@@ -9674,26 +10061,6 @@
         }
       });
     }
-    const eventsCtx = {
-      pool: requestPool,
-      relays: activeRelays,
-      requestSign
-    };
-    const userCtx = {
-      pool: requestPool,
-      relays: activeRelays,
-      currentPubkey
-    };
-    const spaceCtx = {
-      pool: requestPool,
-      relays: activeRelays,
-      requestSign,
-      requestEncrypt,
-      requestDecrypt,
-      currentPubkey,
-      appOrigin,
-      currentSpace
-    };
     const isAdminOrigin = appOrigin === SYSTEM_APP_ORIGIN;
     if (method === "GET" && path === "/mirage/v1/ready") {
       return {
@@ -9707,122 +10074,6 @@
         }),
         params: {}
       };
-    }
-    if (method === "GET" && path === "/mirage/v1/events") {
-      return {
-        handler: async () => getEvents(eventsCtx, params),
-        params
-      };
-    }
-    if (method === "POST" && path === "/mirage/v1/events") {
-      return {
-        handler: async (body) => postEvents(eventsCtx, body),
-        params: {}
-      };
-    }
-    if (method === "GET" && path === "/mirage/v1/user/me") {
-      return {
-        handler: async () => getCurrentUser(userCtx),
-        params: {}
-      };
-    }
-    if (path.startsWith("/mirage/v1/admin/apps")) {
-      console.log(`[API_DEBUG] Handling /admin/apps request. Method=${method} IsAdmin=${isAdminOrigin}`);
-      if (!isAdminOrigin) {
-        console.warn(`[API_DEBUG] Admin access denied for ${path}`);
-        return {
-          handler: async () => ({
-            status: 403,
-            body: { error: "Admin access required" }
-          }),
-          params: {}
-        };
-      }
-      const storageCtx = {
-        pool: requestPool,
-        relays: activeRelays,
-        requestSign,
-        requestEncrypt,
-        requestDecrypt,
-        currentPubkey,
-        appOrigin: SYSTEM_APP_ORIGIN
-      };
-      if (method === "GET") {
-        return {
-          handler: async () => ({
-            status: 200,
-            body: await loadAppLibrary(storageCtx)
-          }),
-          params: {}
-        };
-      }
-      if (method === "POST") {
-        return {
-          handler: async (body) => {
-            await addAppToLibrary(storageCtx, body);
-            return { status: 201, body: { success: true } };
-          },
-          params: {}
-        };
-      }
-      if (method === "DELETE") {
-        return {
-          handler: async (body) => {
-            const { naddr } = body;
-            if (!naddr) {
-              return { status: 400, body: { error: "naddr required" } };
-            }
-            const removed = await removeAppFromLibrary(storageCtx, naddr);
-            if (removed) {
-              return { status: 200, body: { deleted: naddr } };
-            } else {
-              return { status: 404, body: { error: "App not found" } };
-            }
-          },
-          params: {}
-        };
-      }
-    }
-    const usersMatch = matchRoute("/mirage/v1/users/:pubkey", path);
-    if (method === "GET" && usersMatch) {
-      return {
-        handler: async () => getUserByPubkey(userCtx, usersMatch.pubkey),
-        params: usersMatch
-      };
-    }
-    const storageMatch = matchRoute("/mirage/v1/space/me/:key", path);
-    if (storageMatch) {
-      const { key } = storageMatch;
-      const storageCtx = {
-        pool: requestPool,
-        relays: activeRelays,
-        requestSign,
-        requestEncrypt,
-        requestDecrypt,
-        currentPubkey,
-        appOrigin,
-        currentSpace
-      };
-      if (method === "GET") {
-        return {
-          handler: async () => getStorage(storageCtx, key, { pubkey: params.pubkey }),
-          params: storageMatch
-        };
-      }
-      if (method === "PUT") {
-        return {
-          handler: async (body) => putStorage(storageCtx, key, body, {
-            public: params.public
-          }),
-          params: storageMatch
-        };
-      }
-      if (method === "DELETE") {
-        return {
-          handler: async () => deleteStorage(storageCtx, key),
-          params: storageMatch
-        };
-      }
     }
     if (method === "DELETE" && path === "/mirage/v1/admin/state") {
       if (!isAdminOrigin) {
@@ -9882,220 +10133,6 @@
         params: {}
       };
     }
-    if (method === "GET" && path === "/mirage/v1/spaces") {
-      return {
-        handler: async () => listSpaces(spaceCtx),
-        params: {}
-      };
-    }
-    if (method === "GET" && path === "/mirage/v1/admin/spaces") {
-      return {
-        handler: async () => listAllSpaces(spaceCtx),
-        params: {}
-      };
-    }
-    if (method === "POST" && path === "/mirage/v1/admin/spaces") {
-      return {
-        handler: async (body) => createSpace(spaceCtx, body),
-        params: {}
-      };
-    }
-    const updateSpaceMatch = matchRoute("/mirage/v1/admin/spaces/:id", path);
-    if (method === "PUT" && updateSpaceMatch) {
-      return {
-        handler: async (body) => updateSpace(spaceCtx, updateSpaceMatch.id, body),
-        params: updateSpaceMatch
-      };
-    }
-    const deleteSpaceMatch = matchRoute("/mirage/v1/spaces/:id", path);
-    if (method === "DELETE" && deleteSpaceMatch) {
-      return {
-        handler: async () => deleteSpace(spaceCtx, deleteSpaceMatch.id),
-        params: deleteSpaceMatch
-      };
-    }
-    const adminDeleteSpaceMatch = matchRoute("/mirage/v1/admin/spaces/:id", path);
-    if (method === "DELETE" && adminDeleteSpaceMatch) {
-      return {
-        handler: async () => deleteSpace(spaceCtx, adminDeleteSpaceMatch.id),
-        params: adminDeleteSpaceMatch
-      };
-    }
-    const inviteSpaceMatch = matchRoute("/mirage/v1/admin/spaces/:id/invitations", path);
-    if (method === "POST" && inviteSpaceMatch) {
-      console.log(`[Invite_Route] Matched POST /admin/spaces/:id/invitations, spaceId:`, inviteSpaceMatch.id);
-      return {
-        handler: async (body) => inviteMember(spaceCtx, inviteSpaceMatch.id, body),
-        params: inviteSpaceMatch
-      };
-    }
-    if (method === "GET" && path === "/mirage/v1/space") {
-      return {
-        handler: async () => getSpaceContext(spaceCtx),
-        params: {}
-      };
-    }
-    if (method === "PUT" && path === "/mirage/v1/space") {
-      return {
-        handler: async (body) => {
-          const { spaceId, spaceName } = body;
-          if (!spaceId) {
-            return { status: 400, body: { error: "spaceId required" } };
-          }
-          currentSpace = { id: spaceId, name: spaceName || "" };
-          console.log("[Engine] Space context set via API:", currentSpace);
-          return { status: 200, body: { spaceId, spaceName: spaceName || "" } };
-        },
-        params: {}
-      };
-    }
-    if (method === "GET" && path === "/mirage/v1/space/store") {
-      if (!currentSpace?.id) {
-        return {
-          handler: async () => ({
-            status: 400,
-            body: { error: "No space context set. Use PUT /space first." }
-          }),
-          params: {}
-        };
-      }
-      return {
-        handler: async () => getSpaceStore(spaceCtx, currentSpace.id),
-        params: {}
-      };
-    }
-    const implicitStoreMatch = matchRoute("/mirage/v1/space/store/:key", path);
-    if (method === "PUT" && implicitStoreMatch) {
-      if (!currentSpace?.id) {
-        return {
-          handler: async () => ({
-            status: 400,
-            body: { error: "No space context set. Use PUT /space first." }
-          }),
-          params: {}
-        };
-      }
-      const { key } = implicitStoreMatch;
-      return {
-        handler: async (body) => updateSpaceStore(spaceCtx, currentSpace.id, key, body),
-        params: { key }
-      };
-    }
-    if (method === "GET" && path === "/mirage/v1/space/messages") {
-      if (!currentSpace?.id) {
-        return {
-          handler: async () => ({
-            status: 400,
-            body: { error: "No space context set. Use PUT /space first." }
-          }),
-          params: {}
-        };
-      }
-      const getIntParam = (p) => p ? parseInt(String(p), 10) : undefined;
-      return {
-        handler: async () => getSpaceMessages(spaceCtx, currentSpace.id, {
-          since: getIntParam(params.since),
-          limit: getIntParam(params.limit)
-        }),
-        params: {}
-      };
-    }
-    if (method === "POST" && path === "/mirage/v1/space/messages") {
-      if (!currentSpace?.id) {
-        return {
-          handler: async () => ({
-            status: 400,
-            body: { error: "No space context set. Use PUT /space first." }
-          }),
-          params: {}
-        };
-      }
-      return {
-        handler: async (body) => postSpaceMessage(spaceCtx, currentSpace.id, body),
-        params: {}
-      };
-    }
-    if (method === "POST" && path === "/mirage/v1/space/invitations") {
-      console.log(`[Invite_Route_DEBUG] Matched! currentSpace:`, currentSpace);
-      if (!currentSpace?.id) {
-        console.log(`[Invite_Route_DEBUG] No space context set, returning 400`);
-        return {
-          handler: async () => ({
-            status: 400,
-            body: { error: "No space context set. Use PUT /space first." }
-          }),
-          params: {}
-        };
-      }
-      console.log(`[Invite_Route_DEBUG] Calling inviteMember with space:`, currentSpace.id);
-      return {
-        handler: async (body) => inviteMember(spaceCtx, currentSpace.id, body),
-        params: {}
-      };
-    }
-    const dmCtx = {
-      pool: requestPool,
-      relays: activeRelays,
-      requestSign,
-      requestEncrypt,
-      requestDecrypt,
-      currentPubkey,
-      appOrigin
-    };
-    if (method === "GET" && path === "/mirage/v1/dms") {
-      return {
-        handler: async () => listDMs(dmCtx),
-        params: {}
-      };
-    }
-    const dmMessagesMatch = matchRoute("/mirage/v1/dms/:pubkey/messages", path);
-    if (method === "GET" && dmMessagesMatch) {
-      const peerPubkey = dmMessagesMatch.pubkey;
-      return {
-        handler: async () => getDMMessages(dmCtx, peerPubkey, {
-          limit: params.limit ? parseInt(String(params.limit), 10) : undefined
-        }),
-        params: { peerPubkey }
-      };
-    }
-    if (method === "POST" && dmMessagesMatch) {
-      const peerPubkey = dmMessagesMatch.pubkey;
-      return {
-        handler: async (body) => sendDM(dmCtx, peerPubkey, {
-          content: body.content
-        }),
-        params: { peerPubkey }
-      };
-    }
-    const contactsCtx = {
-      pool: requestPool,
-      relays: activeRelays,
-      requestSign,
-      requestEncrypt,
-      requestDecrypt,
-      currentPubkey,
-      appOrigin
-    };
-    if (method === "GET" && path === "/mirage/v1/contacts") {
-      return {
-        handler: async () => listContacts(contactsCtx),
-        params: {}
-      };
-    }
-    if (method === "PUT" && path === "/mirage/v1/contacts") {
-      return {
-        handler: async (body) => updateContacts(contactsCtx, body),
-        params: {}
-      };
-    }
-    const userContactsMatch = matchRoute("/mirage/v1/contacts/:pubkey", path);
-    if (method === "GET" && userContactsMatch) {
-      const { pubkey } = userContactsMatch;
-      return {
-        handler: async () => getUserContacts(contactsCtx, pubkey),
-        params: { pubkey }
-      };
-    }
     return null;
   }
   function sendResponse(id, status, body, headers) {
@@ -10107,25 +10144,5 @@
       headers
     };
     self.postMessage(response);
-  }
-  async function handleFetchApp(message) {
-    const result = {
-      type: "FETCH_APP_RESULT",
-      id: message.id
-    };
-    try {
-      await poolReady;
-      if (!pool)
-        throw new Error("Pool not ready");
-      const appCode = await fetchAppCode(pool, activeRelays, message.naddr);
-      if (appCode.error) {
-        result.error = appCode.error;
-      } else {
-        result.html = appCode.html;
-      }
-    } catch (e) {
-      result.error = e.message;
-    }
-    self.postMessage(result);
   }
 })();
