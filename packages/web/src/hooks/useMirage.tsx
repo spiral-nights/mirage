@@ -54,6 +54,9 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
     }
 
     try {
+      // Ensure system origin so /admin/* routes remain accessible even if an app is mounted.
+      (currentHost as any).setAppOrigin('mirage');
+
       console.log('[useMirage] Refreshing apps from engine...');
       const library = await currentHost.request('GET', '/mirage/v1/admin/apps');
       console.log('[useMirage] Apps received:', typeof library, Array.isArray(library) ? `Array(${library.length})` : library);
@@ -170,6 +173,9 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
 
             // Load initial data
             try {
+              // Ensure system origin so /admin/* routes remain accessible even if an app was mounted previously.
+              (mirageHost as any).setAppOrigin('mirage');
+
               const [library, userProfile, _spaces] = await Promise.all([
                 mirageHost.request('GET', '/mirage/v1/admin/apps').catch((e: any) => { console.warn('Apps fetch failed', e); return []; }),
                 mirageHost.request('GET', '/mirage/v1/user/me').catch((e: any) => { console.warn('Profile fetch failed', e); return null; }),
@@ -210,6 +216,9 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
       }
       currentHost.setPubkey(pk);
       try {
+        // Ensure system origin so /admin/* routes remain accessible even if an app was mounted previously.
+        (currentHost as any).setAppOrigin('mirage');
+
         const [library, userProfile, _spaces] = await Promise.all([
           currentHost.request('GET', '/mirage/v1/admin/apps').catch((e: any) => { console.warn('Apps fetch failed', e); return []; }),
           currentHost.request('GET', '/mirage/v1/user/me').catch((e: any) => { console.warn('Profile fetch failed', e); return null; }),
@@ -246,74 +255,58 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
     const currentHost = host || globalHost;
     if (!currentHost || !pubkey) throw new Error('Mirage not initialized or no signer found');
 
-    const dTag = existingDTag || `mirage:app:${crypto.randomUUID()}`;
+    // Ensure we are in Admin Mode (System Origin) before publishing.
+    // This is necessary if we are currently running an app (RunPage), which sets appOrigin to the app's ID.
+    (currentHost as any).setAppOrigin('mirage');
 
-    // 1. Publish to Nostr via Engine API
-    const tags = [
-      ['d', dTag],
-      ['name', name],
-      ['t', 'mirage_app']
-    ];
-
-    const result = await currentHost.request('POST', '/mirage/v1/events', {
-      kind: 30078,
-      content: html,
-      tags
+    const result = await currentHost.request('POST', '/mirage/v1/admin/apps/publish', {
+      html,
+      name,
+      existingDTag
     });
 
-    if (result.error) {
+    if (result?.error) {
       throw new Error(result.error);
     }
 
-    // 2. Generate naddr
-    const naddr = nip19.naddrEncode({
-      kind: 30078,
-      pubkey: pubkey,
-      identifier: dTag,
-      relays: currentHost.getRelays()
-    });
-
-    const appDef: AppDefinition = { naddr, name, createdAt: Date.now() };
-
-    console.log('[useMirage] Saving to library via API:', appDef);
-
-    // 3. Ensure we are in Admin Mode (System Origin) before saving
-    // This is necessary if we are running an app (e.g. "RunPage") which sets the origin to the app's ID.
-    // We must temporarily switch back to 'mirage' to access /admin/ endpoints.
-    // Cast to any because the updated type definition might not be picked up by the frontend build yet.
-    (currentHost as any).setAppOrigin('mirage');
-
-    // 4. Save to Library
-    const libResult = await currentHost.request('POST', '/mirage/v1/admin/apps', appDef);
-    console.log('[useMirage] Library save result:', libResult);
-
-    if (libResult.error) {
-      console.error('[useMirage] Failed to save app to library:', libResult.error);
-      throw new Error(libResult.error);
-    }
+    const appDef = result as AppDefinition;
 
     // Update local state
     setApps(prevApps => {
-      // Decode the new app to get its identifier
-      let newIdentifier = dTag;
+      let newIdentifier: string | null = null;
+      let newPubkey: string | null = null;
 
-      // Filter out any existing app with the same identifier and pubkey
-      // We assume same pubkey since we are the author
+      try {
+        const decoded = nip19.decode(appDef.naddr);
+        if (decoded.type === 'naddr') {
+          newIdentifier = decoded.data.identifier;
+          newPubkey = decoded.data.pubkey;
+        }
+      } catch (e) {
+        // ignore
+      }
+
       const filtered = prevApps.filter(a => {
-        try {
-          const decoded = nip19.decode(a.naddr);
-          if (decoded.type === 'naddr' && decoded.data.identifier === newIdentifier && decoded.data.pubkey === pubkey) {
-            return false;
+        if (a.naddr === appDef.naddr) return false;
+
+        if (newIdentifier && newPubkey) {
+          try {
+            const decoded = nip19.decode(a.naddr);
+            if (decoded.type === 'naddr' && decoded.data.identifier === newIdentifier && decoded.data.pubkey === newPubkey) {
+              return false;
+            }
+          } catch (e) {
+            // ignore
           }
-        } catch (e) { /* ignore */ }
-        // Fallback to strict naddr match just in case
-        return a.naddr !== naddr;
+        }
+
+        return true;
       });
 
       return [appDef, ...filtered];
     });
 
-    return naddr;
+    return appDef.naddr;
   };
 
   // Delete an app from the library
@@ -322,6 +315,9 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
     if (!currentHost) return false;
 
     try {
+      // Ensure system origin so /admin/* routes remain accessible even if an app is mounted.
+      (currentHost as any).setAppOrigin('mirage');
+
       const result = await currentHost.request('DELETE', '/mirage/v1/admin/apps', { naddr });
       if (result.deleted) {
         setApps(prevApps => prevApps.filter(a => a.naddr !== naddr));

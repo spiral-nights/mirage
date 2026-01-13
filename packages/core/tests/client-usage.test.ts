@@ -18,6 +18,7 @@ const ALLOWED_ROUTES = [
     '/mirage/v1/dms',
     '/mirage/v1/contacts',
     '/mirage/v1/admin/apps',
+    '/mirage/v1/admin/apps/publish',
     '/mirage/v1/admin/state'
 ];
 

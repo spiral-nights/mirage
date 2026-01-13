@@ -1,4 +1,5 @@
-import { SimplePool, type Filter } from 'nostr-tools';
+import { SimplePool, nip19 } from 'nostr-tools';
+import { SYSTEM_APP_ORIGIN } from './keys';
 import { SpaceService } from './services/SpaceService';
 import { AppService } from './services/AppService';
 import { ContactService } from './services/ContactService';
@@ -10,8 +11,6 @@ import type {
     MirageMessage,
     ApiRequestMessage,
     ApiResponseMessage,
-    UnsignedNostrEvent,
-    NostrEvent,
     RelayConfigMessage,
     FetchAppRequestMessage,
     FetchAppResultMessage
@@ -184,10 +183,56 @@ export class MirageEngine {
     }
 
     private async routeApps(method: string, path: string, body: any, id: string): Promise<ApiResponseMessage> {
+        const isAdminOrigin = this.appOrigin === SYSTEM_APP_ORIGIN;
+        if (!isAdminOrigin) {
+            return { type: 'API_RESPONSE', id, status: 403, body: { error: 'Admin access required' } };
+        }
+
         // GET /mirage/v1/admin/apps
         if (method === 'GET' && path === '/mirage/v1/admin/apps') {
             const apps = await this.appService.listApps();
             return { type: 'API_RESPONSE', id, status: 200, body: apps };
+        }
+
+        // POST /mirage/v1/admin/apps/publish
+        // Dedicated endpoint for publishing app HTML (Kind 30078) + adding to library.
+        if (method === 'POST' && path === '/mirage/v1/admin/apps/publish') {
+            const { html, name, existingDTag } = body as { html: string; name?: string; existingDTag?: string };
+
+            if (!this.currentPubkey) {
+                return { type: 'API_RESPONSE', id, status: 401, body: { error: 'Not authenticated' } };
+            }
+
+            if (!html || typeof html !== 'string') {
+                return { type: 'API_RESPONSE', id, status: 400, body: { error: 'html required' } };
+            }
+
+            const appName = typeof name === 'string' && name.trim() ? name.trim() : 'Untitled App';
+            const dTag = existingDTag || `mirage:app:${crypto.randomUUID()}`;
+
+            const tags = [
+                ['d', dTag],
+                ['name', appName],
+                ['t', 'mirage_app'],
+            ];
+
+            await this.eventService.publishEvent({
+                kind: 30078,
+                content: html,
+                tags,
+            });
+
+            const naddr = nip19.naddrEncode({
+                kind: 30078,
+                pubkey: this.currentPubkey,
+                identifier: dTag,
+                relays: this.relays,
+            });
+
+            const appDef = { naddr, name: appName, createdAt: Date.now() };
+            await this.appService.addApp(appDef as any);
+
+            return { type: 'API_RESPONSE', id, status: 201, body: appDef };
         }
 
         // POST /mirage/v1/admin/apps
@@ -312,7 +357,7 @@ export class MirageEngine {
         return { type: 'API_RESPONSE', id, status: 404, body: { error: 'Route not found' } };
     }
 
-    private async routeUsers(method: string, path: string, body: any, id: string): Promise<ApiResponseMessage> {
+    private async routeUsers(method: string, path: string, _body: any, id: string): Promise<ApiResponseMessage> {
         // GET /mirage/v1/user/me
         if (method === 'GET' && path === '/mirage/v1/user/me') {
             try {
@@ -339,7 +384,7 @@ export class MirageEngine {
         const match = this.matchRoute('/mirage/v1/space/me/:key', path);
         if (match) {
             // Parse query params for public flag or pubkey
-            const [urlPath, queryString] = path.split('?');
+            const [_urlPath, queryString] = path.split('?');
             const params: any = {};
             if (queryString) {
                 const searchParams = new URLSearchParams(queryString);

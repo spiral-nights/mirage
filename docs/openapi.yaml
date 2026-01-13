@@ -798,8 +798,11 @@ paths:
       tags: [Admin]
       summary: Add app to library (Admin Only)
       description: |
-        Installs a new app into the Mirage library.
+        Installs an existing app into the Mirage library.
         The app must have a valid NIP-19 `naddr`.
+
+        Note: This does **not** publish the app's HTML to relays.
+        Use `POST /admin/apps/publish` to publish an app.
       operationId: adminAddApp
       security:
         - nip07: []
@@ -817,6 +820,42 @@ paths:
       responses:
         '201':
           description: App installed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppDefinition'
+
+  /admin/apps/publish:
+    post:
+      tags: [Admin]
+      summary: Publish an app (Admin Only)
+      description: |
+        Publishes a Mirage app as a Kind 30078 addressable event and adds it to the Mirage library.
+
+        This endpoint replaces using the generic `POST /events` route for app publishing.
+      operationId: adminPublishApp
+      security:
+        - nip07: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [html]
+              properties:
+                html:
+                  type: string
+                  description: Full app HTML (srcdoc)
+                name:
+                  type: string
+                  description: Display name for the library
+                existingDTag:
+                  type: string
+                  description: Optional stable identifier to update an existing app
+      responses:
+        '201':
+          description: App published
           content:
             application/json:
               schema:
