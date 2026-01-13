@@ -84,23 +84,23 @@ export const AppCard = ({
                             initial={{ opacity: 0, scale: 0.95 }}
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.95 }}
-                            className="absolute inset-0 bg-background/95 backdrop-blur-md rounded-t-[32px] flex items-center justify-between px-10 z-20 border border-red-500/20"
+                            className="absolute inset-0 bg-background/95 backdrop-blur-md rounded-t-[32px] flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 sm:px-10 gap-4 z-20 border border-red-500/20"
                         >
-                            <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-3 sm:gap-4 justify-center sm:justify-start">
                                 <AlertCircle size={22} className="text-red-500" />
-                                <span className="text-lg font-medium">Remove from library?</span>
+                                <span className="text-base sm:text-lg font-medium text-center sm:text-left">Remove from library?</span>
                             </div>
-                            <div className="flex gap-4">
+                            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 w-full sm:w-auto">
                                 <button
                                     onClick={() => setShowConfirm(false)}
-                                    className="px-6 py-2.5 rounded-2xl bg-white/5 hover:bg-white/10 transition-colors font-medium"
+                                    className="w-full sm:w-auto px-6 py-2.5 rounded-2xl bg-white/5 hover:bg-white/10 transition-colors font-medium"
                                     disabled={isDeleting}
                                 >
                                     Keep It
                                 </button>
                                 <button
                                     onClick={handleDeleteApp}
-                                    className="px-6 py-2.5 rounded-2xl bg-red-600 text-white hover:bg-red-700 transition-colors flex items-center gap-2 font-bold"
+                                    className="w-full sm:w-auto px-6 py-2.5 rounded-2xl bg-red-600 text-white hover:bg-red-700 transition-colors flex items-center justify-center gap-2 font-bold"
                                     disabled={isDeleting}
                                 >
                                     {isDeleting ? (

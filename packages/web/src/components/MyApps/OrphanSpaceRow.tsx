@@ -21,7 +21,7 @@ export const OrphanSpaceRow = ({
     };
 
     return (
-        <div className="group relative flex items-center gap-4 p-3 rounded-2xl hover:bg-white/5 transition-all">
+        <div className="group relative isolate overflow-hidden flex items-center gap-4 p-3 rounded-2xl hover:bg-white/5 transition-all">
             {/* Delete Confirmation */}
             <AnimatePresence>
                 {showConfirm && (
@@ -29,7 +29,7 @@ export const OrphanSpaceRow = ({
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="absolute inset-0 bg-background/95 backdrop-blur-sm rounded-2xl flex items-center justify-between px-6 z-10 border border-red-500/20"
+                        className="absolute inset-0 bg-black rounded-2xl flex items-center justify-between px-4 sm:px-6 z-10 border border-red-500/20"
                     >
                         <span className="text-xs font-bold text-gray-700 uppercase tracking-widest">Delete Legacy Space?</span>
                         <div className="flex gap-3">

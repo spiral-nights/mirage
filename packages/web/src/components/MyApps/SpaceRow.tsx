@@ -51,7 +51,7 @@ export const SpaceRow = ({
     const isUnnamed = !space.name || space.name.startsWith('Space ');
 
     return (
-        <div className="group relative flex items-center gap-4 p-3 rounded-2xl hover:bg-white/5 border border-transparent hover:border-white/10 transition-all duration-300">
+        <div className="group relative isolate overflow-hidden flex items-center gap-4 p-3 rounded-2xl hover:bg-white/5 border border-transparent hover:border-white/10 transition-all duration-300">
             {/* Delete Confirmation */}
             <AnimatePresence>
                 {showConfirm && (
@@ -59,9 +59,9 @@ export const SpaceRow = ({
                         initial={{ opacity: 0, x: 10 }}
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, x: 10 }}
-                        className="absolute inset-0 bg-background/98 backdrop-blur-sm rounded-2xl flex items-center justify-between px-6 z-10 border border-red-500/20 shadow-xl"
+                        className="absolute inset-0 bg-black rounded-2xl flex items-center justify-between px-4 sm:px-6 z-10 border border-red-500/20 shadow-xl"
                     >
-                        <span className="text-xs font-bold text-gray-500">Permanently delete space?</span>
+                        <span className="text-xs font-bold text-gray-500 text-center sm:text-left">Permanently delete space?</span>
                         <div className="flex gap-3">
                             <button
                                 onClick={() => setShowConfirm(false)}
