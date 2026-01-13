@@ -44,7 +44,7 @@ export const AppCard = ({
 }: AppCardProps) => {
     const navigate = useNavigate();
 
-    const [isExpanded, setIsExpanded] = useState(spaces.length > 0);
+    const [isExpanded, setIsExpanded] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [showConfirm, setShowConfirm] = useState(false);
 
