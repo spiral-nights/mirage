@@ -1,0 +1,1 @@
+import{b as e,y as t}from"./index-DyuWCVIe.js";export{e as getAppCanonicalId};

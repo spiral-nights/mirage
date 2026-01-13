@@ -7308,6 +7308,86 @@
     return true;
   }
 
+  // src/engine/keys.ts
+  var SYSTEM_APP_ORIGIN = "mirage";
+  var KEY_STORAGE_ID = "space_keys";
+  async function loadSpaceKeys(ctx) {
+    try {
+      const rawMap = await internalGetStorage(ctx, KEY_STORAGE_ID);
+      if (!rawMap) {
+        return new Map;
+      }
+      const map = new Map;
+      for (const [id, keyInfo] of Object.entries(rawMap)) {
+        map.set(id, keyInfo);
+      }
+      return map;
+    } catch (error) {
+      console.error("[Keys] Failed to load keys:", error);
+      return new Map;
+    }
+  }
+  async function saveSpaceKeys(ctx, keys) {
+    try {
+      const rawMap = {};
+      for (const [id, keyInfo] of keys.entries()) {
+        rawMap[id] = keyInfo;
+      }
+      await internalPutStorage(ctx, KEY_STORAGE_ID, rawMap);
+      console.log("[Keys] Saved keys to NIP-78 (global keychain)");
+    } catch (error) {
+      console.error("[Keys] Failed to save keys:", error);
+      throw error;
+    }
+  }
+  async function internalGetStorage(ctx, key) {
+    if (!ctx.currentPubkey)
+      return null;
+    const origin = SYSTEM_APP_ORIGIN;
+    const dTag = `${origin}:${key}`;
+    const filter = {
+      kinds: [30078],
+      authors: [ctx.currentPubkey],
+      "#d": [dTag],
+      limit: 1
+    };
+    const event = await ctx.pool.get(ctx.relays, filter);
+    if (!event)
+      return null;
+    const content = event.content;
+    try {
+      return JSON.parse(content);
+    } catch {}
+    if (event.pubkey === ctx.currentPubkey) {
+      try {
+        const plaintext = await ctx.requestDecrypt(ctx.currentPubkey, content);
+        try {
+          return JSON.parse(plaintext);
+        } catch {
+          return plaintext;
+        }
+      } catch {}
+    }
+    return content;
+  }
+  async function internalPutStorage(ctx, key, value) {
+    if (!ctx.currentPubkey)
+      throw new Error("Not authenticated");
+    const origin = SYSTEM_APP_ORIGIN;
+    const dTag = `${origin}:${key}`;
+    const plaintext = typeof value === "string" ? value : JSON.stringify(value);
+    const content = await ctx.requestEncrypt(ctx.currentPubkey, plaintext);
+    const unsignedEvent = {
+      kind: 30078,
+      created_at: Math.floor(Date.now() / 1000),
+      tags: [["d", dTag]],
+      content
+    };
+    const signedEvent = await ctx.requestSign(unsignedEvent);
+    await Promise.any(ctx.pool.publish(ctx.relays, signedEvent));
+    return signedEvent;
+  }
+
   // ../../node_modules/@noble/ciphers/utils.js
   /*! noble-ciphers - MIT License (c) 2023 Paul Miller (paulmillr.com) */
   function isBytes2(a) {
@@ -8095,86 +8175,6 @@
   function base64ToBytes(base642) {
     const binString = atob(base642);
     return Uint8Array.from(binString, (m) => m.codePointAt(0));
-  }
-
-  // src/engine/keys.ts
-  var SYSTEM_APP_ORIGIN = "mirage";
-  var KEY_STORAGE_ID = "space_keys";
-  async function loadSpaceKeys(ctx) {
-    try {
-      const rawMap = await internalGetStorage(ctx, KEY_STORAGE_ID);
-      if (!rawMap) {
-        return new Map;
-      }
-      const map = new Map;
-      for (const [id, keyInfo] of Object.entries(rawMap)) {
-        map.set(id, keyInfo);
-      }
-      return map;
-    } catch (error) {
-      console.error("[Keys] Failed to load keys:", error);
-      return new Map;
-    }
-  }
-  async function saveSpaceKeys(ctx, keys) {
-    try {
-      const rawMap = {};
-      for (const [id, keyInfo] of keys.entries()) {
-        rawMap[id] = keyInfo;
-      }
-      await internalPutStorage(ctx, KEY_STORAGE_ID, rawMap);
-      console.log("[Keys] Saved keys to NIP-78 (global keychain)");
-    } catch (error) {
-      console.error("[Keys] Failed to save keys:", error);
-      throw error;
-    }
-  }
-  async function internalGetStorage(ctx, key) {
-    if (!ctx.currentPubkey)
-      return null;
-    const origin = SYSTEM_APP_ORIGIN;
-    const dTag = `${origin}:${key}`;
-    const filter = {
-      kinds: [30078],
-      authors: [ctx.currentPubkey],
-      "#d": [dTag],
-      limit: 1
-    };
-    const event = await ctx.pool.get(ctx.relays, filter);
-    if (!event)
-      return null;
-    const content = event.content;
-    try {
-      return JSON.parse(content);
-    } catch {}
-    if (event.pubkey === ctx.currentPubkey) {
-      try {
-        const plaintext = await ctx.requestDecrypt(ctx.currentPubkey, content);
-        try {
-          return JSON.parse(plaintext);
-        } catch {
-          return plaintext;
-        }
-      } catch {}
-    }
-    return content;
-  }
-  async function internalPutStorage(ctx, key, value) {
-    if (!ctx.currentPubkey)
-      throw new Error("Not authenticated");
-    const origin = SYSTEM_APP_ORIGIN;
-    const dTag = `${origin}:${key}`;
-    const plaintext = typeof value === "string" ? value : JSON.stringify(value);
-    const content = await ctx.requestEncrypt(ctx.currentPubkey, plaintext);
-    const unsignedEvent = {
-      kind: 30078,
-      created_at: Math.floor(Date.now() / 1000),
-      tags: [["d", dTag]],
-      content
-    };
-    const signedEvent = await ctx.requestSign(unsignedEvent);
-    await Promise.any(ctx.pool.publish(ctx.relays, signedEvent));
-    return signedEvent;
   }
 
   // src/engine/nip17.ts
@@ -9504,9 +9504,43 @@
       this.send(response);
     }
     async routeApps(method, path, body, id) {
+      const isAdminOrigin = this.appOrigin === SYSTEM_APP_ORIGIN;
+      if (!isAdminOrigin) {
+        return { type: "API_RESPONSE", id, status: 403, body: { error: "Admin access required" } };
+      }
       if (method === "GET" && path === "/mirage/v1/admin/apps") {
         const apps = await this.appService.listApps();
         return { type: "API_RESPONSE", id, status: 200, body: apps };
+      }
+      if (method === "POST" && path === "/mirage/v1/admin/apps/publish") {
+        const { html, name, existingDTag } = body;
+        if (!this.currentPubkey) {
+          return { type: "API_RESPONSE", id, status: 401, body: { error: "Not authenticated" } };
+        }
+        if (!html || typeof html !== "string") {
+          return { type: "API_RESPONSE", id, status: 400, body: { error: "html required" } };
+        }
+        const appName = typeof name === "string" && name.trim() ? name.trim() : "Untitled App";
+        const dTag = existingDTag || `mirage:app:${crypto.randomUUID()}`;
+        const tags = [
+          ["d", dTag],
+          ["name", appName],
+          ["t", "mirage_app"]
+        ];
+        await this.eventService.publishEvent({
+          kind: 30078,
+          content: html,
+          tags
+        });
+        const naddr = nip19_exports.naddrEncode({
+          kind: 30078,
+          pubkey: this.currentPubkey,
+          identifier: dTag,
+          relays: this.relays
+        });
+        const appDef = { naddr, name: appName, createdAt: Date.now() };
+        await this.appService.addApp(appDef);
+        return { type: "API_RESPONSE", id, status: 201, body: appDef };
       }
       if (method === "POST" && path === "/mirage/v1/admin/apps") {
         await this.appService.addApp(body);
@@ -9613,7 +9647,7 @@
       }
       return { type: "API_RESPONSE", id, status: 404, body: { error: "Route not found" } };
     }
-    async routeUsers(method, path, body, id) {
+    async routeUsers(method, path, _body, id) {
       if (method === "GET" && path === "/mirage/v1/user/me") {
         try {
           const user = await this.userService.getCurrentUser();
@@ -9634,7 +9668,7 @@
     async routeStorage(method, path, body, id) {
       const match = this.matchRoute("/mirage/v1/space/me/:key", path);
       if (match) {
-        const [urlPath, queryString] = path.split("?");
+        const [_urlPath, queryString] = path.split("?");
         const params = {};
         if (queryString) {
           const searchParams = new URLSearchParams(queryString);
