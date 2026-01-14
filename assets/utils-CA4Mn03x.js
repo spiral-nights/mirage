@@ -1,1 +1,0 @@
-import{b as e,x as t}from"./index-Bn0AoJ7l.js";export{t as getAppCanonicalId};
