@@ -24,6 +24,7 @@ export const RunPage = () => {
 
   // Modal State
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  const [inviteSpaceId, setInviteSpaceId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalProps, setModalProps] = useState<{
     mode: 'edit' | 'view';
@@ -134,9 +135,13 @@ export const RunPage = () => {
     };
   }, [naddr, host]); // Only depend on naddr and host, not fetchApp
 
-  const handleInvite = useCallback((e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    if (spaceId) {
+  const handleInvite = useCallback((targetSpaceId?: string) => {
+    // If targetSpaceId provided, use it. Otherwise use current spaceId.
+    if (targetSpaceId) {
+      setInviteSpaceId(targetSpaceId);
+      setInviteModalOpen(true);
+    } else if (spaceId) {
+      setInviteSpaceId(spaceId);
       setInviteModalOpen(true);
     } else {
       alert("No active space to invite to.");
@@ -251,7 +256,7 @@ export const RunPage = () => {
         <InviteModal
           isOpen={inviteModalOpen}
           onClose={() => setInviteModalOpen(false)}
-          spaceId={spaceId}
+          spaceId={inviteSpaceId || spaceId || ''}
           spaceName={spaceName || 'Unnamed Space'}
         />
       )}

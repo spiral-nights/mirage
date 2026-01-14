@@ -25,6 +25,14 @@ interface KeyMap {
   [spaceId: string]: SpaceKey;
 }
 
+export class KeyManager {
+  private pool: SimplePool;
+
+  constructor(pool: SimplePool) {
+    this.pool = pool;
+  }
+}
+
 /**
  * Load all space keys from NIP-78 storage.
  * Returns a Map of ScopedSpaceId -> SpaceKey.

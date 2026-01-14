@@ -6,6 +6,7 @@ export interface Space {
   name: string;
   appOrigin: string;
   createdAt: number;
+  offline?: boolean;
 }
 
 export function useSpaces() {
@@ -29,10 +30,10 @@ export function useSpaces() {
     }
   }, [host, isReady, pubkey]);
 
-  const createSpace = useCallback(async (name: string, appId: string) => {
+  const createSpace = useCallback(async (name: string, appId: string, offline: boolean = false) => {
     if (!host) return null;
     try {
-      const space = await host.createSpace(name, appId);
+      const space = await host.createSpace(name, appId, offline);
       await refreshSpaces();
       return space;
     } catch (e) {

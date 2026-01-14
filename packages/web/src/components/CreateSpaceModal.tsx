@@ -11,7 +11,7 @@ interface CreateSpaceModalProps {
   onClose: () => void;
   onSuccess?: (spaceId: string) => void;
   initialAppId?: string; // Pre-select an app (e.g., when opened from SpacePickerModal)
-  createSpace: (name: string, appId: string) => Promise<Space | null>;
+  createSpace: (name: string, appId: string, offline?: boolean) => Promise<Space | null>;
 }
 
 export const CreateSpaceModal = ({ isOpen, onClose, onSuccess, initialAppId, createSpace }: CreateSpaceModalProps) => {
@@ -19,6 +19,7 @@ export const CreateSpaceModal = ({ isOpen, onClose, onSuccess, initialAppId, cre
   const [name, setName] = useState('');
   const [selectedAppId, setSelectedAppId] = useState<string | null>(initialAppId || null);
   const [isCreating, setIsCreating] = useState(false);
+  const [offline, setOffline] = useState(false);
 
   const navigate = useNavigate();
 
@@ -38,7 +39,7 @@ export const CreateSpaceModal = ({ isOpen, onClose, onSuccess, initialAppId, cre
     try {
       // Use Canonical ID as the app origin to ensure spaces stick even if app naddr (relays) changes
       const canonicalId = getAppCanonicalId(selectedAppId);
-      const space = await createSpace(name, canonicalId);
+      const space = await createSpace(name, canonicalId, offline);
       if (space) {
         onSuccess?.(space.id);
         navigate(`/run/${selectedAppId}?spaceId=${space.id}&spaceName=${encodeURIComponent(name)}`);
@@ -152,6 +153,24 @@ export const CreateSpaceModal = ({ isOpen, onClose, onSuccess, initialAppId, cre
             </div>
           </div>
         )}
+
+        {/* Offline Toggle */}
+        <div className="flex items-start gap-3 p-4 bg-white/5 rounded-2xl border border-white/5">
+          <input
+            type="checkbox"
+            id="offline-toggle"
+            checked={offline}
+            onChange={(e) => setOffline(e.target.checked)}
+            className="mt-1 w-4 h-4 rounded border-gray-600 bg-black/40 text-vivid-cyan focus:ring-vivid-cyan/50"
+          />
+          <label htmlFor="offline-toggle" className="flex-1 cursor-pointer select-none">
+            <div className="text-sm font-bold text-white mb-1">Offline Space</div>
+            <p className="text-xs text-gray-500 leading-relaxed">
+              Data is stored <span className="text-vivid-cyan font-bold">locally only</span> and never leaves this device.
+              Good for privacy, but means you cannot invite others or access from other devices.
+            </p>
+          </label>
+        </div>
 
         <div className="flex items-center gap-4 mt-4">
           <button

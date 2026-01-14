@@ -13,7 +13,7 @@ interface SpacePickerModalProps {
   app: AppDefinition | null;
   onCreateNew: () => void;
   spaces: Space[];
-  createSpace: (name: string, appId: string) => Promise<Space | null>;
+  createSpace: (name: string, appId: string, offline?: boolean) => Promise<Space | null>;
 }
 
 export const SpacePickerModal = ({ isOpen, onClose, app, onCreateNew, spaces, createSpace }: SpacePickerModalProps) => {
@@ -84,9 +84,16 @@ export const SpacePickerModal = ({ isOpen, onClose, app, onCreateNew, spaces, cr
                 <div className="w-10 h-10 rounded-xl bg-black/40 flex items-center justify-center text-gray-600 group-hover:text-vivid-cyan transition-colors">
                   <Database size={18} />
                 </div>
-                <div className="flex-1 truncate">
-                  <div className="font-bold text-sm truncate">{s.name}</div>
-                  <div className="text-[10px] opacity-50 font-mono">#{s.id.slice(0, 8)}</div>
+                <div className="flex-1 truncate text-left">
+                  <div className="font-bold text-sm truncate flex items-center gap-2">
+                    <span className="truncate">{s.name}</span>
+                    {s.offline && (
+                      <span className="px-1.5 py-0.5 rounded bg-vivid-cyan/20 text-vivid-cyan text-[10px] font-bold uppercase tracking-wider">
+                        Offline
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[10px] opacity-50 truncate font-mono">#{s.id.slice(0, 8)}</div>
                 </div>
                 <Play size={14} className="text-gray-700 group-hover:text-vivid-cyan opacity-0 group-hover:opacity-100 transition-all" />
               </button>

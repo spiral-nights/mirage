@@ -286,6 +286,7 @@ export interface Space {
     createdAt: number;
     memberCount: number;
     appOrigin?: string;  // The naddr or identifier of the app that created this space
+    offline?: boolean;   // Whether this space stores data locally only (no relays)
 }
 
 /**
@@ -327,6 +328,7 @@ export interface SpaceKey {
     deleted?: boolean; // If true, ignore this space (tombstone)
     deletedAt?: number; // Timestamp of deletion
     latestInviteTimestamp?: number; // Timestamp of the last accepted invite (for handling backdated invites)
+    offline?: boolean; // Whether this space stores data locally only (no relays)
 }
 
 // ============================================================================

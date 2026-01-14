@@ -3,10 +3,10 @@ import { type AppDefinition } from '@mirage/core';
 
 interface AppActionsContextType {
     app: AppDefinition | null;
-    space?: { id: string; name: string } | null;
+    space?: { id: string; name: string; offline?: boolean } | null;
     isAuthor: boolean;
     onViewEditSource: (() => void) | null;
-    onInvite: (() => void) | null;
+    onInvite: ((spaceId?: string) => void) | null;
     onExit: (() => void) | null;
     setAppActions: (actions: Omit<AppActionsContextType, 'setAppActions'>) => void;
 }
@@ -15,10 +15,10 @@ const AppActionsContext = createContext<AppActionsContextType | undefined>(undef
 
 export const AppActionsProvider = ({ children }: { children: ReactNode }) => {
     const [app, setApp] = useState<AppDefinition | null>(null);
-    const [space, setSpace] = useState<{ id: string; name: string } | null | undefined>(null);
+    const [space, setSpace] = useState<{ id: string; name: string; offline?: boolean } | null | undefined>(null);
     const [isAuthor, setIsAuthor] = useState(false);
     const [onViewEditSource, setOnViewEditSource] = useState<(() => void) | null>(null);
-    const [onInvite, setOnInvite] = useState<(() => void) | null>(null);
+    const [onInvite, setOnInvite] = useState<((spaceId?: string) => void) | null>(null);
     const [onExit, setOnExit] = useState<(() => void) | null>(null);
 
     const setAppActions = useCallback((actions: Omit<AppActionsContextType, 'setAppActions'>) => {

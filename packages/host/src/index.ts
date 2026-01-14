@@ -343,11 +343,12 @@ export class MirageHost {
   /**
    * Create a new space (Admin endpoint)
    */
-  async createSpace(name: string, appId?: string): Promise<any> {
-    return this.request("POST", "/mirage/v1/admin/spaces", {
-      name,
-      appOrigin: appId,
-    });
+  async createSpace(name: string, appId?: string, offline: boolean = false): Promise<any> {
+    return this.request(
+      "POST",
+      "/mirage/v1/admin/spaces",
+      { name, rawAppOrigin: appId, offline },
+    );
   }
 
   /**

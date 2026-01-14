@@ -1,5 +1,5 @@
 import { SimplePool, nip19 } from 'nostr-tools';
-import { SYSTEM_APP_ORIGIN } from './keys';
+import { SYSTEM_APP_ORIGIN, KeyManager } from './keys';
 import { SpaceService } from './services/SpaceService';
 import { AppService } from './services/AppService';
 import { ContactService } from './services/ContactService';
@@ -17,6 +17,8 @@ import type {
 } from '../types';
 import { requestSign, requestDecrypt, requestEncrypt } from './signing';
 
+import { getLocalRelay, type LocalRelay } from './LocalRelay';
+
 export interface MirageEngineConfig {
     relays: string[];
     pool?: SimplePool;
@@ -25,6 +27,7 @@ export interface MirageEngineConfig {
 export class MirageEngine {
     private pool: SimplePool;
     private relays: string[];
+    private localRelay: LocalRelay;
     private spaceService: SpaceService;
     private appService: AppService;
     private contactService: ContactService;
@@ -32,6 +35,10 @@ export class MirageEngine {
     private eventService: EventService;
     private storageService: StorageService;
     private userService: UserService;
+
+    // Keys and Session
+    private keys: KeyManager;
+    private sessionKey: Uint8Array | null = null;
 
     // State
     private currentPubkey: string | null = null;
@@ -42,11 +49,15 @@ export class MirageEngine {
     constructor(config: MirageEngineConfig) {
         this.pool = config.pool || new SimplePool();
         this.relays = config.relays;
+        this.localRelay = getLocalRelay();
 
         // Initialize services
+        this.keys = new KeyManager(this.pool);
+
         this.spaceService = new SpaceService({
             pool: this.pool,
             relays: this.relays,
+            localRelay: this.localRelay,
             currentPubkey: this.currentPubkey,
             appOrigin: this.appOrigin,
             currentSpace: this.currentSpace,

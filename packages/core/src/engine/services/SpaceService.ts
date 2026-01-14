@@ -6,6 +6,7 @@ import type {
     SpaceKey,
     NostrEvent
 } from '../../types';
+import type { LocalRelay } from '../LocalRelay';
 import {
     generateSymmetricKey,
     encryptSymmetric,
@@ -19,6 +20,7 @@ import { wrapEvent } from '../nip17';
 export interface SpaceServiceContext {
     pool: SimplePool;
     relays: string[];
+    localRelay: LocalRelay;
     currentPubkey: string | null;
     appOrigin: string; // The origin identifier of the app using this service
     requestSign: (event: UnsignedNostrEvent) => Promise<NostrEvent>;
@@ -131,12 +133,13 @@ export class SpaceService {
                 createdAt: keyInfo.createdAt || 0,
                 memberCount: 0,
                 appOrigin,
+                offline: keyInfo.offline
             });
         }
         return spaces;
     }
 
-    async createSpace(name: string, forAppOrigin?: string): Promise<Space> {
+    async createSpace(name: string, forAppOrigin?: string, offline: boolean = false): Promise<Space> {
         if (!this.ctx.currentPubkey) throw new Error("Not authenticated");
 
         const appOrigin = forAppOrigin || this.ctx.appOrigin;
@@ -155,7 +158,8 @@ export class SpaceService {
             version: 1,
             name,
             createdAt,
-            deleted: false
+            deleted: false,
+            offline
         });
 
         await this.saveKeys(keys);
@@ -165,7 +169,8 @@ export class SpaceService {
             name,
             createdAt,
             memberCount: 1,
-            appOrigin: appOrigin
+            appOrigin: appOrigin,
+            offline
         };
     }
     /**
@@ -204,6 +209,19 @@ export class SpaceService {
         });
 
         await this.saveKeys(keys);
+
+        // If offline space, wipe data
+        if (existing.offline) {
+            try {
+                // Delete all events referencing this space (e-tag)
+                await this.ctx.localRelay.deleteByFilter({ '#e': [spaceId] });
+
+                // Also potentially delete events owned by this space logic? 
+                // Currently just messages are e-tagged.
+            } catch (e) {
+                console.warn("[SpaceService] Failed to wipe offline space data:", e);
+            }
+        }
 
         return spaceId;
     }
@@ -313,7 +331,13 @@ export class SpaceService {
         };
 
         const signed = await this.ctx.requestSign(unsigned);
-        await Promise.any(this.ctx.pool.publish(this.ctx.relays, signed));
+
+        // Route to appropriate relay(s)
+        if (keyInfo.offline) {
+            await this.ctx.localRelay.publish(signed);
+        } else {
+            await Promise.any(this.ctx.pool.publish(this.ctx.relays, signed));
+        }
 
         return {
             id: signed.id,
