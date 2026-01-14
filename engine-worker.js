@@ -9467,23 +9467,24 @@
       }
     }
     async handleApiRequest(message) {
-      const { method, path, body, id } = message;
+      const { method, path, body, id, origin: requestOrigin } = message;
+      const origin = requestOrigin || this.appOrigin || SYSTEM_APP_ORIGIN;
       let response;
       try {
         if (path.startsWith("/mirage/v1/space/me/")) {
-          response = await this.routeStorage(method, path, body, id);
+          response = await this.routeStorage(method, path, body, id, origin);
         } else if (path.startsWith("/mirage/v1/space") || path.startsWith("/mirage/v1/admin/spaces")) {
-          response = await this.routeSpaces(method, path, body, id);
+          response = await this.routeSpaces(method, path, body, id, origin);
         } else if (path.startsWith("/mirage/v1/admin/apps")) {
-          response = await this.routeApps(method, path, body, id);
+          response = await this.routeApps(method, path, body, id, origin);
         } else if (path.startsWith("/mirage/v1/contacts")) {
-          response = await this.routeContacts(method, path, body, id);
+          response = await this.routeContacts(method, path, body, id, origin);
         } else if (path.startsWith("/mirage/v1/dms")) {
-          response = await this.routeDMs(method, path, body, id);
+          response = await this.routeDMs(method, path, body, id, origin);
         } else if (path.startsWith("/mirage/v1/events")) {
-          response = await this.routeEvents(method, path, body, id);
+          response = await this.routeEvents(method, path, body, id, origin);
         } else if (path.startsWith("/mirage/v1/user") || path.startsWith("/mirage/v1/users")) {
-          response = await this.routeUsers(method, path, body, id);
+          response = await this.routeUsers(method, path, body, id, origin);
         } else {
           response = { type: "API_RESPONSE", id, status: 404, body: { error: "Not found" } };
         }
@@ -9503,8 +9504,8 @@
       };
       this.send(response);
     }
-    async routeApps(method, path, body, id) {
-      const isAdminOrigin = this.appOrigin === SYSTEM_APP_ORIGIN;
+    async routeApps(method, path, body, id, origin) {
+      const isAdminOrigin = origin === SYSTEM_APP_ORIGIN;
       if (!isAdminOrigin) {
         return { type: "API_RESPONSE", id, status: 403, body: { error: "Admin access required" } };
       }
@@ -9559,7 +9560,7 @@
       }
       return { type: "API_RESPONSE", id, status: 404, body: { error: "Route not found" } };
     }
-    async routeContacts(method, path, body, id) {
+    async routeContacts(method, path, body, id, _origin) {
       if (method === "GET" && path === "/mirage/v1/contacts") {
         const contacts = await this.contactService.listContacts();
         return { type: "API_RESPONSE", id, status: 200, body: contacts };
@@ -9575,7 +9576,7 @@
       }
       return { type: "API_RESPONSE", id, status: 404, body: { error: "Route not found" } };
     }
-    async routeDMs(method, path, body, id) {
+    async routeDMs(method, path, body, id, _origin) {
       if (method === "GET" && path === "/mirage/v1/dms") {
         const dms = await this.directMessageService.listDMs();
         return { type: "API_RESPONSE", id, status: 200, body: dms };
@@ -9592,7 +9593,7 @@
       }
       return { type: "API_RESPONSE", id, status: 404, body: { error: "Route not found" } };
     }
-    async routeEvents(method, path, body, id) {
+    async routeEvents(method, path, body, id, _origin) {
       if (method === "POST" && path === "/mirage/v1/events") {
         const result = await this.eventService.publishEvent(body, body.targetRelays);
         return { type: "API_RESPONSE", id, status: 201, body: result };
@@ -9647,7 +9648,7 @@
       }
       return { type: "API_RESPONSE", id, status: 404, body: { error: "Route not found" } };
     }
-    async routeUsers(method, path, _body, id) {
+    async routeUsers(method, path, _body, id, _origin) {
       if (method === "GET" && path === "/mirage/v1/user/me") {
         try {
           const user = await this.userService.getCurrentUser();
@@ -9665,7 +9666,8 @@
       }
       return { type: "API_RESPONSE", id, status: 404, body: { error: "Route not found" } };
     }
-    async routeStorage(method, path, body, id) {
+    async routeStorage(method, path, body, id, origin) {
+      this.storageService.updateContext({ appOrigin: origin });
       const match = this.matchRoute("/mirage/v1/space/me/:key", path);
       if (match) {
         const [_urlPath, queryString] = path.split("?");
@@ -9711,7 +9713,8 @@
       }
       return { type: "API_RESPONSE", id, status: 404, body: { error: "Route not found" } };
     }
-    async routeSpaces(method, path, body, id) {
+    async routeSpaces(method, path, body, id, origin) {
+      this.spaceService.updateContext({ appOrigin: origin });
       if (method === "GET" && path === "/mirage/v1/spaces") {
         const spaces = await this.spaceService.listSpaces();
         return { type: "API_RESPONSE", id, status: 200, body: spaces };
