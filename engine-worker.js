@@ -8248,13 +8248,14 @@
       }
       return spaceId;
     }
-    async listSpaces() {
+    async listSpaces(origin) {
       if (!this.ctx.currentPubkey)
         throw new Error("Not authenticated");
       await this.syncInvites();
+      const appOrigin = origin || this.ctx.appOrigin;
       const keys = await this.getKeys();
       const spaces = [];
-      const appPrefix = `${this.ctx.appOrigin}:`;
+      const appPrefix = `${appOrigin}:`;
       for (const [scopedId, keyInfo] of keys.entries()) {
         if (keyInfo.deleted)
           continue;
@@ -8265,7 +8266,7 @@
             name: keyInfo.name || `Space ${id.slice(0, 8)}`,
             createdAt: keyInfo.createdAt || 0,
             memberCount: 0,
-            appOrigin: this.ctx.appOrigin
+            appOrigin
           });
         }
       }
@@ -8322,12 +8323,13 @@
         appOrigin
       };
     }
-    async deleteSpace(rawSpaceId) {
+    async deleteSpace(rawSpaceId, origin) {
       if (!this.ctx.currentPubkey)
         throw new Error("Not authenticated");
+      const appOrigin = origin || this.ctx.appOrigin;
       const spaceId = this.resolveSpaceId(rawSpaceId);
       const keys = await this.getKeys();
-      let targetScopedId = `${this.ctx.appOrigin}:${spaceId}`;
+      let targetScopedId = `${appOrigin}:${spaceId}`;
       if (!keys.has(targetScopedId)) {
         const found = Array.from(keys.keys()).find((k) => k.endsWith(`:${spaceId}`));
         if (found) {
@@ -8345,12 +8347,13 @@
       await this.saveKeys(keys);
       return spaceId;
     }
-    async updateSpace(rawSpaceId, name) {
+    async updateSpace(rawSpaceId, name, origin) {
       if (!this.ctx.currentPubkey)
         throw new Error("Not authenticated");
+      const appOrigin = origin || this.ctx.appOrigin;
       const spaceId = this.resolveSpaceId(rawSpaceId);
       const keys = await this.getKeys();
-      let targetScopedId = `${this.ctx.appOrigin}:${spaceId}`;
+      let targetScopedId = `${appOrigin}:${spaceId}`;
       if (!keys.has(targetScopedId)) {
         const found = Array.from(keys.keys()).find((k) => k.endsWith(`:${spaceId}`));
         if (found)
@@ -8366,11 +8369,12 @@
       await this.saveKeys(keys);
       return { id: spaceId, name };
     }
-    async getMessages(rawSpaceId, limit2 = 50, since) {
+    async getMessages(rawSpaceId, limit2 = 50, since, origin) {
       if (!this.ctx.currentPubkey)
         throw new Error("Not authenticated");
+      const appOrigin = origin || this.ctx.appOrigin;
       const spaceId = this.resolveSpaceId(rawSpaceId);
-      const scopedId = `${this.ctx.appOrigin}:${spaceId}`;
+      const scopedId = `${appOrigin}:${spaceId}`;
       const keys = await this.getKeys();
       const keyInfo = keys.get(scopedId);
       if (!keyInfo)
@@ -8402,11 +8406,12 @@
       }
       return messages;
     }
-    async sendMessage(rawSpaceId, content) {
+    async sendMessage(rawSpaceId, content, origin) {
       if (!this.ctx.currentPubkey)
         throw new Error("Not authenticated");
+      const appOrigin = origin || this.ctx.appOrigin;
       const spaceId = this.resolveSpaceId(rawSpaceId);
-      const scopedId = `${this.ctx.appOrigin}:${spaceId}`;
+      const scopedId = `${appOrigin}:${spaceId}`;
       const keys = await this.getKeys();
       const keyInfo = keys.get(scopedId);
       if (!keyInfo)
@@ -8442,9 +8447,10 @@
         appOrigin: this.ctx.appOrigin
       }, keys);
     }
-    async inviteMember(rawSpaceId, pubkey, name) {
+    async inviteMember(rawSpaceId, pubkey, name, origin) {
       if (!this.ctx.currentPubkey)
         throw new Error("Not authenticated");
+      const appOrigin = origin || this.ctx.appOrigin;
       const spaceId = this.resolveSpaceId(rawSpaceId);
       let receiverPubkey = pubkey;
       if (receiverPubkey.startsWith("npub")) {
@@ -8457,7 +8463,7 @@
           throw new Error("Invalid npub format");
         }
       }
-      const scopedId = `${this.ctx.appOrigin}:${spaceId}`;
+      const scopedId = `${appOrigin}:${spaceId}`;
       const keys = await this.getKeys();
       const keyInfo = keys.get(scopedId);
       if (!keyInfo)
@@ -8469,7 +8475,7 @@
         key: keyInfo.key,
         version: keyInfo.version,
         name: name || keyInfo.name || `Space ${spaceId.slice(0, 8)}`,
-        origin: this.ctx.appOrigin
+        origin: appOrigin
       };
       const innerEvent = {
         kind: 13,
@@ -8551,11 +8557,12 @@
         }
       }
     }
-    async getSpaceStore(rawSpaceId) {
+    async getSpaceStore(rawSpaceId, origin) {
       if (!this.ctx.currentPubkey)
         throw new Error("Not authenticated");
+      const appOrigin = origin || this.ctx.appOrigin;
       const spaceId = this.resolveSpaceId(rawSpaceId);
-      const scopedId = `${this.ctx.appOrigin}:${spaceId}`;
+      const scopedId = `${appOrigin}:${spaceId}`;
       const keys = await this.getKeys();
       const keyInfo = keys.get(scopedId);
       if (!keyInfo)
@@ -8597,11 +8604,12 @@
       }
       return stateObj;
     }
-    async updateSpaceStore(rawSpaceId, key, value) {
+    async updateSpaceStore(rawSpaceId, key, value, origin) {
       if (!this.ctx.currentPubkey)
         throw new Error("Not authenticated");
+      const appOrigin = origin || this.ctx.appOrigin;
       const spaceId = this.resolveSpaceId(rawSpaceId);
-      const scopedId = `${this.ctx.appOrigin}:${spaceId}`;
+      const scopedId = `${appOrigin}:${spaceId}`;
       const keys = await this.getKeys();
       const keyInfo = keys.get(scopedId);
       if (!keyInfo)
@@ -9131,7 +9139,7 @@
   // src/engine/services/StorageService.ts
   class StorageService {
     ctx;
-    constructor(pool, relays, requestSign, requestEncrypt, requestDecrypt, currentPubkey, appOrigin, currentSpace) {
+    constructor(pool, relays, requestSign, requestEncrypt, requestDecrypt, currentPubkey, currentSpace) {
       this.ctx = {
         pool,
         relays,
@@ -9139,22 +9147,21 @@
         requestEncrypt,
         requestDecrypt,
         currentPubkey,
-        appOrigin,
         currentSpace
       };
     }
     updateContext(updates) {
       this.ctx = { ...this.ctx, ...updates };
     }
-    async getStorage(key, targetPubkey) {
+    async getStorage(key, origin, targetPubkey) {
       if (!this.ctx.currentPubkey && !targetPubkey)
         throw new Error("Not authenticated");
-      const isSystemStorage = this.ctx.appOrigin === SYSTEM_APP_ORIGIN;
+      const isSystemStorage = origin === SYSTEM_APP_ORIGIN;
       if (!isSystemStorage && !this.ctx.currentSpace?.id) {
         throw new Error("Space context required for storage operations");
       }
       const author = targetPubkey || this.ctx.currentPubkey;
-      const dTag = isSystemStorage ? `${this.ctx.appOrigin}:${key}` : `${this.ctx.appOrigin}:${this.ctx.currentSpace.id}:${key}`;
+      const dTag = isSystemStorage ? `${origin}:${key}` : `${origin}:${this.ctx.currentSpace.id}:${key}`;
       const filter = {
         kinds: [30078],
         authors: [author],
@@ -9180,14 +9187,14 @@
       }
       return content;
     }
-    async putStorage(key, value, isPublic = false) {
+    async putStorage(key, value, origin, isPublic = false) {
       if (!this.ctx.currentPubkey)
         throw new Error("Not authenticated");
-      const isSystemStorage = this.ctx.appOrigin === SYSTEM_APP_ORIGIN;
+      const isSystemStorage = origin === SYSTEM_APP_ORIGIN;
       if (!isSystemStorage && !this.ctx.currentSpace?.id) {
         throw new Error("Space context required for storage operations");
       }
-      const dTag = isSystemStorage ? `${this.ctx.appOrigin}:${key}` : `${this.ctx.appOrigin}:${this.ctx.currentSpace.id}:${key}`;
+      const dTag = isSystemStorage ? `${origin}:${key}` : `${origin}:${this.ctx.currentSpace.id}:${key}`;
       const plaintext = typeof value === "string" ? value : JSON.stringify(value);
       let content = plaintext;
       if (!isPublic) {
@@ -9203,14 +9210,14 @@
       await Promise.any(this.ctx.pool.publish(this.ctx.relays, signedEvent));
       return signedEvent;
     }
-    async deleteStorage(key) {
+    async deleteStorage(key, origin) {
       if (!this.ctx.currentPubkey)
         throw new Error("Not authenticated");
-      const isSystemStorage = this.ctx.appOrigin === SYSTEM_APP_ORIGIN;
+      const isSystemStorage = origin === SYSTEM_APP_ORIGIN;
       if (!isSystemStorage && !this.ctx.currentSpace?.id) {
         throw new Error("Space context required for storage operations");
       }
-      const dTag = isSystemStorage ? `${this.ctx.appOrigin}:${key}` : `${this.ctx.appOrigin}:${this.ctx.currentSpace.id}:${key}`;
+      const dTag = isSystemStorage ? `${origin}:${key}` : `${origin}:${this.ctx.currentSpace.id}:${key}`;
       let ciphertext;
       try {
         ciphertext = await this.ctx.requestEncrypt(this.ctx.currentPubkey, "");
@@ -9414,7 +9421,7 @@
     storageService;
     userService;
     currentPubkey = null;
-    appOrigin = "unknown";
+    appOrigin = "mirage";
     currentSpace;
     constructor(config) {
       this.pool = config.pool || new SimplePool;
@@ -9433,7 +9440,7 @@
       this.contactService = new ContactService(this.pool, this.relays, requestSign, this.currentPubkey);
       this.directMessageService = new DirectMessageService(this.pool, this.relays, requestSign, requestEncrypt, requestDecrypt, this.currentPubkey);
       this.eventService = new EventService(this.pool, this.relays, requestSign);
-      this.storageService = new StorageService(this.pool, this.relays, requestSign, requestEncrypt, requestDecrypt, this.currentPubkey, this.appOrigin, this.currentSpace);
+      this.storageService = new StorageService(this.pool, this.relays, requestSign, requestEncrypt, requestDecrypt, this.currentPubkey, this.currentSpace);
       this.userService = new UserService(this.pool, this.relays, this.currentPubkey);
     }
     async handleMessage(message) {
@@ -9667,7 +9674,6 @@
       return { type: "API_RESPONSE", id, status: 404, body: { error: "Route not found" } };
     }
     async routeStorage(method, path, body, id, origin) {
-      this.storageService.updateContext({ appOrigin: origin });
       const match = this.matchRoute("/mirage/v1/space/me/:key", path);
       if (match) {
         const [_urlPath, queryString] = path.split("?");
@@ -9677,7 +9683,7 @@
           searchParams.forEach((value, key) => params[key] = value);
         }
         if (method === "GET") {
-          const val = await this.storageService.getStorage(match.params.key, params.pubkey);
+          const val = await this.storageService.getStorage(match.params.key, origin, params.pubkey);
           if (val === null)
             return { type: "API_RESPONSE", id, status: 404, body: { error: "Key not found" } };
           return {
@@ -9693,7 +9699,7 @@
         }
         if (method === "PUT") {
           const isPublic = params.public === "true";
-          const event = await this.storageService.putStorage(match.params.key, body, isPublic);
+          const event = await this.storageService.putStorage(match.params.key, body, origin, isPublic);
           return {
             type: "API_RESPONSE",
             id,
@@ -9707,16 +9713,15 @@
           };
         }
         if (method === "DELETE") {
-          await this.storageService.deleteStorage(match.params.key);
+          await this.storageService.deleteStorage(match.params.key, origin);
           return { type: "API_RESPONSE", id, status: 200, body: { deleted: true, key: match.params.key } };
         }
       }
       return { type: "API_RESPONSE", id, status: 404, body: { error: "Route not found" } };
     }
     async routeSpaces(method, path, body, id, origin) {
-      this.spaceService.updateContext({ appOrigin: origin });
       if (method === "GET" && path === "/mirage/v1/spaces") {
-        const spaces = await this.spaceService.listSpaces();
+        const spaces = await this.spaceService.listSpaces(origin);
         return { type: "API_RESPONSE", id, status: 200, body: spaces };
       }
       if (method === "GET" && path === "/mirage/v1/admin/spaces") {
@@ -9730,45 +9735,45 @@
       let match = this.matchRoute("/mirage/v1/spaces/:id", path);
       if (match) {
         if (method === "DELETE") {
-          const deleted = await this.spaceService.deleteSpace(match.params.id);
+          const deleted = await this.spaceService.deleteSpace(match.params.id, origin);
           return { type: "API_RESPONSE", id, status: 200, body: { deleted } };
         }
       }
       match = this.matchRoute("/mirage/v1/admin/spaces/:id", path);
       if (match) {
         if (method === "PUT") {
-          const updated = await this.spaceService.updateSpace(match.params.id, body.name);
+          const updated = await this.spaceService.updateSpace(match.params.id, body.name, origin);
           return { type: "API_RESPONSE", id, status: 200, body: updated };
         }
         if (method === "DELETE") {
-          const deleted = await this.spaceService.deleteSpace(match.params.id);
+          const deleted = await this.spaceService.deleteSpace(match.params.id, origin);
           return { type: "API_RESPONSE", id, status: 200, body: { deleted } };
         }
       }
       match = this.matchRoute("/mirage/v1/spaces/:id/messages", path);
       if (match) {
         if (method === "GET") {
-          const messages = await this.spaceService.getMessages(match.params.id, body?.limit, body?.since);
+          const messages = await this.spaceService.getMessages(match.params.id, body?.limit, body?.since, origin);
           return { type: "API_RESPONSE", id, status: 200, body: messages };
         }
         if (method === "POST") {
-          const msg = await this.spaceService.sendMessage(match.params.id, body.content);
+          const msg = await this.spaceService.sendMessage(match.params.id, body.content, origin);
           return { type: "API_RESPONSE", id, status: 201, body: msg };
         }
       }
       match = this.matchRoute("/mirage/v1/admin/spaces/:id/invitations", path);
       if (match && method === "POST") {
-        const result = await this.spaceService.inviteMember(match.params.id, body.pubkey, body.name);
+        const result = await this.spaceService.inviteMember(match.params.id, body.pubkey, body.name, origin);
         return { type: "API_RESPONSE", id, status: 200, body: result };
       }
       match = this.matchRoute("/mirage/v1/spaces/:id/store", path);
       if (match && method === "GET") {
-        const store = await this.spaceService.getSpaceStore(match.params.id);
+        const store = await this.spaceService.getSpaceStore(match.params.id, origin);
         return { type: "API_RESPONSE", id, status: 200, body: store };
       }
       match = this.matchRoute("/mirage/v1/spaces/:id/store/:key", path);
       if (match && method === "PUT") {
-        const result = await this.spaceService.updateSpaceStore(match.params.id, match.params.key, body);
+        const result = await this.spaceService.updateSpaceStore(match.params.id, match.params.key, body, origin);
         return { type: "API_RESPONSE", id, status: 200, body: result };
       }
       if (method === "GET" && path === "/mirage/v1/space") {
@@ -9791,32 +9796,32 @@
       if (method === "GET" && path === "/mirage/v1/space/store") {
         if (!this.currentSpace?.id)
           return { type: "API_RESPONSE", id, status: 400, body: { error: "No space context set" } };
-        const store = await this.spaceService.getSpaceStore(this.currentSpace.id);
+        const store = await this.spaceService.getSpaceStore(this.currentSpace.id, origin);
         return { type: "API_RESPONSE", id, status: 200, body: store };
       }
       match = this.matchRoute("/mirage/v1/space/store/:key", path);
       if (match && method === "PUT") {
         if (!this.currentSpace?.id)
           return { type: "API_RESPONSE", id, status: 400, body: { error: "No space context set" } };
-        const result = await this.spaceService.updateSpaceStore(this.currentSpace.id, match.params.key, body);
+        const result = await this.spaceService.updateSpaceStore(this.currentSpace.id, match.params.key, body, origin);
         return { type: "API_RESPONSE", id, status: 200, body: result };
       }
       if (path === "/mirage/v1/space/messages") {
         if (!this.currentSpace?.id)
           return { type: "API_RESPONSE", id, status: 400, body: { error: "No space context set" } };
         if (method === "GET") {
-          const messages = await this.spaceService.getMessages(this.currentSpace.id, body?.limit, body?.since);
+          const messages = await this.spaceService.getMessages(this.currentSpace.id, body?.limit, body?.since, origin);
           return { type: "API_RESPONSE", id, status: 200, body: messages };
         }
         if (method === "POST") {
-          const msg = await this.spaceService.sendMessage(this.currentSpace.id, body.content);
+          const msg = await this.spaceService.sendMessage(this.currentSpace.id, body.content, origin);
           return { type: "API_RESPONSE", id, status: 201, body: msg };
         }
       }
       if (method === "POST" && path === "/mirage/v1/space/invitations") {
         if (!this.currentSpace?.id)
           return { type: "API_RESPONSE", id, status: 400, body: { error: "No space context set" } };
-        const result = await this.spaceService.inviteMember(this.currentSpace.id, body.pubkey, body.name);
+        const result = await this.spaceService.inviteMember(this.currentSpace.id, body.pubkey, body.name, origin);
         return { type: "API_RESPONSE", id, status: 200, body: result };
       }
       return { type: "API_RESPONSE", id, status: 404, body: { error: "Route not found" } };
@@ -9864,7 +9869,6 @@
       this.storageService.updateContext({
         relays: this.relays,
         currentPubkey: this.currentPubkey,
-        appOrigin: this.appOrigin,
         currentSpace: this.currentSpace
       });
       this.userService.updateContext({
