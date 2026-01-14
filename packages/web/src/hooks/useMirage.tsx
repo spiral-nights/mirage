@@ -54,9 +54,6 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
     }
 
     try {
-      // Ensure system origin so /admin/* routes remain accessible even if an app is mounted.
-      (currentHost as any).setAppOrigin('mirage');
-
       console.log('[useMirage] Refreshing apps from engine...');
       const library = await currentHost.request('GET', '/mirage/v1/admin/apps');
       console.log('[useMirage] Apps received:', typeof library, Array.isArray(library) ? `Array(${library.length})` : library);
@@ -173,9 +170,6 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
 
             // Load initial data
             try {
-              // Ensure system origin so /admin/* routes remain accessible even if an app was mounted previously.
-              (mirageHost as any).setAppOrigin('mirage');
-
               const [library, userProfile, _spaces] = await Promise.all([
                 mirageHost.request('GET', '/mirage/v1/admin/apps').catch((e: any) => { console.warn('Apps fetch failed', e); return []; }),
                 mirageHost.request('GET', '/mirage/v1/user/me').catch((e: any) => { console.warn('Profile fetch failed', e); return null; }),
@@ -216,9 +210,6 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
       }
       currentHost.setPubkey(pk);
       try {
-        // Ensure system origin so /admin/* routes remain accessible even if an app was mounted previously.
-        (currentHost as any).setAppOrigin('mirage');
-
         const [library, userProfile, _spaces] = await Promise.all([
           currentHost.request('GET', '/mirage/v1/admin/apps').catch((e: any) => { console.warn('Apps fetch failed', e); return []; }),
           currentHost.request('GET', '/mirage/v1/user/me').catch((e: any) => { console.warn('Profile fetch failed', e); return null; }),
@@ -254,10 +245,6 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
   ): Promise<string> => {
     const currentHost = host || globalHost;
     if (!currentHost || !pubkey) throw new Error('Mirage not initialized or no signer found');
-
-    // Ensure we are in Admin Mode (System Origin) before publishing.
-    // This is necessary if we are currently running an app (RunPage), which sets appOrigin to the app's ID.
-    (currentHost as any).setAppOrigin('mirage');
 
     const result = await currentHost.request('POST', '/mirage/v1/admin/apps/publish', {
       html,
@@ -315,9 +302,6 @@ export const MirageProvider = ({ children }: { children: ReactNode }) => {
     if (!currentHost) return false;
 
     try {
-      // Ensure system origin so /admin/* routes remain accessible even if an app is mounted.
-      (currentHost as any).setAppOrigin('mirage');
-
       const result = await currentHost.request('DELETE', '/mirage/v1/admin/apps', { naddr });
       if (result.deleted) {
         setApps(prevApps => prevApps.filter(a => a.naddr !== naddr));

@@ -70,11 +70,13 @@ export class MirageHost {
   private engineWorker: Worker;
   private appPermissions: AppPermissions = { permissions: [] };
   private relays: string[];
+  private currentAppOrigin: string = "mirage"; // Tracks current app's origin for stamping requests
   private pendingInternalRequests = new Map<
     string,
     { resolve: (val: any) => void; reject: (err: any) => void }
   >();
   private listeners: Record<string, ((event: any) => void)[]> = {};
+
 
   constructor(config: MirageHostConfig) {
     this.config = config;
@@ -262,12 +264,13 @@ export class MirageHost {
           // Set app origin for space scoping (use canonical ID for shorter d-tags)
           if (appId) {
             const canonicalOrigin = getCanonicalAppId(appId);
+            this.currentAppOrigin = canonicalOrigin; // Track locally for request stamping
             console.log(
               "[Host] Setting app origin:",
               canonicalOrigin,
             );
 
-            // Send to Engine (for relay operations)
+            // Send to Engine for legacy context compatibility (will be deprecated)
             this.engineWorker.postMessage({
               type: "SET_APP_ORIGIN",
               id: crypto.randomUUID(),
@@ -314,7 +317,10 @@ export class MirageHost {
     }
     this.appPermissions = { permissions: [] };
 
-    // Reset appOrigin to system origin so admin endpoints work again
+    // Reset currentAppOrigin so admin requests from main UI work
+    this.currentAppOrigin = "mirage";
+
+    // Send to Engine for legacy context compatibility (will be deprecated)
     this.engineWorker.postMessage({
       type: "SET_APP_ORIGIN",
       id: crypto.randomUUID(),
@@ -411,6 +417,7 @@ export class MirageHost {
       method,
       path,
       body,
+      origin: this.currentAppOrigin, // Stamp with current origin for routing
     });
   }
 
@@ -581,16 +588,26 @@ export class MirageHost {
 
     // Route: API_REQUEST from App -> Engine
     if (message.type === "API_REQUEST") {
-      // Check permissions here if needed
-      this.engineWorker.postMessage(message);
+      // Stamp the request with the current app origin
+      const stampedMessage = {
+        ...message,
+        origin: this.currentAppOrigin || "mirage",
+      };
+      this.engineWorker.postMessage(stampedMessage);
     }
     // Route: STREAM_OPEN / STREAM_CLOSE from App -> Engine
     else if (
       message.type === "STREAM_OPEN" ||
       message.type === "STREAM_CLOSE"
     ) {
-      this.engineWorker.postMessage(message);
+      // Stamp stream messages with origin as well
+      const stampedMessage = {
+        ...message,
+        origin: this.currentAppOrigin || "mirage",
+      };
+      this.engineWorker.postMessage(stampedMessage);
     }
+
     // Route: ACTION_SIGN_EVENT from App -> Host (handled here)
     else if (message.type === "ACTION_SIGN_EVENT") {
       // Forward sign requests to Engine, which will then ask Host to sign?

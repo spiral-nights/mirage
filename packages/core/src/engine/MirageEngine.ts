@@ -139,26 +139,31 @@ export class MirageEngine {
     }
 
     private async handleApiRequest(message: ApiRequestMessage) {
-        const { method, path, body, id } = message;
+        const { method, path, body, id, origin: requestOrigin } = message;
+
+        // Fallback to legacy stateful origin if not stamped (should be rare after host update)
+        // or to SYSTEM_APP_ORIGIN for admin safety.
+        const origin = requestOrigin || this.appOrigin || SYSTEM_APP_ORIGIN;
+
         let response: ApiResponseMessage;
 
         try {
             // Router Logic (Simplified for V2)
             if (path.startsWith('/mirage/v1/space/me/')) {
                 // Personal Storage (StorageService)
-                response = await this.routeStorage(method, path, body, id);
+                response = await this.routeStorage(method, path, body, id, origin);
             } else if (path.startsWith('/mirage/v1/space') || path.startsWith('/mirage/v1/admin/spaces')) {
-                response = await this.routeSpaces(method, path, body, id);
+                response = await this.routeSpaces(method, path, body, id, origin);
             } else if (path.startsWith('/mirage/v1/admin/apps')) {
-                response = await this.routeApps(method, path, body, id);
+                response = await this.routeApps(method, path, body, id, origin);
             } else if (path.startsWith('/mirage/v1/contacts')) {
-                response = await this.routeContacts(method, path, body, id);
+                response = await this.routeContacts(method, path, body, id, origin);
             } else if (path.startsWith('/mirage/v1/dms')) {
-                response = await this.routeDMs(method, path, body, id);
+                response = await this.routeDMs(method, path, body, id, origin);
             } else if (path.startsWith('/mirage/v1/events')) {
-                response = await this.routeEvents(method, path, body, id);
+                response = await this.routeEvents(method, path, body, id, origin);
             } else if (path.startsWith('/mirage/v1/user') || path.startsWith('/mirage/v1/users')) {
-                response = await this.routeUsers(method, path, body, id);
+                response = await this.routeUsers(method, path, body, id, origin);
             } else {
                 response = { type: 'API_RESPONSE', id, status: 404, body: { error: 'Not found' } };
             }
@@ -182,8 +187,8 @@ export class MirageEngine {
         this.send(response as any); // Types might be strictly MirageMessage, but postMessage accepts generic
     }
 
-    private async routeApps(method: string, path: string, body: any, id: string): Promise<ApiResponseMessage> {
-        const isAdminOrigin = this.appOrigin === SYSTEM_APP_ORIGIN;
+    private async routeApps(method: string, path: string, body: any, id: string, origin: string): Promise<ApiResponseMessage> {
+        const isAdminOrigin = origin === SYSTEM_APP_ORIGIN;
         if (!isAdminOrigin) {
             return { type: 'API_RESPONSE', id, status: 403, body: { error: 'Admin access required' } };
         }
@@ -257,7 +262,7 @@ export class MirageEngine {
         return { type: 'API_RESPONSE', id, status: 404, body: { error: 'Route not found' } };
     }
 
-    private async routeContacts(method: string, path: string, body: any, id: string): Promise<ApiResponseMessage> {
+    private async routeContacts(method: string, path: string, body: any, id: string, _origin: string): Promise<ApiResponseMessage> {
         // GET /mirage/v1/contacts
         if (method === 'GET' && path === '/mirage/v1/contacts') {
             const contacts = await this.contactService.listContacts();
@@ -280,7 +285,7 @@ export class MirageEngine {
         return { type: 'API_RESPONSE', id, status: 404, body: { error: 'Route not found' } };
     }
 
-    private async routeDMs(method: string, path: string, body: any, id: string): Promise<ApiResponseMessage> {
+    private async routeDMs(method: string, path: string, body: any, id: string, _origin: string): Promise<ApiResponseMessage> {
         // GET /mirage/v1/dms
         if (method === 'GET' && path === '/mirage/v1/dms') {
             const dms = await this.directMessageService.listDMs();
@@ -304,7 +309,7 @@ export class MirageEngine {
         return { type: 'API_RESPONSE', id, status: 404, body: { error: 'Route not found' } };
     }
 
-    private async routeEvents(method: string, path: string, body: any, id: string): Promise<ApiResponseMessage> {
+    private async routeEvents(method: string, path: string, body: any, id: string, _origin: string): Promise<ApiResponseMessage> {
         // POST /mirage/v1/events
         if (method === 'POST' && path === '/mirage/v1/events') {
             const result = await this.eventService.publishEvent(body, body.targetRelays);
@@ -357,7 +362,7 @@ export class MirageEngine {
         return { type: 'API_RESPONSE', id, status: 404, body: { error: 'Route not found' } };
     }
 
-    private async routeUsers(method: string, path: string, _body: any, id: string): Promise<ApiResponseMessage> {
+    private async routeUsers(method: string, path: string, _body: any, id: string, _origin: string): Promise<ApiResponseMessage> {
         // GET /mirage/v1/user/me
         if (method === 'GET' && path === '/mirage/v1/user/me') {
             try {
@@ -379,7 +384,9 @@ export class MirageEngine {
         return { type: 'API_RESPONSE', id, status: 404, body: { error: 'Route not found' } };
     }
 
-    private async routeStorage(method: string, path: string, body: any, id: string): Promise<ApiResponseMessage> {
+    private async routeStorage(method: string, path: string, body: any, id: string, origin: string): Promise<ApiResponseMessage> {
+        // Update service context with the per-request origin
+        this.storageService.updateContext({ appOrigin: origin });
         // Match /mirage/v1/space/me/:key
         const match = this.matchRoute('/mirage/v1/space/me/:key', path);
         if (match) {
@@ -432,7 +439,9 @@ export class MirageEngine {
     }
 
 
-    private async routeSpaces(method: string, path: string, body: any, id: string): Promise<ApiResponseMessage> {
+    private async routeSpaces(method: string, path: string, body: any, id: string, origin: string): Promise<ApiResponseMessage> {
+        // Update service context with the per-request origin
+        this.spaceService.updateContext({ appOrigin: origin });
         // GET /mirage/v1/spaces
         if (method === 'GET' && path === '/mirage/v1/spaces') {
             const spaces = await this.spaceService.listSpaces();

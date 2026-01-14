@@ -88,6 +88,7 @@ export interface ApiRequestMessage extends BaseMessage {
     path: string;
     body?: unknown;
     headers?: Record<string, string>;
+    origin?: string; // Stamped by Host
 }
 
 /** API response from Engine to Bridge */
@@ -179,6 +180,7 @@ export interface StreamOpenMessage extends BaseMessage {
     method: 'GET';
     path: string;
     headers?: Record<string, string>;
+    origin?: string; // Stamped by Host
 }
 
 /** Data chunk for a stream (Engine -> Bridge) */
