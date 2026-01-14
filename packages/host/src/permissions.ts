@@ -51,6 +51,11 @@ export function parsePermissions(html: string): AppPermissions {
 export function isPathAllowed(path: string, method: string, permissions: AppPermissions): boolean {
     const { permissions: perms } = permissions;
 
+    // /mirage/v1/ready - Always allowed (system readiness check)
+    if (path === '/mirage/v1/ready') {
+        return true;
+    }
+
     // /mirage/v1/feed
     if (path.startsWith('/mirage/v1/feed')) {
         if (method === 'GET') return perms.includes('public_read');
@@ -62,14 +67,31 @@ export function isPathAllowed(path: string, method: string, permissions: AppPerm
         return perms.includes('public_read');
     }
 
-    // /mirage/v1/storage
-    if (path.startsWith('/mirage/v1/storage')) {
+    // /mirage/v1/events
+    if (path.startsWith('/mirage/v1/events')) {
+        if (method === 'GET') return perms.includes('public_read');
+        if (method === 'POST') return perms.includes('public_write');
+    }
+
+    // /mirage/v1/contacts
+    if (path.startsWith('/mirage/v1/contacts')) {
+        return perms.includes('public_read');
+    }
+
+    // /mirage/v1/storage and /mirage/v1/space/me (personal storage)
+    if (path.startsWith('/mirage/v1/storage') || path.startsWith('/mirage/v1/space/me')) {
         if (method === 'GET') return perms.includes('storage_read');
         if (method === 'PUT' || method === 'DELETE') return perms.includes('storage_write');
     }
 
-    // /mirage/v1/spaces
+    // /mirage/v1/spaces (explicit space routes)
     if (path.startsWith('/mirage/v1/spaces')) {
+        if (method === 'GET') return perms.includes('space_read') || perms.includes('spaces_read');
+        if (method === 'PUT' || method === 'POST' || method === 'DELETE') return perms.includes('space_write') || perms.includes('spaces_write');
+    }
+
+    // /mirage/v1/space (implicit context routes - store, messages, invitations)
+    if (path.startsWith('/mirage/v1/space')) {
         if (method === 'GET') return perms.includes('space_read') || perms.includes('spaces_read');
         if (method === 'PUT' || method === 'POST') return perms.includes('space_write') || perms.includes('spaces_write');
     }

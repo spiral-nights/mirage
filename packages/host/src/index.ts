@@ -594,6 +594,24 @@ export class MirageHost {
 
     // Route: API_REQUEST from App -> Engine
     if (message.type === "API_REQUEST") {
+      const { method, path, id } = message;
+
+      // Check if the app has permission for this route
+      if (!isPathAllowed(path, method, this.appPermissions)) {
+        console.warn(`[MirageHost] App denied access to ${method} ${path}`);
+        // Send error response back to the app
+        this.iframe?.contentWindow?.postMessage(
+          {
+            type: "API_RESPONSE",
+            id,
+            status: 403,
+            body: { error: "Permission denied" },
+          },
+          "*"
+        );
+        return;
+      }
+
       // Stamp the request with the current app origin
       const stampedMessage = {
         ...message,

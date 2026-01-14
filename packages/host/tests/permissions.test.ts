@@ -1,5 +1,6 @@
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 import { parsePermissions, isPathAllowed } from '../src/permissions';
+import type { Permission } from '@mirage/core';
 
 describe('parsePermissions', () => {
     test('parses valid permissions from meta tag', () => {
@@ -92,5 +93,39 @@ describe('isPathAllowed', () => {
 
         expect(isPathAllowed('/mirage/v1/dm/pubkey123', 'GET', readPerms)).toBe(true);
         expect(isPathAllowed('/mirage/v1/dm/pubkey123', 'POST', writePerms)).toBe(true);
+    });
+
+    test('denies admin routes for all permission combinations', () => {
+        // Admin routes should NEVER be allowed for apps - no permission grants access
+        const allPerms = {
+            permissions: [
+                'public_read' as const,
+                'public_write' as const,
+                'storage_read' as const,
+                'storage_write' as const,
+                'space_read' as const,
+                'space_write' as const,
+                'dm_read' as const,
+                'dm_write' as const,
+            ]
+        };
+
+        // App management routes
+        expect(isPathAllowed('/mirage/v1/admin/apps', 'GET', allPerms)).toBe(false);
+        expect(isPathAllowed('/mirage/v1/admin/apps', 'POST', allPerms)).toBe(false);
+        expect(isPathAllowed('/mirage/v1/admin/apps/publish', 'POST', allPerms)).toBe(false);
+
+        // Admin space routes
+        expect(isPathAllowed('/mirage/v1/admin/spaces', 'GET', allPerms)).toBe(false);
+        expect(isPathAllowed('/mirage/v1/admin/spaces/123', 'PUT', allPerms)).toBe(false);
+        expect(isPathAllowed('/mirage/v1/admin/spaces/123/invitations', 'POST', allPerms)).toBe(false);
+    });
+
+    test('denies routes with no permissions', () => {
+        const noPerms = { permissions: [] as Permission[] };
+
+        expect(isPathAllowed('/mirage/v1/feed', 'GET', noPerms)).toBe(false);
+        expect(isPathAllowed('/mirage/v1/storage/key', 'GET', noPerms)).toBe(false);
+        expect(isPathAllowed('/mirage/v1/spaces', 'GET', noPerms)).toBe(false);
     });
 });

@@ -116,9 +116,11 @@ To maintain data isolation and prevent collisions, Mirage constructs NIP-78 `d` 
 
 The format is hierarchical: `[Origin] : [SpaceScope] : [Key]`
 
-1.  **Origin** (`appOrigin`): The unique identifier of the application writing the data.
-    *   For System/Admin actions, this is heavily forced to `mirage`.
-    *   For 3rd party apps, this is their canonical ID (e.g., `kind:pubkey:identifier` or custom string).
+1.  **Origin** (`origin`): The unique identifier of the application making the request.
+    *   **Stamped per-request** by the Host when forwarding API calls to the Engine.
+    *   For System/Admin app management actions, the Host overrides to `mirage`.
+    *   For 3rd party apps, this is their canonical ID (e.g., `kind:pubkey:identifier`).
+    *   Services receive `origin` as a method parameter (pure function approach).
 2.  **SpaceScope** (`spaceId`): The UUID of the Space the data belongs to.
     *   If the data is **System Level** (Global), this part is omitted.
 3.  **Key**: The specific identifier for the data item (e.g., `settings`, `bookmarks`).
