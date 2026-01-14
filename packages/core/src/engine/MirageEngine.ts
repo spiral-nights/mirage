@@ -35,7 +35,7 @@ export class MirageEngine {
 
     // State
     private currentPubkey: string | null = null;
-    private appOrigin: string = 'unknown';
+    private appOrigin: string = 'mirage'; // Default to SYSTEM_APP_ORIGIN
     // Add currentSpace state
     private currentSpace: { id: string; name: string } | undefined;
 
@@ -94,7 +94,6 @@ export class MirageEngine {
             requestEncrypt,
             requestDecrypt,
             this.currentPubkey,
-            this.appOrigin,
             this.currentSpace
         );
 
@@ -385,8 +384,6 @@ export class MirageEngine {
     }
 
     private async routeStorage(method: string, path: string, body: any, id: string, origin: string): Promise<ApiResponseMessage> {
-        // Update service context with the per-request origin
-        this.storageService.updateContext({ appOrigin: origin });
         // Match /mirage/v1/space/me/:key
         const match = this.matchRoute('/mirage/v1/space/me/:key', path);
         if (match) {
@@ -399,7 +396,7 @@ export class MirageEngine {
             }
 
             if (method === 'GET') {
-                const val = await this.storageService.getStorage(match.params.key, params.pubkey);
+                const val = await this.storageService.getStorage(match.params.key, origin, params.pubkey);
                 // Return NIP-78 format: { key, value, updatedAt }
                 if (val === null) return { type: 'API_RESPONSE', id, status: 404, body: { error: 'Key not found' } };
                 return {
@@ -416,7 +413,7 @@ export class MirageEngine {
 
             if (method === 'PUT') {
                 const isPublic = params.public === 'true';
-                const event = await this.storageService.putStorage(match.params.key, body, isPublic);
+                const event = await this.storageService.putStorage(match.params.key, body, origin, isPublic);
                 return {
                     type: 'API_RESPONSE',
                     id,
@@ -431,7 +428,7 @@ export class MirageEngine {
             }
 
             if (method === 'DELETE') {
-                await this.storageService.deleteStorage(match.params.key);
+                await this.storageService.deleteStorage(match.params.key, origin);
                 return { type: 'API_RESPONSE', id, status: 200, body: { deleted: true, key: match.params.key } };
             }
         }
@@ -440,11 +437,9 @@ export class MirageEngine {
 
 
     private async routeSpaces(method: string, path: string, body: any, id: string, origin: string): Promise<ApiResponseMessage> {
-        // Update service context with the per-request origin
-        this.spaceService.updateContext({ appOrigin: origin });
         // GET /mirage/v1/spaces
         if (method === 'GET' && path === '/mirage/v1/spaces') {
-            const spaces = await this.spaceService.listSpaces();
+            const spaces = await this.spaceService.listSpaces(origin);
             return { type: 'API_RESPONSE', id, status: 200, body: spaces };
         }
 
@@ -464,7 +459,7 @@ export class MirageEngine {
         let match = this.matchRoute('/mirage/v1/spaces/:id', path);
         if (match) {
             if (method === 'DELETE') {
-                const deleted = await this.spaceService.deleteSpace(match.params.id);
+                const deleted = await this.spaceService.deleteSpace(match.params.id, origin);
                 return { type: 'API_RESPONSE', id, status: 200, body: { deleted } };
             }
         }
@@ -473,11 +468,11 @@ export class MirageEngine {
         match = this.matchRoute('/mirage/v1/admin/spaces/:id', path);
         if (match) {
             if (method === 'PUT') {
-                const updated = await this.spaceService.updateSpace(match.params.id, body.name);
+                const updated = await this.spaceService.updateSpace(match.params.id, body.name, origin);
                 return { type: 'API_RESPONSE', id, status: 200, body: updated };
             }
             if (method === 'DELETE') {
-                const deleted = await this.spaceService.deleteSpace(match.params.id);
+                const deleted = await this.spaceService.deleteSpace(match.params.id, origin);
                 return { type: 'API_RESPONSE', id, status: 200, body: { deleted } };
             }
         }
@@ -486,11 +481,11 @@ export class MirageEngine {
         match = this.matchRoute('/mirage/v1/spaces/:id/messages', path);
         if (match) {
             if (method === 'GET') {
-                const messages = await this.spaceService.getMessages(match.params.id, body?.limit, body?.since);
+                const messages = await this.spaceService.getMessages(match.params.id, body?.limit, body?.since, origin);
                 return { type: 'API_RESPONSE', id, status: 200, body: messages };
             }
             if (method === 'POST') {
-                const msg = await this.spaceService.sendMessage(match.params.id, body.content);
+                const msg = await this.spaceService.sendMessage(match.params.id, body.content, origin);
                 return { type: 'API_RESPONSE', id, status: 201, body: msg };
             }
         }
@@ -498,21 +493,21 @@ export class MirageEngine {
         // Match /mirage/v1/admin/spaces/:id/invitations
         match = this.matchRoute('/mirage/v1/admin/spaces/:id/invitations', path);
         if (match && method === 'POST') {
-            const result = await this.spaceService.inviteMember(match.params.id, body.pubkey, body.name);
+            const result = await this.spaceService.inviteMember(match.params.id, body.pubkey, body.name, origin);
             return { type: 'API_RESPONSE', id, status: 200, body: result };
         }
 
         // Match /mirage/v1/spaces/:id/store
         match = this.matchRoute('/mirage/v1/spaces/:id/store', path);
         if (match && method === 'GET') {
-            const store = await this.spaceService.getSpaceStore(match.params.id);
+            const store = await this.spaceService.getSpaceStore(match.params.id, origin);
             return { type: 'API_RESPONSE', id, status: 200, body: store };
         }
 
         // Match /mirage/v1/spaces/:id/store/:key
         match = this.matchRoute('/mirage/v1/spaces/:id/store/:key', path);
         if (match && method === 'PUT') {
-            const result = await this.spaceService.updateSpaceStore(match.params.id, match.params.key, body);
+            const result = await this.spaceService.updateSpaceStore(match.params.id, match.params.key, body, origin);
             return { type: 'API_RESPONSE', id, status: 200, body: result };
         }
 
@@ -539,7 +534,7 @@ export class MirageEngine {
         // GET /mirage/v1/space/store
         if (method === 'GET' && path === '/mirage/v1/space/store') {
             if (!this.currentSpace?.id) return { type: 'API_RESPONSE', id, status: 400, body: { error: 'No space context set' } };
-            const store = await this.spaceService.getSpaceStore(this.currentSpace.id);
+            const store = await this.spaceService.getSpaceStore(this.currentSpace.id, origin);
             return { type: 'API_RESPONSE', id, status: 200, body: store };
         }
 
@@ -547,7 +542,7 @@ export class MirageEngine {
         match = this.matchRoute('/mirage/v1/space/store/:key', path);
         if (match && method === 'PUT') {
             if (!this.currentSpace?.id) return { type: 'API_RESPONSE', id, status: 400, body: { error: 'No space context set' } };
-            const result = await this.spaceService.updateSpaceStore(this.currentSpace.id, match.params.key, body);
+            const result = await this.spaceService.updateSpaceStore(this.currentSpace.id, match.params.key, body, origin);
             return { type: 'API_RESPONSE', id, status: 200, body: result };
         }
 
@@ -556,11 +551,11 @@ export class MirageEngine {
             if (!this.currentSpace?.id) return { type: 'API_RESPONSE', id, status: 400, body: { error: 'No space context set' } };
 
             if (method === 'GET') {
-                const messages = await this.spaceService.getMessages(this.currentSpace.id, body?.limit, body?.since);
+                const messages = await this.spaceService.getMessages(this.currentSpace.id, body?.limit, body?.since, origin);
                 return { type: 'API_RESPONSE', id, status: 200, body: messages };
             }
             if (method === 'POST') {
-                const msg = await this.spaceService.sendMessage(this.currentSpace.id, body.content);
+                const msg = await this.spaceService.sendMessage(this.currentSpace.id, body.content, origin);
                 return { type: 'API_RESPONSE', id, status: 201, body: msg };
             }
         }
@@ -568,7 +563,7 @@ export class MirageEngine {
         // POST /mirage/v1/space/invitations (Implicit context invite)
         if (method === 'POST' && path === '/mirage/v1/space/invitations') {
             if (!this.currentSpace?.id) return { type: 'API_RESPONSE', id, status: 400, body: { error: 'No space context set' } };
-            const result = await this.spaceService.inviteMember(this.currentSpace.id, body.pubkey, body.name);
+            const result = await this.spaceService.inviteMember(this.currentSpace.id, body.pubkey, body.name, origin);
             return { type: 'API_RESPONSE', id, status: 200, body: result };
         }
 
@@ -626,7 +621,6 @@ export class MirageEngine {
         this.storageService.updateContext({
             relays: this.relays,
             currentPubkey: this.currentPubkey,
-            appOrigin: this.appOrigin,
             currentSpace: this.currentSpace
         });
 

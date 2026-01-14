@@ -57,20 +57,19 @@ describe('StorageService', () => {
             mockEncrypt,
             mockDecrypt,
             'test-pubkey-abc123def456',
-            'test-app',
             { id: 'test-space', name: 'Test Space' }
         );
     });
 
     describe('getStorage', () => {
         test('throws when not authenticated', async () => {
-            const anonService = new StorageService(mockPool, [], mockSign, mockEncrypt, mockDecrypt, null, 'app');
-            expect(anonService.getStorage('key')).rejects.toThrow('Not authenticated');
+            const anonService = new StorageService(mockPool, [], mockSign, mockEncrypt, mockDecrypt, null);
+            expect(anonService.getStorage('key', 'app')).rejects.toThrow('Not authenticated');
         });
 
         test('returns null when key not found', async () => {
             mockGet.mockResolvedValue(null);
-            const result = await service.getStorage('nonexistent');
+            const result = await service.getStorage('nonexistent', 'test-app');
             expect(result).toBeNull();
         });
 
@@ -87,7 +86,7 @@ describe('StorageService', () => {
             };
 
             mockGet.mockResolvedValue(storedEvent);
-            const result = await service.getStorage('my-key');
+            const result = await service.getStorage('my-key', 'test-app');
 
             expect(result).toEqual({ theme: 'dark' });
         });
@@ -108,7 +107,7 @@ describe('StorageService', () => {
                 return null;
             });
 
-            const result = await service.getStorage('public-key', foreignPubkey);
+            const result = await service.getStorage('public-key', 'test-app', foreignPubkey);
             expect(result).toEqual({ publicInfo: 'hello' });
             expect(mockDecrypt).not.toHaveBeenCalled();
         });
@@ -116,7 +115,7 @@ describe('StorageService', () => {
 
     describe('putStorage', () => {
         test('encrypts data by default', async () => {
-            await service.putStorage('settings', { secret: "shhh" });
+            await service.putStorage('settings', { secret: "shhh" }, 'test-app');
 
             expect(mockEncrypt).toHaveBeenCalled();
             const signCall = mockSign.mock.calls[0];
@@ -125,7 +124,7 @@ describe('StorageService', () => {
 
         test('skips encryption when public=true', async () => {
             const publicData = { visible: "everyone" };
-            await service.putStorage('profile', publicData, true);
+            await service.putStorage('profile', publicData, 'test-app', true);
 
             expect(mockEncrypt).not.toHaveBeenCalled();
             const signCall = mockSign.mock.calls[0];
@@ -135,7 +134,7 @@ describe('StorageService', () => {
 
     describe('deleteStorage', () => {
         test('publishes deletion markers', async () => {
-            await service.deleteStorage('key1');
+            await service.deleteStorage('key1', 'test-app');
 
             // Should publish tombstone and kind 5
             expect(mockPublish).toHaveBeenCalledTimes(2);

@@ -104,7 +104,7 @@ describe("MirageEngine V2", () => {
         await engine.handleMessage(msg as any);
 
         expect(response.status).toBe(200);
-        expect(mockDelete).toHaveBeenCalledWith("s1");
+        expect(mockDelete).toHaveBeenCalledWith("s1", "mirage");
     });
 
     test("routes admin deleteSpace correctly", async () => {
@@ -125,7 +125,7 @@ describe("MirageEngine V2", () => {
         await engine.handleMessage(msg as any);
 
         expect(response.status).toBe(200);
-        expect(mockDelete).toHaveBeenCalledWith("s2");
+        expect(mockDelete).toHaveBeenCalledWith("s2", "mirage");
     });
     test("routes listAllSpaces correctly", async () => {
         const mockListAll = mock(() => Promise.resolve([{ id: "s1" }]));
@@ -164,7 +164,7 @@ describe("MirageEngine V2", () => {
         await engine.handleMessage(msg as any);
 
         expect(response.status).toBe(200);
-        expect(mockUpdate).toHaveBeenCalledWith("s1", "Updated");
+        expect(mockUpdate).toHaveBeenCalledWith("s1", "Updated", "mirage");
     });
 
     test("routes admin invite member correctly", async () => {
@@ -184,7 +184,7 @@ describe("MirageEngine V2", () => {
         await engine.handleMessage(msg as any);
 
         expect(response.status).toBe(200);
-        expect(mockInvite).toHaveBeenCalledWith("s1", "p1", "Alice");
+        expect(mockInvite).toHaveBeenCalledWith("s1", "p1", "Alice", "mirage");
     });
 
     test("routes get/post messages for specific space", async () => {
@@ -205,7 +205,7 @@ describe("MirageEngine V2", () => {
         (engine as any).send = (r: any) => { response = r; };
         await engine.handleMessage(msg as any);
         expect(response.status).toBe(200);
-        expect(mockGetMsgs).toHaveBeenCalledWith("s1", 10, undefined);
+        expect(mockGetMsgs).toHaveBeenCalledWith("s1", 10, undefined, "mirage");
 
         // POST
         msg = {
@@ -217,7 +217,7 @@ describe("MirageEngine V2", () => {
         };
         await engine.handleMessage(msg as any);
         expect(response.status).toBe(201);
-        expect(mockSendMsg).toHaveBeenCalledWith("s1", "hello");
+        expect(mockSendMsg).toHaveBeenCalledWith("s1", "hello", "mirage");
     });
 
     test("routes get/put store for specific space", async () => {
@@ -238,7 +238,7 @@ describe("MirageEngine V2", () => {
         (engine as any).send = (r: any) => { response = r; };
         await engine.handleMessage(msg as any);
         expect(response.status).toBe(200);
-        expect(mockGetStore).toHaveBeenCalledWith("s1");
+        expect(mockGetStore).toHaveBeenCalledWith("s1", "mirage");
 
         // PUT
         msg = {
@@ -250,7 +250,7 @@ describe("MirageEngine V2", () => {
         };
         await engine.handleMessage(msg as any);
         expect(response.status).toBe(200);
-        expect(mockUpdateStore).toHaveBeenCalledWith("s1", "k1", { some: "data" });
+        expect(mockUpdateStore).toHaveBeenCalledWith("s1", "k1", { some: "data" }, "mirage");
     });
 
     test("routes get/put implicit space context", async () => {
@@ -301,7 +301,7 @@ describe("MirageEngine V2", () => {
             body: {}
         } as any);
         expect(response.status).toBe(200);
-        expect(mockGetStore).toHaveBeenCalledWith("s1");
+        expect(mockGetStore).toHaveBeenCalledWith("s1", "mirage");
 
         // PUT
         await engine.handleMessage({
@@ -312,7 +312,7 @@ describe("MirageEngine V2", () => {
             body: { val: 1 }
         } as any);
         expect(response.status).toBe(200);
-        expect(mockUpdateStore).toHaveBeenCalledWith("s1", "key1", { val: 1 });
+        expect(mockUpdateStore).toHaveBeenCalledWith("s1", "key1", { val: 1 }, "mirage");
     });
 
     test("routes implicit messages correctly", async () => {
@@ -334,7 +334,7 @@ describe("MirageEngine V2", () => {
             body: {}
         } as any);
         expect(response.status).toBe(200);
-        expect(mockGetMsgs).toHaveBeenCalledWith("s1", undefined, undefined);
+        expect(mockGetMsgs).toHaveBeenCalledWith("s1", undefined, undefined, "mirage");
 
         // POST
         await engine.handleMessage({
@@ -345,7 +345,7 @@ describe("MirageEngine V2", () => {
             body: { content: "hi" }
         } as any);
         expect(response.status).toBe(201);
-        expect(mockSendMsg).toHaveBeenCalledWith("s1", "hi");
+        expect(mockSendMsg).toHaveBeenCalledWith("s1", "hi", "mirage");
     });
 
     test("routes implicit invitations correctly", async () => {
@@ -365,7 +365,7 @@ describe("MirageEngine V2", () => {
         } as any);
 
         expect(response.status).toBe(200);
-        expect(mockInvite).toHaveBeenCalledWith("s1", "recipient-pubkey", "Test Space");
+        expect(mockInvite).toHaveBeenCalledWith("s1", "recipient-pubkey", "Test Space", "mirage");
         expect(response.body.invited).toBe("recipient-pubkey");
     });
 

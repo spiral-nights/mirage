@@ -79,14 +79,19 @@ export class SpaceService {
         return spaceId;
     }
 
-    async listSpaces(): Promise<Space[]> {
+    /**
+     * List spaces for the given origin
+     * @param origin - Optional origin to filter by (overrides context)
+     */
+    async listSpaces(origin?: string): Promise<Space[]> {
         if (!this.ctx.currentPubkey) throw new Error("Not authenticated");
 
         await this.syncInvites();
 
+        const appOrigin = origin || this.ctx.appOrigin;
         const keys = await this.getKeys();
         const spaces: Space[] = [];
-        const appPrefix = `${this.ctx.appOrigin}:`;
+        const appPrefix = `${appOrigin}:`;
 
         for (const [scopedId, keyInfo] of keys.entries()) {
             if (keyInfo.deleted) continue;
@@ -98,7 +103,7 @@ export class SpaceService {
                     name: keyInfo.name || `Space ${id.slice(0, 8)}`,
                     createdAt: keyInfo.createdAt || 0,
                     memberCount: 0,
-                    appOrigin: this.ctx.appOrigin
+                    appOrigin: appOrigin
                 });
             }
         }
@@ -163,17 +168,20 @@ export class SpaceService {
             appOrigin: appOrigin
         };
     }
-    async deleteSpace(rawSpaceId: string): Promise<string> {
-
+    /**
+     * Delete a space
+     * @param rawSpaceId - Space ID
+     * @param origin - Optional origin (overrides context)
+     */
+    async deleteSpace(rawSpaceId: string, origin?: string): Promise<string> {
         if (!this.ctx.currentPubkey) throw new Error("Not authenticated");
 
+        const appOrigin = origin || this.ctx.appOrigin;
         const spaceId = this.resolveSpaceId(rawSpaceId);
-
 
         const keys = await this.getKeys();
 
-
-        let targetScopedId = `${this.ctx.appOrigin}:${spaceId}`;
+        let targetScopedId = `${appOrigin}:${spaceId}`;
 
 
         if (!keys.has(targetScopedId)) {
@@ -200,13 +208,20 @@ export class SpaceService {
         return spaceId;
     }
 
-    async updateSpace(rawSpaceId: string, name: string): Promise<{ id: string; name: string }> {
+    /**
+     * Update a space's name
+     * @param rawSpaceId - Space ID
+     * @param name - New name
+     * @param origin - Optional origin (overrides context)
+     */
+    async updateSpace(rawSpaceId: string, name: string, origin?: string): Promise<{ id: string; name: string }> {
         if (!this.ctx.currentPubkey) throw new Error("Not authenticated");
 
+        const appOrigin = origin || this.ctx.appOrigin;
         const spaceId = this.resolveSpaceId(rawSpaceId);
         const keys = await this.getKeys();
 
-        let targetScopedId = `${this.ctx.appOrigin}:${spaceId}`;
+        let targetScopedId = `${appOrigin}:${spaceId}`;
 
         if (!keys.has(targetScopedId)) {
             const found = Array.from(keys.keys()).find(k => k.endsWith(`:${spaceId}`));
@@ -224,11 +239,16 @@ export class SpaceService {
         return { id: spaceId, name };
     }
 
-    async getMessages(rawSpaceId: string, limit = 50, since?: number): Promise<SpaceMessage[]> {
+    /**
+     * Get messages from a space
+     * @param origin - Optional origin (overrides context)
+     */
+    async getMessages(rawSpaceId: string, limit = 50, since?: number, origin?: string): Promise<SpaceMessage[]> {
         if (!this.ctx.currentPubkey) throw new Error("Not authenticated");
 
+        const appOrigin = origin || this.ctx.appOrigin;
         const spaceId = this.resolveSpaceId(rawSpaceId);
-        const scopedId = `${this.ctx.appOrigin}:${spaceId}`;
+        const scopedId = `${appOrigin}:${spaceId}`;
         const keys = await this.getKeys();
         const keyInfo = keys.get(scopedId);
 
@@ -266,11 +286,16 @@ export class SpaceService {
         return messages;
     }
 
-    async sendMessage(rawSpaceId: string, content: string): Promise<SpaceMessage> {
+    /**
+     * Send a message to a space
+     * @param origin - Optional origin (overrides context)
+     */
+    async sendMessage(rawSpaceId: string, content: string, origin?: string): Promise<SpaceMessage> {
         if (!this.ctx.currentPubkey) throw new Error("Not authenticated");
 
+        const appOrigin = origin || this.ctx.appOrigin;
         const spaceId = this.resolveSpaceId(rawSpaceId);
-        const scopedId = `${this.ctx.appOrigin}:${spaceId}`;
+        const scopedId = `${appOrigin}:${spaceId}`;
         const keys = await this.getKeys();
         const keyInfo = keys.get(scopedId);
 
@@ -314,9 +339,14 @@ export class SpaceService {
         }, keys);
     }
 
-    async inviteMember(rawSpaceId: string, pubkey: string, name?: string): Promise<{ invited: string }> {
+    /**
+     * Invite a member to a space
+     * @param origin - Optional origin (overrides context)
+     */
+    async inviteMember(rawSpaceId: string, pubkey: string, name?: string, origin?: string): Promise<{ invited: string }> {
         if (!this.ctx.currentPubkey) throw new Error("Not authenticated");
 
+        const appOrigin = origin || this.ctx.appOrigin;
         const spaceId = this.resolveSpaceId(rawSpaceId);
         let receiverPubkey = pubkey;
 
@@ -331,7 +361,7 @@ export class SpaceService {
             }
         }
 
-        const scopedId = `${this.ctx.appOrigin}:${spaceId}`;
+        const scopedId = `${appOrigin}:${spaceId}`;
         const keys = await this.getKeys();
         const keyInfo = keys.get(scopedId);
 
@@ -344,7 +374,7 @@ export class SpaceService {
             key: keyInfo.key,
             version: keyInfo.version,
             name: name || keyInfo.name || `Space ${spaceId.slice(0, 8)}`,
-            origin: this.ctx.appOrigin,
+            origin: appOrigin,
         };
 
         const innerEvent: UnsignedNostrEvent = {
@@ -442,11 +472,16 @@ export class SpaceService {
         }
     }
 
-    async getSpaceStore(rawSpaceId: string): Promise<Record<string, unknown>> {
+    /**
+     * Get the KV store for a space
+     * @param origin - Optional origin (overrides context)
+     */
+    async getSpaceStore(rawSpaceId: string, origin?: string): Promise<Record<string, unknown>> {
         if (!this.ctx.currentPubkey) throw new Error("Not authenticated");
 
+        const appOrigin = origin || this.ctx.appOrigin;
         const spaceId = this.resolveSpaceId(rawSpaceId);
-        const scopedId = `${this.ctx.appOrigin}:${spaceId}`;
+        const scopedId = `${appOrigin}:${spaceId}`;
         const keys = await this.getKeys();
         const keyInfo = keys.get(scopedId);
 
@@ -499,11 +534,16 @@ export class SpaceService {
         return stateObj;
     }
 
-    async updateSpaceStore(rawSpaceId: string, key: string, value: unknown): Promise<{ key: string; value: unknown; updatedAt: number }> {
+    /**
+     * Update a key in the space's KV store
+     * @param origin - Optional origin (overrides context)
+     */
+    async updateSpaceStore(rawSpaceId: string, key: string, value: unknown, origin?: string): Promise<{ key: string; value: unknown; updatedAt: number }> {
         if (!this.ctx.currentPubkey) throw new Error("Not authenticated");
 
+        const appOrigin = origin || this.ctx.appOrigin;
         const spaceId = this.resolveSpaceId(rawSpaceId);
-        const scopedId = `${this.ctx.appOrigin}:${spaceId}`;
+        const scopedId = `${appOrigin}:${spaceId}`;
         const keys = await this.getKeys();
         const keyInfo = keys.get(scopedId);
 

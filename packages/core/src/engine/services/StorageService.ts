@@ -9,7 +9,6 @@ export interface StorageServiceContext {
     requestEncrypt: (pubkey: string, plaintext: string) => Promise<string>;
     requestDecrypt: (pubkey: string, ciphertext: string) => Promise<string>;
     currentPubkey: string | null;
-    appOrigin: string;
     currentSpace?: {
         id: string;
         name: string;
@@ -28,7 +27,6 @@ export class StorageService {
         requestEncrypt: (pubkey: string, plaintext: string) => Promise<string>,
         requestDecrypt: (pubkey: string, ciphertext: string) => Promise<string>,
         currentPubkey: string | null,
-        appOrigin: string,
         currentSpace?: { id: string; name: string }
     ) {
         this.ctx = {
@@ -38,7 +36,6 @@ export class StorageService {
             requestEncrypt,
             requestDecrypt,
             currentPubkey,
-            appOrigin,
             currentSpace
         };
     }
@@ -49,19 +46,22 @@ export class StorageService {
 
     /**
      * Get value from storage
+     * @param key - Storage key
+     * @param origin - App origin for scoping
+     * @param targetPubkey - Optional pubkey to read from (for public data)
      */
-    public async getStorage(key: string, targetPubkey?: string): Promise<any | null> {
+    public async getStorage(key: string, origin: string, targetPubkey?: string): Promise<any | null> {
         if (!this.ctx.currentPubkey && !targetPubkey) throw new Error("Not authenticated");
 
-        const isSystemStorage = this.ctx.appOrigin === SYSTEM_APP_ORIGIN;
+        const isSystemStorage = origin === SYSTEM_APP_ORIGIN;
         if (!isSystemStorage && !this.ctx.currentSpace?.id) {
             throw new Error("Space context required for storage operations");
         }
 
         const author = targetPubkey || this.ctx.currentPubkey!;
         const dTag = isSystemStorage
-            ? `${this.ctx.appOrigin}:${key}`
-            : `${this.ctx.appOrigin}:${this.ctx.currentSpace!.id}:${key}`;
+            ? `${origin}:${key}`
+            : `${origin}:${this.ctx.currentSpace!.id}:${key}`;
 
         const filter: Filter = {
             kinds: [30078],
@@ -98,18 +98,22 @@ export class StorageService {
 
     /**
      * Put value into storage
+     * @param key - Storage key
+     * @param value - Value to store
+     * @param origin - App origin for scoping
+     * @param isPublic - If true, don't encrypt
      */
-    public async putStorage(key: string, value: any, isPublic: boolean = false): Promise<Event> {
+    public async putStorage(key: string, value: any, origin: string, isPublic: boolean = false): Promise<Event> {
         if (!this.ctx.currentPubkey) throw new Error("Not authenticated");
 
-        const isSystemStorage = this.ctx.appOrigin === SYSTEM_APP_ORIGIN;
+        const isSystemStorage = origin === SYSTEM_APP_ORIGIN;
         if (!isSystemStorage && !this.ctx.currentSpace?.id) {
             throw new Error("Space context required for storage operations");
         }
 
         const dTag = isSystemStorage
-            ? `${this.ctx.appOrigin}:${key}`
-            : `${this.ctx.appOrigin}:${this.ctx.currentSpace!.id}:${key}`;
+            ? `${origin}:${key}`
+            : `${origin}:${this.ctx.currentSpace!.id}:${key}`;
 
         const plaintext = typeof value === "string" ? value : JSON.stringify(value);
         let content = plaintext;
@@ -133,18 +137,20 @@ export class StorageService {
 
     /**
      * Delete value from storage
+     * @param key - Storage key
+     * @param origin - App origin for scoping
      */
-    public async deleteStorage(key: string): Promise<boolean> {
+    public async deleteStorage(key: string, origin: string): Promise<boolean> {
         if (!this.ctx.currentPubkey) throw new Error("Not authenticated");
 
-        const isSystemStorage = this.ctx.appOrigin === SYSTEM_APP_ORIGIN;
+        const isSystemStorage = origin === SYSTEM_APP_ORIGIN;
         if (!isSystemStorage && !this.ctx.currentSpace?.id) {
             throw new Error("Space context required for storage operations");
         }
 
         const dTag = isSystemStorage
-            ? `${this.ctx.appOrigin}:${key}`
-            : `${this.ctx.appOrigin}:${this.ctx.currentSpace!.id}:${key}`;
+            ? `${origin}:${key}`
+            : `${origin}:${this.ctx.currentSpace!.id}:${key}`;
 
         // Encrypt tombstone content
         let ciphertext: string;

@@ -411,13 +411,19 @@ export class MirageHost {
     path: string,
     body?: unknown,
   ): Promise<any> {
+    // Only app management routes need "mirage" origin override.
+    // Space operations (invites, updates, store, messages) use the current app's origin
+    // so data remains scoped to the app that created the space.
+    const isAppManagementRoute = path.includes('/admin/apps');
+    const origin = isAppManagementRoute ? "mirage" : this.currentAppOrigin;
+
     return this.sendToEngine({
       type: "API_REQUEST",
       id: crypto.randomUUID(),
       method,
       path,
       body,
-      origin: this.currentAppOrigin, // Stamp with current origin for routing
+      origin,
     });
   }
 
