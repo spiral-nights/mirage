@@ -152,6 +152,7 @@ export const InviteModal = ({ isOpen, onClose, spaceId, spaceName }: InviteModal
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="npub1..."
+              autoFocus
               className={cn(
                 "w-full bg-black/40 border rounded-2xl px-5 py-3 pr-12 text-white outline-none transition-all font-mono text-sm",
                 error

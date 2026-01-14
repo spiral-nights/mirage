@@ -154,6 +154,7 @@ export const PublishModal = ({
               readOnly={isView}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. My Awesome App"
+              autoFocus
               className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-4 text-white focus:border-vivid-yellow/30 focus:ring-4 focus:ring-vivid-yellow/5 outline-none transition-all font-medium"
             />
           </div>
