@@ -363,6 +363,7 @@ export interface AppDefinition {
     naddr: string;
     name: string;
     createdAt: number;
+    offline?: boolean;
 }
 
 // ============================================================================

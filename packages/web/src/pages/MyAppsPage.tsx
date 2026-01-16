@@ -157,7 +157,26 @@ export const MyAppsPage = () => {
     }
   };
 
-  const handleLaunch = (app: AppDefinition) => {
+  const handleLaunch = async (app: AppDefinition) => {
+    // Check if spaces exist for this app
+    const canonicalId = getAppCanonicalId(app.naddr);
+    const mySpaces = appSpaces.get(canonicalId) || [];
+
+    if (mySpaces.length === 0) {
+      // Auto-create default space
+      try {
+        const isOffline = app.offline; // Use offline flag from app definition
+        const space = await createSpace('Default Space', canonicalId, isOffline);
+        if (space) {
+          navigate(`/run/${app.naddr}?spaceId=${space.id}&spaceName=Default`);
+          return;
+        }
+      } catch (e) {
+        console.error("Failed to auto-create space", e);
+        // Fallback to picker
+      }
+    }
+
     setSelectedApp(app);
     setPickerModalOpen(true);
   };
@@ -223,11 +242,25 @@ export const MyAppsPage = () => {
               {externalSpaces.map((space) => (
                 <div key={space.id} className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-vivid-cyan/20 flex items-center justify-center text-vivid-cyan">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${space.offline
+                      ? 'bg-orange-500/20 text-orange-500'
+                      : 'bg-vivid-yellow/10 border border-vivid-yellow/20 text-vivid-yellow'
+                      }`}>
                       <Database size={18} />
                     </div>
                     <div>
-                      <h3 className="font-bold text-white">{space.name}</h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-bold text-white">{space.name}</h3>
+                        {space.offline ? (
+                          <span className="px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-500 text-[9px] font-bold uppercase tracking-wider">
+                            Offline
+                          </span>
+                        ) : (
+                          <span className="px-1.5 py-0.5 rounded bg-vivid-yellow/20 text-vivid-yellow text-[9px] font-bold uppercase tracking-wider">
+                            Online
+                          </span>
+                        )}
+                      </div>
                       {space.appOrigin && space.appOrigin !== 'mirage' ? (
                         <ResolvedAppName
                           naddr={space.appOrigin}
@@ -243,7 +276,7 @@ export const MyAppsPage = () => {
                       <>
                         <button
                           onClick={() => handleLaunchExternalApp(space)}
-                          className="p-2 hover:bg-white/10 rounded-lg text-gray-500 hover:text-vivid-cyan transition-colors"
+                          className={`p-2 hover:bg-white/10 rounded-lg text-gray-500 transition-colors ${space.offline ? 'hover:text-orange-500' : 'hover:text-vivid-cyan'}`}
                           title="Launch App"
                         >
                           <Play size={16} />
@@ -310,7 +343,6 @@ export const MyAppsPage = () => {
           setCreateSpaceOpen(true);
         }}
         spaces={spaces}
-        createSpace={createSpace}
       />
 
       <CreateSpaceModal

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useMirage } from '../hooks/useMirage';
+import { useSpaces } from '../hooks/useSpaces';
 import { useAppActions } from '../contexts/AppActionsContext';
 import type { AppDefinition } from '@mirage/core';
 import { XCircle } from 'lucide-react';
@@ -13,6 +14,7 @@ export const RunPage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { fetchApp, host, pubkey, apps } = useMirage();
+  const { spaces } = useSpaces();
   const { setAppActions } = useAppActions();
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -179,9 +181,14 @@ export const RunPage = () => {
   // Update context whenever app data changes
   useEffect(() => {
     if (activeApp) {
+      const currentSpace = spaces.find(s => s.id === spaceId);
       setAppActions({
         app: activeApp,
-        space: spaceId ? { id: spaceId, name: spaceName || 'Unnamed Space' } : null,
+        space: spaceId ? {
+          id: spaceId,
+          name: currentSpace?.name || spaceName || 'Unnamed Space',
+          offline: currentSpace?.offline
+        } : null,
         isAuthor,
         onViewEditSource: handleOpenSource,
         onInvite: handleInvite,
@@ -200,7 +207,7 @@ export const RunPage = () => {
         onExit: null,
       });
     };
-  }, [currentApp, spaceId, spaceName, isAuthor, handleOpenSource, handleInvite, handleExit, setAppActions]);
+  }, [activeApp, spaceId, spaceName, spaces, isAuthor, handleOpenSource, handleInvite, handleExit, setAppActions]);
 
   if (status === 'error') {
     return (

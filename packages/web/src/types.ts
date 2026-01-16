@@ -3,4 +3,5 @@ export interface SpaceWithApp {
     name: string;
     createdAt: number;
     appOrigin?: string;
+    offline?: boolean;
 }

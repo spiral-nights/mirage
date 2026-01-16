@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { X, Database, Plus, Play, Info, Loader2 } from 'lucide-react';
+import { X, Database, Plus, Info } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ModalWrapper } from './ModalWrapper';
 import { type Space } from '../hooks/useSpaces';
@@ -13,12 +12,10 @@ interface SpacePickerModalProps {
   app: AppDefinition | null;
   onCreateNew: () => void;
   spaces: Space[];
-  createSpace: (name: string, appId: string, offline?: boolean) => Promise<Space | null>;
 }
 
-export const SpacePickerModal = ({ isOpen, onClose, app, onCreateNew, spaces, createSpace }: SpacePickerModalProps) => {
+export const SpacePickerModal = ({ isOpen, onClose, app, onCreateNew, spaces }: SpacePickerModalProps) => {
   const navigate = useNavigate();
-  const [isCreatingDefault, setIsCreatingDefault] = useState(false);
 
   if (!app) return null;
 
@@ -26,34 +23,9 @@ export const SpacePickerModal = ({ isOpen, onClose, app, onCreateNew, spaces, cr
   const canonicalId = getAppCanonicalId(app.naddr);
   const appSpaces = spaces.filter(s => s.appOrigin === canonicalId);
 
-  // Check if a "Default" space already exists for this app
-  const defaultSpace = appSpaces.find(s => s.name === 'Default' || s.name === 'Default Space');
-
   const handleSelectSpace = (spaceId: string, spaceName: string) => {
     navigate(`/run/${app.naddr}?spaceId=${spaceId}&spaceName=${encodeURIComponent(spaceName)}`);
     onClose();
-  };
-
-  const handleUseDefaultSpace = async () => {
-    if (defaultSpace) {
-      // Use existing Default space
-      handleSelectSpace(defaultSpace.id, defaultSpace.name);
-      return;
-    }
-
-    // Create a new Default space
-    setIsCreatingDefault(true);
-    try {
-      const space = await createSpace('Default Space', canonicalId);
-      if (space) {
-        navigate(`/run/${app.naddr}?spaceId=${space.id}&spaceName=Default`);
-        onClose();
-      }
-    } catch (e) {
-      console.error('Failed to create default space:', e);
-    } finally {
-      setIsCreatingDefault(false);
-    }
   };
 
   return (
@@ -95,7 +67,6 @@ export const SpacePickerModal = ({ isOpen, onClose, app, onCreateNew, spaces, cr
                   </div>
                   <div className="text-[10px] opacity-50 truncate font-mono">#{s.id.slice(0, 8)}</div>
                 </div>
-                <Play size={14} className="text-gray-700 group-hover:text-vivid-cyan opacity-0 group-hover:opacity-100 transition-all" />
               </button>
             ))
           ) : (
@@ -115,23 +86,6 @@ export const SpacePickerModal = ({ isOpen, onClose, app, onCreateNew, spaces, cr
             Create New Space
           </button>
 
-          <button
-            onClick={handleUseDefaultSpace}
-            disabled={isCreatingDefault}
-            className="w-full py-4 rounded-2xl bg-vivid-cyan/10 text-vivid-cyan border border-vivid-cyan/20 hover:bg-vivid-cyan/20 transition-all text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-50"
-          >
-            {isCreatingDefault ? (
-              <>
-                <Loader2 size={14} className="animate-spin" />
-                Creating...
-              </>
-            ) : (
-              <>
-                <Play size={14} />
-                {defaultSpace ? 'Use Default Space' : 'Quick Start (Create Default)'}
-              </>
-            )}
-          </button>
         </div>
       </div>
     </ModalWrapper>

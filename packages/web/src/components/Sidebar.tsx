@@ -143,36 +143,37 @@ export const Sidebar = ({ onNavItemClick, collapsed = false, onToggle }: Sidebar
                   <div className={cn(
                     "flex items-center gap-3 rounded-xl bg-white/5 text-white border border-white/10 overflow-hidden group/item",
                     collapsed ? "justify-center p-2" : "px-4 py-3"
-                  )} title={collapsed ? `${app.name} (${space.name})` : undefined}>
-                    <Database size={16} className="text-vivid-yellow shrink-0" />
+                  )} title={collapsed ? `${app.name} (${space.name})${space.offline ? ' [OFFLINE]' : ''}` : undefined}>
+                    <Database size={16} className={space.offline ? "text-orange-500 shrink-0" : "text-vivid-yellow shrink-0"} />
                     {!collapsed && (
                       <div className="flex flex-col min-w-0 flex-1">
                         <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider truncate leading-tight">{app.name}</span>
-                        <div className="font-bold flex items-center gap-2">
-                          <span className="truncate">{space.name}</span>
-                          {space.offline && (
-                            <span className="px-1.5 py-0.5 rounded bg-vivid-cyan/20 text-vivid-cyan text-[10px] font-bold uppercase tracking-wider">
-                              Offline
-                            </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold truncate leading-tight">{space.name}</span>
+                          {space.offline ? (
+                            <span className="text-[8px] px-1 py-px rounded bg-orange-500/20 text-orange-500 font-bold uppercase tracking-wider">Offline</span>
+                          ) : (
+                            <span className="text-[8px] px-1 py-px rounded bg-vivid-yellow/20 text-vivid-yellow font-bold uppercase tracking-wider">Online</span>
                           )}
                         </div>
                       </div>
                     )}
-                    {!collapsed && !space.offline && onInvite && (
-                      <div className="flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onInvite(space.id);
-                          }}
-                          className="p-1.5 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
-                          title="Invite Members"
-                        >
-                          <Users size={14} />
-                        </button>
-                      </div>
-                    )}
                   </div>
+
+                  {!collapsed && !space.offline && onInvite && (
+                    <div className="flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity mt-1 px-4">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onInvite) onInvite(space.id);
+                        }}
+                        className="text-[10px] uppercase font-bold text-gray-500 hover:text-white flex items-center gap-1"
+                      >
+                        <Users size={12} />
+                        Invite
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -189,7 +190,7 @@ export const Sidebar = ({ onNavItemClick, collapsed = false, onToggle }: Sidebar
                     onClick={() => handleAppAction(onViewEditSource)}
                     collapsed={collapsed}
                   />
-                  {onInvite && (
+                  {onInvite && space && !space.offline && (
                     <ActionButton
                       icon={Send}
                       label="Invite"
