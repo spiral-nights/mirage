@@ -214,7 +214,7 @@ export const MyAppsPage = () => {
             <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl md:rounded-2xl bg-vivid-cyan/10 flex items-center justify-center text-vivid-cyan">
               <Database size={18} />
             </div>
-            <h2 className="text-[10px] md:text-sm font-black text-gray-400 uppercase tracking-[0.2em] md:tracking-[0.3em]">Shared Spaces (Other Apps)</h2>
+            <h2 className="text-[10px] md:text-sm font-black text-gray-400 uppercase tracking-[0.2em] md:tracking-[0.3em]">Shared & Personal Spaces</h2>
             <div className="h-px flex-1 bg-white/5" />
           </div>
 
@@ -228,16 +228,18 @@ export const MyAppsPage = () => {
                     </div>
                     <div>
                       <h3 className="font-bold text-white">{space.name}</h3>
-                      {space.appOrigin && (
+                      {space.appOrigin && space.appOrigin !== 'mirage' ? (
                         <ResolvedAppName
                           naddr={space.appOrigin}
                           className="text-xs text-gray-500 font-mono"
                         />
+                      ) : (
+                        <span className="text-xs text-gray-500 font-mono">Personal Space</span>
                       )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {space.appOrigin && (
+                    {space.appOrigin && space.appOrigin !== 'mirage' && (
                       <>
                         <button
                           onClick={() => handleLaunchExternalApp(space)}

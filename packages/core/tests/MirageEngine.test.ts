@@ -83,7 +83,7 @@ describe("MirageEngine V2", () => {
         await engine.handleMessage(msg as any);
 
         expect(response.status).toBe(201);
-        expect(mockCreate).toHaveBeenCalledWith("New Space", undefined);
+        expect(mockCreate).toHaveBeenCalledWith("New Space", undefined, undefined);
     });
 
     test("routes deleteSpace correctly with param", async () => {

@@ -1,5 +1,6 @@
 import { SimplePool, nip19 } from 'nostr-tools';
-import { SYSTEM_APP_ORIGIN, KeyManager } from './keys';
+import { MiragePool } from './MiragePool';
+import { SYSTEM_APP_ORIGIN } from './keys';
 import { SpaceService } from './services/SpaceService';
 import { AppService } from './services/AppService';
 import { ContactService } from './services/ContactService';
@@ -36,10 +37,6 @@ export class MirageEngine {
     private storageService: StorageService;
     private userService: UserService;
 
-    // Keys and Session
-    private keys: KeyManager;
-    private sessionKey: Uint8Array | null = null;
-
     // State
     private currentPubkey: string | null = null;
     private appOrigin: string = 'mirage'; // Default to SYSTEM_APP_ORIGIN
@@ -47,12 +44,19 @@ export class MirageEngine {
     private currentSpace: { id: string; name: string } | undefined;
 
     constructor(config: MirageEngineConfig) {
-        this.pool = config.pool || new SimplePool();
         this.relays = config.relays;
         this.localRelay = getLocalRelay();
 
+        // Use MiragePool if pool not provided, inject LocalRelay
+        if (config.pool && config.pool instanceof SimplePool) {
+            // If user provides pool, we can't easily force MiragePool behavior unless we wrap it?
+            // But config.pool is optional.
+            this.pool = config.pool;
+        } else {
+            this.pool = new MiragePool(this.localRelay);
+        }
+
         // Initialize services
-        this.keys = new KeyManager(this.pool);
 
         this.spaceService = new SpaceService({
             pool: this.pool,
@@ -462,7 +466,7 @@ export class MirageEngine {
 
         // POST /mirage/v1/admin/spaces
         if (method === 'POST' && path === '/mirage/v1/admin/spaces') {
-            const space = await this.spaceService.createSpace(body.name, body.appOrigin);
+            const space = await this.spaceService.createSpace(body.name, body.appOrigin, body.offline);
             return { type: 'API_RESPONSE', id, status: 201, body: space };
         }
 

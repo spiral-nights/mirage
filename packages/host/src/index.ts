@@ -347,7 +347,7 @@ export class MirageHost {
     return this.request(
       "POST",
       "/mirage/v1/admin/spaces",
-      { name, rawAppOrigin: appId, offline },
+      { name, appOrigin: appId, offline },
     );
   }
 

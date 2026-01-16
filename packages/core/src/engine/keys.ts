@@ -25,13 +25,6 @@ interface KeyMap {
   [spaceId: string]: SpaceKey;
 }
 
-export class KeyManager {
-  private pool: SimplePool;
-
-  constructor(pool: SimplePool) {
-    this.pool = pool;
-  }
-}
 
 /**
  * Load all space keys from NIP-78 storage.
@@ -39,9 +32,10 @@ export class KeyManager {
  */
 export async function loadSpaceKeys(
   ctx: KeyStorageContext,
+  storageId: string | string[] = KEY_STORAGE_ID
 ): Promise<Map<string, SpaceKey>> {
   try {
-    const rawMap = await internalGetStorage<KeyMap>(ctx, KEY_STORAGE_ID);
+    const rawMap = await internalGetStorage<KeyMap>(ctx, storageId);
 
     if (!rawMap) {
       return new Map();
@@ -64,6 +58,7 @@ export async function loadSpaceKeys(
 export async function saveSpaceKeys(
   ctx: KeyStorageContext,
   keys: Map<string, SpaceKey>,
+  storageId: string = KEY_STORAGE_ID
 ): Promise<void> {
   try {
     const rawMap: KeyMap = {};
@@ -71,7 +66,7 @@ export async function saveSpaceKeys(
       rawMap[id] = keyInfo;
     }
 
-    await internalPutStorage(ctx, KEY_STORAGE_ID, rawMap);
+    await internalPutStorage(ctx, storageId, rawMap);
     console.log("[Keys] Saved keys to NIP-78 (global keychain)");
   } catch (error) {
     console.error("[Keys] Failed to save keys:", error);
@@ -84,44 +79,54 @@ export async function saveSpaceKeys(
  */
 async function internalGetStorage<T>(
   ctx: KeyStorageContext,
-  key: string
+  key: string | string[]
 ): Promise<T | null> {
   if (!ctx.currentPubkey) return null;
 
   // Force system origin for keys
   const origin = SYSTEM_APP_ORIGIN;
-  const dTag = `${origin}:${key}`;
+  const keys = Array.isArray(key) ? key : [key];
+  const dTags = keys.map(k => `${origin}:${k}`);
 
   const filter: Filter = {
     kinds: [30078],
     authors: [ctx.currentPubkey],
-    "#d": [dTag],
-    limit: 1,
+    "#d": dTags,
   };
 
-  const event = await ctx.pool.get(ctx.relays, filter);
-  if (!event) return null;
+  // Use querySync (which returns Promise<Event[]>) since list isn't on SimplePool type here
+  const events = await ctx.pool.querySync(ctx.relays, filter);
+  if (events.length === 0) return null;
 
-  const content = event.content;
+  // Sort events by created_at ascending (oldest first) so newer updates overwrite older ones
+  const sortedEvents = [...events].sort((a, b) => a.created_at - b.created_at);
 
-  // 1. Try JSON
-  try {
-    return JSON.parse(content);
-  } catch { }
+  // Merge all found events
+  let merged: any = {};
 
-  // 2. Try Decrypt
-  if (event.pubkey === ctx.currentPubkey) {
+  for (const event of sortedEvents) {
+    const content = event.content;
+    let parsed: any = null;
+
+    // 1. Try JSON
     try {
-      const plaintext = await ctx.requestDecrypt(ctx.currentPubkey, content);
-      try {
-        return JSON.parse(plaintext);
-      } catch {
-        return plaintext as unknown as T;
-      }
+      parsed = JSON.parse(content);
     } catch { }
+
+    // 2. Try Decrypt
+    if (!parsed && event.pubkey === ctx.currentPubkey) {
+      try {
+        const plaintext = await ctx.requestDecrypt(ctx.currentPubkey, content);
+        parsed = JSON.parse(plaintext);
+      } catch { }
+    }
+
+    if (parsed) {
+      merged = { ...merged, ...parsed };
+    }
   }
 
-  return content as unknown as T;
+  return merged as T;
 }
 
 /**

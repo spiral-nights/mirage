@@ -31,7 +31,6 @@ export interface SpaceServiceContext {
 
 export class SpaceService {
     private ctx: SpaceServiceContext;
-    private keyCache: Map<string, SpaceKey> | null = null;
 
     // In-memory cache for KV Store Snapshots
     private storeCache = new Map<string, {
@@ -52,28 +51,9 @@ export class SpaceService {
     updateContext(patches: Partial<SpaceServiceContext>) {
         this.ctx = { ...this.ctx, ...patches };
         // Invalidate key cache if pubkey or appOrigin changes
-        if (
-            (patches.currentPubkey && patches.currentPubkey !== this.ctx.currentPubkey) ||
-            (patches.appOrigin && patches.appOrigin !== this.ctx.appOrigin)
-        ) {
-            this.keyCache = null;
-        }
     }
 
-    private async getKeys(): Promise<Map<string, SpaceKey>> {
-        if (!this.keyCache) {
-            this.keyCache = await loadSpaceKeys({
-                pool: this.ctx.pool,
-                relays: this.ctx.relays,
-                currentPubkey: this.ctx.currentPubkey,
-                requestSign: this.ctx.requestSign,
-                requestDecrypt: this.ctx.requestDecrypt,
-                requestEncrypt: this.ctx.requestEncrypt!,
-                appOrigin: this.ctx.appOrigin
-            });
-        }
-        return this.keyCache!;
-    }
+
     private resolveSpaceId(spaceId: string): string {
         if (spaceId === 'current') {
             return this.ctx.currentSpace?.id || 'default';
@@ -137,6 +117,32 @@ export class SpaceService {
             });
         }
         return spaces;
+    }
+
+    async getKeys(origin?: string): Promise<Map<string, SpaceKey>> {
+        if (!this.ctx.currentPubkey) throw new Error("Not authenticated");
+
+        // Load both Online and Offline keys in a single query
+        // MiragePool will route 'mirage://local' correctly if included in relays?
+        // Wait, "querySync" takes relays list. 
+        // If we want to query BOTH online and offline, we need to pass strict set of relays.
+        // ctx.relays usually only has online ones.
+        // We need to append 'mirage://local' to the relays list for this specific call.
+
+        const relaysToQuery = [...this.ctx.relays, 'mirage://local'];
+
+        // Storage IDs: Online Global Key and Offline Global Key
+        const storageIds = ["space_keys", "space_keys_offline"];
+
+        return loadSpaceKeys({
+            pool: this.ctx.pool,
+            relays: relaysToQuery,
+            currentPubkey: this.ctx.currentPubkey,
+            requestSign: this.ctx.requestSign,
+            requestDecrypt: this.ctx.requestDecrypt,
+            requestEncrypt: this.ctx.requestEncrypt!,
+            appOrigin: this.ctx.appOrigin
+        }, storageIds);
     }
 
     async createSpace(name: string, forAppOrigin?: string, offline: boolean = false): Promise<Space> {
@@ -350,17 +356,43 @@ export class SpaceService {
     }
 
     private async saveKeys(keys: Map<string, SpaceKey>) {
-        // Reuse existing saveSpaceKeys utility
+        const onlineKeys = new Map<string, SpaceKey>();
+        const offlineKeys = new Map<string, SpaceKey>();
+
+        for (const [id, key] of keys.entries()) {
+            if (key.offline) {
+                offlineKeys.set(id, key);
+            } else {
+                onlineKeys.set(id, key);
+            }
+        }
+
+        // Save Online Keys
         await saveSpaceKeys({
             pool: this.ctx.pool,
             relays: this.ctx.relays,
             currentPubkey: this.ctx.currentPubkey,
             requestSign: this.ctx.requestSign,
             requestDecrypt: this.ctx.requestDecrypt,
-            // Use the requestEncrypt from context (required for NIP-04/44 wrapping of self-keys)
             requestEncrypt: this.ctx.requestEncrypt!,
             appOrigin: this.ctx.appOrigin
-        }, keys);
+        }, onlineKeys);
+
+        // Save Offline Keys
+        await this.saveOfflineKeys(offlineKeys);
+    }
+
+
+    private async saveOfflineKeys(keys: Map<string, SpaceKey>): Promise<void> {
+        await saveSpaceKeys({
+            pool: this.ctx.pool,
+            relays: ['mirage://local'],
+            currentPubkey: this.ctx.currentPubkey,
+            requestSign: this.ctx.requestSign,
+            requestDecrypt: this.ctx.requestDecrypt,
+            requestEncrypt: this.ctx.requestEncrypt!,
+            appOrigin: this.ctx.appOrigin
+        }, keys, "space_keys_offline");
     }
 
     /**

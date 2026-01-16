@@ -6,6 +6,8 @@
 
 import { SimplePool } from "nostr-tools";
 import { MirageEngine } from "./MirageEngine";
+import { MiragePool } from "./MiragePool";
+import { getLocalRelay } from "./LocalRelay";
 
 
 import { SYSTEM_APP_ORIGIN } from "./keys";
@@ -27,7 +29,9 @@ import {
 // State
 // ============================================================================
 
-let pool = new SimplePool();
+// Use MiragePool to support offline relay
+const localRelay = getLocalRelay();
+let pool = new MiragePool(localRelay);
 let activeRelays: string[] = [];
 let poolReadyResolve: () => void;
 const poolReady = new Promise<void>((resolve) => {
