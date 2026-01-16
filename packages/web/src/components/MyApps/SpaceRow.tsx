@@ -51,7 +51,7 @@ export const SpaceRow = ({
     const isUnnamed = !space.name || space.name.startsWith('Space ');
 
     return (
-        <div className="group relative isolate overflow-hidden flex items-center gap-4 p-3 rounded-2xl hover:bg-white/5 border border-transparent hover:border-white/10 transition-all duration-300">
+        <div className="group relative isolate overflow-hidden flex items-center gap-2 md:gap-4 p-2 md:p-3 rounded-2xl hover:bg-white/5 border border-transparent hover:border-white/10 transition-all duration-300">
             {/* Delete Confirmation */}
             <AnimatePresence>
                 {showConfirm && (
@@ -110,7 +110,7 @@ export const SpaceRow = ({
                         />
                     </div>
                 ) : (
-                    <div className="flex items-center gap-2" onClick={onLaunch}>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-2" onClick={onLaunch}>
                         <span className={cn(
                             "text-sm font-semibold transition-colors truncate block cursor-pointer",
                             isUnnamed ? 'text-gray-700 italic font-light' : 'text-gray-300',

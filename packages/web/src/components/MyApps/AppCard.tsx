@@ -191,9 +191,9 @@ export const AppCard = ({
                         exit={{ height: 0, opacity: 0 }}
                         className="overflow-hidden"
                     >
-                        <div className="px-6 pb-6 pt-2">
+                        <div className="px-2 md:px-6 pb-6 pt-2">
                             {spaces.length > 0 ? (
-                                <div className="space-y-2.5 p-4 bg-background/50 rounded-[24px] border border-white/5">
+                                <div className="space-y-2.5 p-3 md:p-4 bg-background/50 rounded-[24px] border border-white/5">
                                     <p className="text-[10px] font-black text-gray-700 uppercase tracking-[0.2em] mb-4 px-2 flex items-center gap-2">
                                         <Database size={12} className="text-vivid-yellow" />
                                         App Spaces
