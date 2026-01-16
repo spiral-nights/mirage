@@ -1,0 +1,1 @@
+import{b as e,x as t}from"./index-BHLdmQkA.js";export{t as getAppCanonicalId};
