@@ -163,18 +163,10 @@ export const MyAppsPage = () => {
     const mySpaces = appSpaces.get(canonicalId) || [];
 
     if (mySpaces.length === 0) {
-      // Auto-create default space
-      try {
-        const isOffline = app.offline; // Use offline flag from app definition
-        const space = await createSpace('Default Space', canonicalId, isOffline);
-        if (space) {
-          navigate(`/run/${app.naddr}?spaceId=${space.id}&spaceName=Default`);
-          return;
-        }
-      } catch (e) {
-        console.error("Failed to auto-create space", e);
-        // Fallback to picker
-      }
+      // Open Create Space modal directly
+      setSelectedApp(app);
+      setCreateSpaceOpen(true);
+      return;
     }
 
     setSelectedApp(app);
@@ -240,17 +232,17 @@ export const MyAppsPage = () => {
           <div className="bg-card/40 border border-white/5 rounded-[32px] md:rounded-[40px] p-4 md:p-6 backdrop-blur-sm">
             <div className="space-y-3">
               {externalSpaces.map((space) => (
-                <div key={space.id} className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
-                  <div className="flex items-center gap-4">
+                <div key={space.id} className="flex items-center justify-between p-3 md:p-4 bg-white/5 rounded-2xl border border-white/5">
+                  <div className="flex items-center gap-2 md:gap-4 min-w-0 flex-1">
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${space.offline
                       ? 'bg-orange-500/20 text-orange-500'
                       : 'bg-vivid-yellow/10 border border-vivid-yellow/20 text-vivid-yellow'
                       }`}>
                       <Database size={18} />
                     </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-bold text-white">{space.name}</h3>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-2">
+                        <h3 className="font-bold text-white truncate">{space.name}</h3>
                         {space.offline ? (
                           <span className="px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-500 text-[9px] font-bold uppercase tracking-wider">
                             Offline
