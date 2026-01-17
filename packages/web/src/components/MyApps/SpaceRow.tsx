@@ -119,11 +119,11 @@ export const SpaceRow = ({
                             {space.name}
                         </span>
                         {space.offline ? (
-                            <span className="px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-500 text-[9px] font-bold uppercase tracking-wider">
+                            <span className="px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-500 text-[9px] font-bold uppercase tracking-wider w-fit">
                                 Offline
                             </span>
                         ) : (
-                            <span className="px-1.5 py-0.5 rounded bg-vivid-yellow/20 text-vivid-yellow text-[9px] font-bold uppercase tracking-wider">
+                            <span className="px-1.5 py-0.5 rounded bg-vivid-yellow/20 text-vivid-yellow text-[9px] font-bold uppercase tracking-wider w-fit">
                                 Online
                             </span>
                         )}
