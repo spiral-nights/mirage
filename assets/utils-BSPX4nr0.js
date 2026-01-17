@@ -1,0 +1,1 @@
+import{b as e,x as t}from"./index-CqTb-ec5.js";export{t as getAppCanonicalId};
