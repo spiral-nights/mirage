@@ -2,7 +2,7 @@ import { X, Database, Plus, Info } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ModalWrapper } from './ModalWrapper';
 import { type Space } from '../hooks/useSpaces';
-import { getAppCanonicalId } from '../lib/utils';
+import { getAppCanonicalId, cn } from '../lib/utils';
 
 import { type AppDefinition } from '@mirage/core';
 
@@ -53,15 +53,24 @@ export const SpacePickerModal = ({ isOpen, onClose, app, onCreateNew, spaces }: 
                 onClick={() => handleSelectSpace(s.id, s.name)}
                 className="w-full flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-transparent hover:border-vivid-cyan/30 hover:bg-vivid-cyan/5 transition-all text-left group"
               >
-                <div className="w-10 h-10 rounded-xl bg-black/40 flex items-center justify-center text-gray-600 group-hover:text-vivid-cyan transition-colors">
+                <div className={cn(
+                  "w-10 h-10 rounded-xl flex items-center justify-center transition-colors",
+                  s.offline
+                    ? "bg-orange-500/10 text-orange-500"
+                    : "bg-vivid-yellow/10 text-vivid-yellow"
+                )}>
                   <Database size={18} />
                 </div>
                 <div className="flex-1 truncate text-left">
                   <div className="font-bold text-sm truncate flex items-center gap-2">
                     <span className="truncate">{s.name}</span>
-                    {s.offline && (
-                      <span className="px-1.5 py-0.5 rounded bg-vivid-cyan/20 text-vivid-cyan text-[10px] font-bold uppercase tracking-wider">
+                    {s.offline ? (
+                      <span className="px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-500 text-[9px] font-bold uppercase tracking-wider w-fit">
                         Offline
+                      </span>
+                    ) : (
+                      <span className="px-1.5 py-0.5 rounded bg-vivid-yellow/20 text-vivid-yellow text-[9px] font-bold uppercase tracking-wider w-fit">
+                        Online
                       </span>
                     )}
                   </div>
